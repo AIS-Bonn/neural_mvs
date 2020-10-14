@@ -13,6 +13,7 @@
 #include "neural_mvs/TrainParams.h"
 #include "neural_mvs/ModelParams.h"
 #include "neural_mvs/EvalParams.h"
+#include "neural_mvs/TinyLoader.h"
 
 
 // https://pybind11.readthedocs.io/en/stable/advanced/cast/stl.html
@@ -168,6 +169,13 @@ PYBIND11_MODULE(neuralmvs, m) {
     //NeuralMesh
     py::class_<NeuralMVS, std::shared_ptr<NeuralMVS>   > (m, "NeuralMVS")
     .def_static("create", &NeuralMVS::create<> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
+    ;
+
+    //TinyLoader
+    py::class_<TinyLoader, std::shared_ptr<TinyLoader>   > (m, "TinyLoader")
+    .def_static("create", &TinyLoader::create<const std::string> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
+    .def("get_frame", &TinyLoader::get_frame ) 
+    .def("nr_frames", &TinyLoader::nr_frames ) 
     ;
     
 
