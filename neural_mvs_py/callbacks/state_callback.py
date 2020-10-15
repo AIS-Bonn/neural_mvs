@@ -48,4 +48,5 @@ class StateCallback(Callback):
         phase.samples_processed_this_epoch=0
 
     def phase_ended(self, phase, **kwargs):
-        phase.loader.reset()
+        pass
+        # phase.loader.reset()

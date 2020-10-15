@@ -119,15 +119,30 @@ class Net(torch.nn.Module):
         self.decoder=Decoder()
 
       
-    def forward(self, x):
+    def forward(self, x, ref_tf_cam_world, gt_tf_cam_world):
 
         # print("encoding")
         z=self.encoder(x)
         # print("z has shape ", z.shape)
 
-        #rshape into a Nx3
+        #transform into new view
+        #get rotation and translation from refcam to gtcam
+        tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
+        translation=tf_gt_ref.translation()
+        rotation=tf_gt_ref.linear()
+        # print("translation is ", translation)
+        # print("rotation is rotation", rotation)
+        R=torch.from_numpy(rotation).to("cuda")
+        t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
+        #perform rotation and translation
+        z=torch.transpose(z, 0, 1)
+        # print("zt has shape ", zt.shape)
+        # print("R has shape ", R.shape)
+        z=torch.matmul(R,z)+t
+        z=torch.transpose(z, 0, 1)
+        # print("z has hsape", z.shape)
 
-        #rotate into new view 
+
         
 
         #decode into image

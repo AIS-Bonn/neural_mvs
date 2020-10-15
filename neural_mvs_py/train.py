@@ -89,7 +89,8 @@ def run():
 
     loss_fn=torch.nn.MSELoss()
 
-    show_every=1
+    show_every=40
+    # show_every=1
 
     while True:
 
@@ -105,7 +106,7 @@ def run():
 
                 #get a reference frame
                 ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                ref_idx=0
+                # ref_idx=0
                 # if(phase.iter_nr%show_every==0):
                 #     img=tensor2mat(imgs[ref_idx])
                 #     Gui.show(img, "ref")
@@ -115,10 +116,10 @@ def run():
 
                 #get a ground truth frame
                 gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                gt_idx=0
-                # if(phase.iter_nr%show_every==0):
-                #     img=tensor2mat(imgs[gt_idx])
-                #     Gui.show(img, "gt")
+                # gt_idx=0
+                if(phase.iter_nr%show_every==0):
+                    img=tensor2mat(imgs[gt_idx])
+                    Gui.show(img, "gt")
 
                 #show it
                 # img=tensor2mat(imgs[0])
@@ -133,12 +134,12 @@ def run():
                 with torch.set_grad_enabled(is_training):
 
                     ref_rgb_tensor=imgs[ref_idx]
-                    gt_rgb_tensor=imgs[ref_idx]
+                    gt_rgb_tensor=imgs[gt_idx]
 
                 #     # params=rgb_tensor.clone()
 
                 #     TIME_START("forward")
-                    out_tensor=model(ref_rgb_tensor)
+                    out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, phase.loader.get_frame(gt_idx).tf_cam_world )
                 #     TIME_END("forward")
 
                     loss=((out_tensor-gt_rgb_tensor)**2).mean()
@@ -154,7 +155,7 @@ def run():
                         first_time=False
                         optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                         # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, verbose=True, factor=0.1)
+                        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, verbose=True, factor=0.1)
 
                     cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                 #     # pbar.update(1)
@@ -183,15 +184,14 @@ def run():
                 if train_params.with_viewer():
                     view.update()
 
-            #finished all the images 
+            # finished all the images 
             # pbar.close()
-            # if is_training: #we reduce the learning rate when the test iou plateus
-            # print("what")
-            # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
-            # cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
-            # cb.phase_ended(phase=phase) 
-            # phase.epoch_nr+=1
+            if is_training: #we reduce the learning rate when the test iou plateus
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
+                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
+                cb.phase_ended(phase=phase) 
+                # phase.epoch_nr+=1
 
 
                 # if train_params.with_viewer():
