@@ -7,6 +7,10 @@ from easypbr import mat2tensor
 import torch
 import torch.nn as nn
 import torchvision
+import torch.nn.functional as F
+
+import math
+
 
 # from collections import OrderedDict
 
@@ -28,19 +32,81 @@ class Encoder(torch.nn.Module):
         ##params 
         self.nr_points_z=126
 
+
+        #activations
+        self.relu=torch.nn.ReLU()
+
+        #layers
         resnet = torchvision.models.resnet18(pretrained=True)
         modules=list(resnet.children())[:-1]
         self.resnet=nn.Sequential(*modules)
         self.z_to_3d=None
 
+
     def forward(self, x):
         z=self.resnet(x) # z has size 1x512x1x1
         if self.z_to_3d == None: 
             print(" full shape is ", z.flatten().shape )
-            self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3)
+            self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3).to("cuda")
+        
+        z=self.relu(z)
         z=self.z_to_3d(z.flatten())
+        z=z.reshape(self.nr_points_z, 3)
         return z
 
+class Decoder(torch.nn.Module):
+    def __init__(self):
+        super(Decoder, self).__init__()
+
+        ##params 
+        # self.nr_points_z=126
+        self.start_channels=512
+        self.start_extent=2
+        self.end_extent=256
+        self.layers_upblock=[self.start_channels, 256, 256, 128, 128, 64, 64, 32, 32, 16, 16]
+
+        #activations
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+
+        #layers 
+        self.z_to_img=None
+        self.upblocks=torch.nn.ModuleList([])
+        nr_upblocks=int(math.log(self.end_extent)/math.log(self.start_extent))-1 #how many layers do I need to go from extent of 2x2 to 256x256
+        print("nr upblocks is ", nr_upblocks)
+        cur_nr_channels=self.start_channels
+        for i in range(nr_upblocks):
+            self.upblocks.append(  torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   )
+            cur_nr_channels= self.layers_upblock[i]
+        #last 1x1 conv to get it to rgb
+        self.last_conv=torch.nn.Conv2d(cur_nr_channels, 3, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True).cuda() 
+        
+
+    def forward(self, x, width_img, height_img):
+        
+        #linear to 512x2x2
+        if self.z_to_img == None: 
+            self.z_to_img = torch.nn.Linear( x.flatten().shape[0] , self.start_channels*self.start_extent*self.start_extent).to("cuda")
+        x=self.z_to_img(x.flatten())
+        x=x.reshape(1,self.start_channels, self.start_extent, self.start_extent)
+
+        #transposed layers until we get to 256x256
+        for i in range(len(self.upblocks)):
+            # print("input upblock is ", x.shape )
+            x=self.upblocks[i](x)
+            # print("output upblock is ", x.shape )
+            x=self.relu(x)
+
+        #interpolate until we get the full image size
+        size=[width_img, height_img]
+        x=F.interpolate(x, size)
+
+        #regress rgb
+        x=self.last_conv(x)
+        x=self.sigmoid(x)
+        
+        
+        return x
 
 
 class Net(torch.nn.Module):
@@ -50,13 +116,14 @@ class Net(torch.nn.Module):
 
 
         self.encoder=Encoder()
+        self.decoder=Decoder()
 
       
     def forward(self, x):
 
         # print("encoding")
         z=self.encoder(x)
-        print("z has shape ", z.shape)
+        # print("z has shape ", z.shape)
 
         #rshape into a Nx3
 
@@ -64,9 +131,14 @@ class Net(torch.nn.Module):
         
 
         #decode into image
+        width_img=x.shape[2]
+        height_img=x.shape[3]
+        x=self.decoder(z, width_img, height_img)
+
+        # print("output of decider is ", x.shape)
 
 
-        return z
+        return x
 
 
 

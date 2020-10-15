@@ -73,6 +73,7 @@ def run():
     imgs=[]
     for i in range(loader.nr_frames()):
         img_cpu=loader.get_frame(i).rgb_32f
+        print("img has size ", loader.get_frame(i).width, " ", loader.get_frame(i).height)
         img_tensor=mat2tensor(img_cpu, False)
         imgs.append( img_tensor.to("cuda") )
     
@@ -88,7 +89,7 @@ def run():
 
     loss_fn=torch.nn.MSELoss()
 
-    show_every=20
+    show_every=1
 
     while True:
 
@@ -104,19 +105,20 @@ def run():
 
                 #get a reference frame
                 ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                if(phase.iter_nr%show_every==0):
-                    img=tensor2mat(imgs[ref_idx])
-                    Gui.show(img, "ref")
-
-                    frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                    Scene.show(frustum, "frustum"+str(ref_idx))
+                ref_idx=0
+                # if(phase.iter_nr%show_every==0):
+                #     img=tensor2mat(imgs[ref_idx])
+                #     Gui.show(img, "ref")
+                #     frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
+                #     Scene.show(frustum, "frustum"+str(ref_idx))
 
 
                 #get a ground truth frame
                 gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                if(phase.iter_nr%show_every==0):
-                    img=tensor2mat(imgs[gt_idx])
-                    Gui.show(img, "gt")
+                gt_idx=0
+                # if(phase.iter_nr%show_every==0):
+                #     img=tensor2mat(imgs[gt_idx])
+                #     Gui.show(img, "gt")
 
                 #show it
                 # img=tensor2mat(imgs[0])
@@ -131,6 +133,7 @@ def run():
                 with torch.set_grad_enabled(is_training):
 
                     ref_rgb_tensor=imgs[ref_idx]
+                    gt_rgb_tensor=imgs[ref_idx]
 
                 #     # params=rgb_tensor.clone()
 
@@ -138,45 +141,44 @@ def run():
                     out_tensor=model(ref_rgb_tensor)
                 #     TIME_END("forward")
 
-                #     loss=((out_tensor-rgb_tensor)**2).mean()
+                    loss=((out_tensor-gt_rgb_tensor)**2).mean()
 
 
 
-                #     if(phase.iter_nr%show_every==0):
-                #         out_mat=tensor2mat(out_tensor)
-                #         Gui.show(out_mat, "output")
+                    if(phase.iter_nr%show_every==0):
+                        out_mat=tensor2mat(out_tensor)
+                        Gui.show(out_mat, "output")
         
-                #     #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
-                #     if first_time:
-                #         first_time=False
-                #         optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                #         # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                #         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, verbose=True, factor=0.1)
+                    #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
+                    if first_time:
+                        first_time=False
+                        optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                        # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, verbose=True, factor=0.1)
 
-                    # cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                    cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                 #     # pbar.update(1)
-                phase.iter_nr+=1
 
-                # #backward
-                # if is_training:
-                #     # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                #         # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
-                #     optimizer.zero_grad()
-                #     cb.before_backward_pass()
-                #     TIME_START("backward")
-                #     loss.backward()
-                #     TIME_END("backward")
-                #     cb.after_backward_pass()
-                #     # grad_clip=0.01
-                #     # torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-                #     # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
-                #     # summary(model)
-                #     # exit()
+                #backward
+                if is_training:
+                    # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                        # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
+                    optimizer.zero_grad()
+                    cb.before_backward_pass()
+                    TIME_START("backward")
+                    loss.backward()
+                    TIME_END("backward")
+                    cb.after_backward_pass()
+                    # grad_clip=0.01
+                    # torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                    # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
+                    # summary(model)
+                    # exit()
 
-                #     # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
-                #     # print("first_conv norm", model.first_conv.weight.grad.norm())
+                    # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
+                    # print("first_conv norm", model.first_conv.weight.grad.norm())
 
-                #     optimizer.step()
+                    optimizer.step()
 
                 if train_params.with_viewer():
                     view.update()
