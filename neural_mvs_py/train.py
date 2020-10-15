@@ -138,9 +138,9 @@ def run():
 
                 #     # params=rgb_tensor.clone()
 
-                #     TIME_START("forward")
+                    TIME_START("forward")
                     out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, phase.loader.get_frame(gt_idx).tf_cam_world )
-                #     TIME_END("forward")
+                    TIME_END("forward")
 
                     loss=((out_tensor-gt_rgb_tensor)**2).mean()
 
@@ -187,8 +187,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if is_training: #we reduce the learning rate when the test iou plateus
-                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
+                # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
