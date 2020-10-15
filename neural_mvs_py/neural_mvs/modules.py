@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from easypbr  import *
 import sys
 import math
+# import torchvision
 
 from neural_mvs_py.neural_mvs.funcs import *
 
@@ -13,7 +14,10 @@ from neural_mvs_py.neural_mvs.funcs import *
 # from torchmeta.modules.utils import *
 # from torchmeta.modules import (MetaModule, MetaSequential)
 
-
+# def ResnetPretrained():
+#     resnet152 = torchvisionmodels.resnet152(pretrained=True)
+#     modules=list(resnet152.children())[:-1]
+# resnet152=nn.Sequential(*modules)
 
 # def gelu(x):
 #     return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))

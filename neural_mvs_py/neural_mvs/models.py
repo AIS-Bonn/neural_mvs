@@ -6,6 +6,7 @@ from easypbr import mat2tensor
 
 import torch
 import torch.nn as nn
+import torchvision
 
 # from collections import OrderedDict
 
@@ -18,6 +19,57 @@ import torch.nn as nn
 
 # from functools import reduce
 # from torch.nn.modules.module import _addindent
+
+
+class Encoder(torch.nn.Module):
+    def __init__(self):
+        super(Encoder, self).__init__()
+
+        ##params 
+        self.nr_points_z=126
+
+        resnet = torchvision.models.resnet18(pretrained=True)
+        modules=list(resnet.children())[:-1]
+        self.resnet=nn.Sequential(*modules)
+        self.z_to_3d=None
+
+    def forward(self, x):
+        z=self.resnet(x) # z has size 1x512x1x1
+        if self.z_to_3d == None: 
+            print(" full shape is ", z.flatten().shape )
+            self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3)
+        z=self.z_to_3d(z.flatten())
+        return z
+
+
+
+class Net(torch.nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+
+
+
+        self.encoder=Encoder()
+
+      
+    def forward(self, x):
+
+        # print("encoding")
+        z=self.encoder(x)
+        print("z has shape ", z.shape)
+
+        #rshape into a Nx3
+
+        #rotate into new view 
+        
+
+        #decode into image
+
+
+        return z
+
+
+
 
 
 # ##Network with convgnrelu so that the coord added by concat coord are not destroyed y the gn in gnreluconv

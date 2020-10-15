@@ -83,8 +83,8 @@ def run():
         # Phase('test', loader_test, grad=False)
     ]
     #model 
-    # model=Net().to("cuda")
-    # model.train()
+    model=Net().to("cuda")
+    model.train()
 
     loss_fn=torch.nn.MSELoss()
 
@@ -95,7 +95,8 @@ def run():
         for phase in phases:
             cb.epoch_started(phase=phase)
             cb.phase_started(phase=phase)
-            # model.train(phase.grad)
+            model.train(phase.grad)
+            is_training=phase.grad
 
 
             # pbar = tqdm(total=phase.loader.nr_samples())
@@ -107,18 +108,15 @@ def run():
                     img=tensor2mat(imgs[ref_idx])
                     Gui.show(img, "ref")
 
-                    # frame=phase.loader.get_frame(ref_idx)
                     frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                    # frustum.transform_vertices_cpu(frame.tf_cam_world.to_double(), False)
-                    # frustum.m_model_matrix= frame.tf_cam_world.inverse().to_double()
                     Scene.show(frustum, "frustum"+str(ref_idx))
 
 
-                # #get a ground truth frame
-                # gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                # if(phase.iter_nr%show_every==0):
-                #     img=tensor2mat(imgs[gt_idx])
-                #     Gui.show(img, "gt")
+                #get a ground truth frame
+                gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
+                if(phase.iter_nr%show_every==0):
+                    img=tensor2mat(imgs[gt_idx])
+                    Gui.show(img, "gt")
 
                 #show it
                 # img=tensor2mat(imgs[0])
@@ -129,15 +127,15 @@ def run():
                 # if(phase.iter_nr%show_every==0):
                 #     Gui.show(frame.rgb_32f, "rgb")
 
-                # #forward
-                # with torch.set_grad_enabled(is_training):
+                #forward
+                with torch.set_grad_enabled(is_training):
 
-                #     rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
+                    ref_rgb_tensor=imgs[ref_idx]
 
                 #     # params=rgb_tensor.clone()
 
                 #     TIME_START("forward")
-                #     out_tensor=model(rgb_tensor)
+                    out_tensor=model(ref_rgb_tensor)
                 #     TIME_END("forward")
 
                 #     loss=((out_tensor-rgb_tensor)**2).mean()
