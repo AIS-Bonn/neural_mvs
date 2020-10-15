@@ -112,8 +112,8 @@ def run():
                 if(phase.iter_nr%show_every==0):
                     img=tensor2mat(imgs[ref_idx])
                     Gui.show(img, "ref")
-                    # frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                    # Scene.show(frustum, "frustum"+str(ref_idx))
+                    frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
+                    Scene.show(frustum, "frustum"+str(ref_idx))
 
 
                 #get a ground truth frame
@@ -138,16 +138,15 @@ def run():
                     ref_rgb_tensor=imgs[ref_idx]
                     gt_rgb_tensor=imgs[gt_idx]
 
-                #     # params=rgb_tensor.clone()
 
-                    # #try another view
-                    # with torch.set_grad_enabled(False):
-                    #     render_tf=phase.loader.get_frame(gt_idx).tf_cam_world
-                    #     render_tf.rotate_axis_angle([0,1,0], random.rand(-30,30) )
-                    #     out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, render_tf )
-                    #     if(phase.iter_nr%show_every==0):
-                    #         out_mat=tensor2mat(out_tensor)
-                    #         Gui.show(out_mat, "novel")
+                    #try another view
+                    with torch.set_grad_enabled(False):
+                        render_tf=phase.loader.get_frame(gt_idx).tf_cam_world
+                        render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
+                        out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, render_tf )
+                        if(phase.iter_nr%show_every==0):
+                            out_mat=tensor2mat(out_tensor)
+                            Gui.show(out_mat, "novel")
 
 
 
