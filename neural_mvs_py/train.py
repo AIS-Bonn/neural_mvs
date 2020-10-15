@@ -55,7 +55,9 @@ def run():
 
     first_time=True
 
-    experiment_name="default"
+    # experiment_name="default"
+    # experiment_name="n4"
+    experiment_name="d5"
 
 
 
@@ -107,11 +109,11 @@ def run():
                 #get a reference frame
                 ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
                 # ref_idx=0
-                # if(phase.iter_nr%show_every==0):
-                #     img=tensor2mat(imgs[ref_idx])
-                #     Gui.show(img, "ref")
-                #     frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                #     Scene.show(frustum, "frustum"+str(ref_idx))
+                if(phase.iter_nr%show_every==0):
+                    img=tensor2mat(imgs[ref_idx])
+                    Gui.show(img, "ref")
+                    # frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
+                    # Scene.show(frustum, "frustum"+str(ref_idx))
 
 
                 #get a ground truth frame
@@ -138,6 +140,17 @@ def run():
 
                 #     # params=rgb_tensor.clone()
 
+                    # #try another view
+                    # with torch.set_grad_enabled(False):
+                    #     render_tf=phase.loader.get_frame(gt_idx).tf_cam_world
+                    #     render_tf.rotate_axis_angle([0,1,0], random.rand(-30,30) )
+                    #     out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, render_tf )
+                    #     if(phase.iter_nr%show_every==0):
+                    #         out_mat=tensor2mat(out_tensor)
+                    #         Gui.show(out_mat, "novel")
+
+
+
                     TIME_START("forward")
                     out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, phase.loader.get_frame(gt_idx).tf_cam_world )
                     TIME_END("forward")
@@ -153,8 +166,8 @@ def run():
                     #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                     if first_time:
                         first_time=False
-                        optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                        # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                        # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                        optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, verbose=True, factor=0.1)
 
                     cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 

@@ -41,9 +41,10 @@ class Vis():
 
         self.logger_dict[name_window].log(x_axis, val, name=name_plot)
 
-    def log(self, x_axis, val, name_window, name_plot, smooth):
+    def log(self, x_axis, val, name_window, name_plot, smooth, show_every=1):
         new_val=self.update_val(val,name_plot, smooth)
-        self.update_logger(x_axis, new_val, name_window, name_plot)
+        if(x_axis%show_every==0):
+            self.update_logger(x_axis, new_val, name_window, name_plot)
 
     def show_img_from_tensor(self, tensor, name_window, min_val=0.0, max_val=1.0):
         if name_window not in self.logger_dict:

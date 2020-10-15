@@ -63,7 +63,7 @@ class Decoder(torch.nn.Module):
         self.start_channels=512
         self.start_extent=2
         self.end_extent=256
-        self.layers_upblock=[self.start_channels, 256, 256, 128, 128, 64, 64, 32, 32, 16, 16]
+        self.layers_upblock=[self.start_channels, 256, 256, 128, 128, 64, 64, 64, 64, 16, 16]
 
         #activations
         self.relu=torch.nn.ReLU()
@@ -76,7 +76,16 @@ class Decoder(torch.nn.Module):
         print("nr upblocks is ", nr_upblocks)
         cur_nr_channels=self.start_channels
         for i in range(nr_upblocks):
-            self.upblocks.append(  torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   )
+            # self.upblocks.append( 
+            #      torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   
+            #      )
+            self.upblocks.append( 
+                torch.nn.Sequential(
+                    ResnetBlock(cur_nr_channels, 3, 1, 1, [1,1], [True,True], False ),
+                    torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   
+                )
+                #  torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   
+            )
             cur_nr_channels= self.layers_upblock[i]
         #last 1x1 conv to get it to rgb
         self.last_conv=torch.nn.Conv2d(cur_nr_channels, 3, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True).cuda() 
@@ -99,7 +108,7 @@ class Decoder(torch.nn.Module):
 
         #interpolate until we get the full image size
         size=[width_img, height_img]
-        x=F.interpolate(x, size)
+        x=F.interpolate(x, size, mode='bilinear')
 
         #regress rgb
         x=self.last_conv(x)
