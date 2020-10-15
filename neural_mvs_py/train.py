@@ -70,14 +70,16 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    loader=TinyLoader.create(config_file)
+    # loader=TinyLoader.create(config_file)
+    loader=DataLoaderVolRef(config_path)
+    loader.start()
     #load all the images on cuda already so it's faster
-    imgs=[]
-    for i in range(loader.nr_frames()):
-        img_cpu=loader.get_frame(i).rgb_32f
-        print("img has size ", loader.get_frame(i).width, " ", loader.get_frame(i).height)
-        img_tensor=mat2tensor(img_cpu, False)
-        imgs.append( img_tensor.to("cuda") )
+    # imgs=[]
+    # for i in range(loader.nr_frames()):
+    #     img_cpu=loader.get_frame(i).rgb_32f
+    #     print("img has size ", loader.get_frame(i).width, " ", loader.get_frame(i).height)
+    #     img_tensor=mat2tensor(img_cpu, False)
+    #     imgs.append( img_tensor.to("cuda") )
     
 
     #create phases
@@ -104,94 +106,113 @@ def run():
 
 
             # pbar = tqdm(total=phase.loader.nr_samples())
-            for i in range(loader.nr_frames()):
+            for i in range(phase.loader.nr_samples()):
 
-                #get a reference frame
-                ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                # ref_idx=0
-                if(phase.iter_nr%show_every==0):
-                    img=tensor2mat(imgs[ref_idx])
-                    Gui.show(img, "ref")
-                    frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                    Scene.show(frustum, "frustum"+str(ref_idx))
+                if phase.loader.has_data():
 
+                    # #get a reference frame
+                    # ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
+                    # # ref_idx=0
+                    # if(phase.iter_nr%show_every==0):
+                    #     img=tensor2mat(imgs[ref_idx])
+                    #     Gui.show(img, "ref")
+                    #     frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
+                    #     Scene.show(frustum, "frustum"+str(ref_idx))
+                    # #get a ground truth frame
+                    # gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
+                    # # gt_idx=0
+                    # if(phase.iter_nr%show_every==0):
+                    #     img=tensor2mat(imgs[gt_idx])
+                    #     Gui.show(img, "gt")
 
-                #get a ground truth frame
-                gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                # gt_idx=0
-                if(phase.iter_nr%show_every==0):
-                    img=tensor2mat(imgs[gt_idx])
-                    Gui.show(img, "gt")
+                    ref_frame=phase.loader.get_color_frame()
+                    gt_frame=phase.loader.closest_color_frame(ref_frame)
+                    #get depth frames
+                    ref_depth_frame=phase.loader.get_depth_frame()
+                    gt_depth_frame=phase.loader.closest_depth_frame(ref_frame)
 
-                #show it
-                # img=tensor2mat(imgs[0])
-                # Gui.show(img, "img"+str(0))
-
-                # torch.manual_seed(0)
-
-                # if(phase.iter_nr%show_every==0):
-                #     Gui.show(frame.rgb_32f, "rgb")
-
-                #forward
-                with torch.set_grad_enabled(is_training):
-
-                    ref_rgb_tensor=imgs[ref_idx]
-                    gt_rgb_tensor=imgs[gt_idx]
+                    #debug
+                    # cloud=ref_depth_frame.depth2world_xyz_mesh()
+                    # frustum=ref_depth_frame.create_frustum_mesh(0.1)
+                    # Scene.show(cloud, "cloud")
+                    # Scene.show(frustum, "frustum")
 
 
-                    #try another view
-                    with torch.set_grad_enabled(False):
-                        render_tf=phase.loader.get_frame(gt_idx).tf_cam_world
-                        render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
-                        out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, render_tf )
+                    
+
+
+                    #forward
+                    with torch.set_grad_enabled(is_training):
+
+                        # ref_rgb_tensor=imgs[ref_idx]
+                        # gt_rgb_tensor=imgs[gt_idx]
+
+
+                        #get only valid pixels
+                        ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
+                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+
+                        ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+                        gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
+
+                        if(phase.iter_nr%show_every==0):
+                            # print("width and height ", ref_frame.width)
+                            Gui.show(ref_frame.rgb_32f, "ref")
+                            Gui.show(gt_frame.rgb_32f, "gt")
+
+                        #try another view
+                        with torch.set_grad_enabled(False):
+                            render_tf=gt_frame.tf_cam_world
+                            render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
+                            out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                            if(phase.iter_nr%show_every==0):
+                                out_mat=tensor2mat(out_tensor)
+                                Gui.show(out_mat, "novel")
+
+
+
+                        TIME_START("forward")
+                        out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
+                        TIME_END("forward")
+
+                        loss=((out_tensor-gt_rgb_tensor)**2).mean()
+
+
+
                         if(phase.iter_nr%show_every==0):
                             out_mat=tensor2mat(out_tensor)
-                            Gui.show(out_mat, "novel")
+                            Gui.show(out_mat, "output")
+            
+                        #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
+                        if first_time:
+                            first_time=False
+                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, verbose=True, factor=0.1)
 
+                        cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                    #     # pbar.update(1)
 
+                    #backward
+                    if is_training:
+                        # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                            # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
+                        optimizer.zero_grad()
+                        cb.before_backward_pass()
+                        TIME_START("backward")
+                        loss.backward()
+                        TIME_END("backward")
+                        cb.after_backward_pass()
+                        # grad_clip=0.01
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                        # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
+                        # summary(model)
+                        # exit()
 
-                    TIME_START("forward")
-                    out_tensor=model(ref_rgb_tensor, phase.loader.get_frame(ref_idx).tf_cam_world, phase.loader.get_frame(gt_idx).tf_cam_world )
-                    TIME_END("forward")
+                        # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
+                        # print("first_conv norm", model.first_conv.weight.grad.norm())
 
-                    loss=((out_tensor-gt_rgb_tensor)**2).mean()
-
-
-
-                    if(phase.iter_nr%show_every==0):
-                        out_mat=tensor2mat(out_tensor)
-                        Gui.show(out_mat, "output")
-        
-                    #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
-                    if first_time:
-                        first_time=False
-                        # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                        optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, verbose=True, factor=0.1)
-
-                    cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                #     # pbar.update(1)
-
-                #backward
-                if is_training:
-                    # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                        # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
-                    optimizer.zero_grad()
-                    cb.before_backward_pass()
-                    TIME_START("backward")
-                    loss.backward()
-                    TIME_END("backward")
-                    cb.after_backward_pass()
-                    # grad_clip=0.01
-                    # torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-                    # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
-                    # summary(model)
-                    # exit()
-
-                    # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
-                    # print("first_conv norm", model.first_conv.weight.grad.norm())
-
-                    optimizer.step()
+                        optimizer.step()
 
                 if train_params.with_viewer():
                     view.update()

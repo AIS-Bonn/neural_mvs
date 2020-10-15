@@ -134,7 +134,34 @@ class Net(torch.nn.Module):
         z=self.encoder(x)
         # print("z has shape ", z.shape)
 
-        #transform into new view
+        # #transform into new view
+        # #get rotation and translation from refcam to gtcam
+        # tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
+        # translation=tf_gt_ref.translation()
+        # rotation=tf_gt_ref.linear()
+        # R=torch.from_numpy(rotation).to("cuda")
+        # t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
+        # #perform rotation and translation
+        # z=torch.transpose(z, 0, 1)
+        # z=torch.matmul(R,z)+t
+        # # z=torch.matmul(z,R)+t
+        # z=torch.transpose(z, 0, 1)
+
+        
+        # #transform into world
+        # #get rotation and translation from refcam to world
+        # tf_world_ref= ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
+        # translation=tf_world_ref.translation()
+        # rotation=tf_world_ref.linear()
+        # R=torch.from_numpy(rotation).to("cuda")
+        # t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
+        # #perform rotation and translation
+        # z=torch.transpose(z, 0, 1)
+        # z=torch.matmul(R,z)+t
+        # z=torch.transpose(z, 0, 1)
+
+
+        #DEBUG
         #get rotation and translation from refcam to gtcam
         tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
         translation=tf_gt_ref.translation()
@@ -144,7 +171,13 @@ class Net(torch.nn.Module):
         #perform rotation and translation
         z=torch.transpose(z, 0, 1)
         z=torch.matmul(R,z)+t
-        z=torch.transpose(z, 0, 1)
+        # z=torch.matmul(z,R)+t
+        z=torch.transpose(z, 0, 1
+
+        
+
+        #raytrace from the gt_frame to get the 
+
 
 
         
