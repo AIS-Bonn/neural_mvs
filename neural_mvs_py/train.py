@@ -39,11 +39,15 @@ config_file="train.cfg"
 torch.manual_seed(0)
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = False
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
 model_params=ModelParams.create(config_file)    
+
+
+
+
 
 
 
@@ -88,8 +92,8 @@ def run():
         # Phase('test', loader_test, grad=False)
     ]
     #model 
-    # model=Net().to("cuda")
-    model=SirenNetwork().to("cuda")
+    model=Net().to("cuda")
+    # model=SirenNetwork().to("cuda")
     # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
     model.train()
 
@@ -111,6 +115,8 @@ def run():
             for i in range(phase.loader.nr_samples()):
 
                 if phase.loader.has_data():
+
+                    torch.manual_seed(0)
 
                     # #get a reference frame
                     # ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
