@@ -39,7 +39,7 @@ config_file="train.cfg"
 torch.manual_seed(0)
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = False
-# torch.autograd.set_detect_anomaly(True)
+torch.autograd.set_detect_anomaly(True)
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
@@ -57,7 +57,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="d5"
+    experiment_name="t_resnet"
 
 
 
@@ -89,12 +89,13 @@ def run():
     ]
     #model 
     model=Net().to("cuda")
+    # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
     model.train()
 
     loss_fn=torch.nn.MSELoss()
 
-    show_every=40
-    # show_every=1
+    # show_every=40
+    show_every=1
 
     while True:
 
@@ -126,10 +127,12 @@ def run():
                     #     Gui.show(img, "gt")
 
                     ref_frame=phase.loader.get_color_frame()
-                    gt_frame=phase.loader.closest_color_frame(ref_frame)
+                    # gt_frame=phase.loader.closest_color_frame(ref_frame)
+                    gt_frame=ref_frame
                     #get depth frames
                     ref_depth_frame=phase.loader.get_depth_frame()
-                    gt_depth_frame=phase.loader.closest_depth_frame(ref_frame)
+                    # gt_depth_frame=phase.loader.closest_depth_frame(ref_frame)
+                    gt_depth_frame=ref_depth_frame
 
                     #debug
                     # cloud=ref_depth_frame.depth2world_xyz_mesh()
@@ -150,32 +153,40 @@ def run():
 
                         #get only valid pixels
                         ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
-                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        gt_frame.rgb_32f=ref_frame.rgb_32f
 
                         ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
+                        ref_rgb_tensor=ref_rgb_tensor.contiguous()
 
                         if(phase.iter_nr%show_every==0):
                             # print("width and height ", ref_frame.width)
                             Gui.show(ref_frame.rgb_32f, "ref")
                             Gui.show(gt_frame.rgb_32f, "gt")
 
-                        #try another view
-                        with torch.set_grad_enabled(False):
-                            render_tf=gt_frame.tf_cam_world
-                            render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
-                            out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            if(phase.iter_nr%show_every==0):
-                                out_mat=tensor2mat(out_tensor)
-                                Gui.show(out_mat, "novel")
+                        # #try another view
+                        # with torch.set_grad_enabled(False):
+                        #     render_tf=gt_frame.tf_cam_world
+                        #     render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
+                        #     out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                        #     if(phase.iter_nr%show_every==0):
+                        #         out_mat=tensor2mat(out_tensor)
+                        #         Gui.show(out_mat, "novel")
 
 
 
                         TIME_START("forward")
                         out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
+                        # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
+
+                        # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
+                        # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
                         loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        # loss=loss_fn(out_tensor, gt_rgb_tensor)
+                        # print("loss is ", loss)
 
 
 
@@ -188,7 +199,7 @@ def run():
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, verbose=True, factor=0.1)
+                            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
 
                         cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                     #     # pbar.update(1)
@@ -220,8 +231,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if is_training: #we reduce the learning rate when the test iou plateus
-                # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1

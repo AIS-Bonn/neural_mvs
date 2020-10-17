@@ -19,8 +19,8 @@ from neural_mvs_py.neural_mvs.funcs import *
 #     modules=list(resnet152.children())[:-1]
 # resnet152=nn.Sequential(*modules)
 
-# def gelu(x):
-#     return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
+def gelu(x):
+    return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
 
 
 
@@ -145,6 +145,7 @@ class Block(torch.nn.Module):
         # if self.activ==torch.sin:
             # print("am in a sin acitvation, x before conv is ", x.shape)
             # print("am in a sin acitvation, conv has params with shape ", self.conv[-1].weight.shape)
+        # x=self.norm(x) # TODO The vae seems to work a lot better without any normalization but more testing might be needed
         x=self.norm(x) # TODO The vae seems to work a lot better without any normalization but more testing might be needed
 
         # if self.is_first_layer:
@@ -152,8 +153,8 @@ class Block(torch.nn.Module):
         
 
         # print("before conv, x has mean and std " , x.mean() , " std ", x.std() )
-        x = self.conv(x )
         x=self.activ(x)
+        x = self.conv(x )
 
         return x
 
@@ -181,24 +182,24 @@ class ResnetBlock(torch.nn.Module):
         x+=identity
         return x
 
-# class ConcatCoord(torch.nn.Module):
-#     def __init__(self):
-#         super(ConcatCoord, self).__init__()
+class ConcatCoord(torch.nn.Module):
+    def __init__(self):
+        super(ConcatCoord, self).__init__()
 
-#     def forward(self, x):
+    def forward(self, x):
 
-#         #concat the coordinates in x an y as in coordconv https://github.com/Wizaron/coord-conv-pytorch/blob/master/coord_conv.py
-#         image_height=x.shape[2]
-#         image_width=x.shape[3]
-#         y_coords = 2.0 * torch.arange(image_height).unsqueeze(
-#             1).expand(image_height, image_width) / (image_height - 1.0) - 1.0
-#         x_coords = 2.0 * torch.arange(image_width).unsqueeze(
-#             0).expand(image_height, image_width) / (image_width - 1.0) - 1.0
-#         coords = torch.stack((y_coords, x_coords), dim=0).float()
-#         coords=coords.unsqueeze(0)
-#         # print("coords have size ", coords.size())
-#         x_coord = torch.cat((coords.to("cuda"), x), dim=1)
+        #concat the coordinates in x an y as in coordconv https://github.com/Wizaron/coord-conv-pytorch/blob/master/coord_conv.py
+        image_height=x.shape[2]
+        image_width=x.shape[3]
+        y_coords = 2.0 * torch.arange(image_height).unsqueeze(
+            1).expand(image_height, image_width) / (image_height - 1.0) - 1.0
+        x_coords = 2.0 * torch.arange(image_width).unsqueeze(
+            0).expand(image_height, image_width) / (image_width - 1.0) - 1.0
+        coords = torch.stack((y_coords, x_coords), dim=0).float()
+        coords=coords.unsqueeze(0)
+        # print("coords have size ", coords.size())
+        x_coord = torch.cat((coords.to("cuda"), x), dim=1)
 
-#         return x_coord
+        return x_coord
 
 

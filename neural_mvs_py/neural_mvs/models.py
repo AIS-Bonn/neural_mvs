@@ -21,8 +21,8 @@ import math
 # from torchmeta.modules.utils import get_subdict
 # from meta_modules import *
 
-# from functools import reduce
-# from torch.nn.modules.module import _addindent
+from functools import reduce
+from torch.nn.modules.module import _addindent
 
 
 class Encoder(torch.nn.Module):
@@ -30,28 +30,114 @@ class Encoder(torch.nn.Module):
         super(Encoder, self).__init__()
 
         ##params 
-        self.nr_points_z=126
+        self.nr_points_z=128
 
 
         #activations
         self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
 
         #layers
         resnet = torchvision.models.resnet18(pretrained=True)
         modules=list(resnet.children())[:-1]
         self.resnet=nn.Sequential(*modules)
+        for p in self.resnet.parameters():
+            p.requires_grad = True
+
+
+
+
+
+
+
+        self.start_nr_channels=32
+        # self.start_nr_channels=4
+        # self.z_size=256
+        # self.z_size=16
+        self.z_size=256
+        self.nr_downsampling_stages=5
+        self.nr_blocks_down_stage=[2,2,2,2,2]
+        # self.nr_upsampling_stages=3
+        # self.nr_blocks_up_stage=[1,1,1]
+        self.nr_decoder_layers=3
+        # self.pos_encoding_elevated_channels=128
+        # self.pos_encoding_elevated_channels=2
+        self.pos_encoding_elevated_channels=26
+        # self.pos_encoding_elevated_channels=0
+
+
+        #make my own resnet so that is can take a coordconv
+        self.concat_coord=ConcatCoord()
+
+        #start with a normal convolution
+        self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        # self.first_conv = torch.nn.utils.weight_norm( torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() )
+        cur_nr_channels=self.start_nr_channels
+
+        #cnn for encoding
+        self.blocks_down_per_stage_list=torch.nn.ModuleList([])
+        self.coarsens_list=torch.nn.ModuleList([])
+        for i in range(self.nr_downsampling_stages):
+            self.blocks_down_per_stage_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_down_stage[i]):
+                # cur_nr_channels+=2 #because we concat the coords
+                self.blocks_down_per_stage_list[i].append( ResnetBlock(cur_nr_channels, 3, 1, 1, dilations=[1,1], biases=[True,True], with_dropout=False) )
+            nr_channels_after_coarsening=int(cur_nr_channels*2)
+            # self.coarsens_list.append( ConvGnRelu(nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False).cuda() )
+            self.coarsens_list.append( Block(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
+            cur_nr_channels=nr_channels_after_coarsening
+            # cur_nr_channels+=2 #because we concat the coords
+
+
+
+
+
         self.z_to_3d=None
 
 
     def forward(self, x):
-        z=self.resnet(x) # z has size 1x512x1x1
+        # for p in self.resnet.parameters():
+        #     p.requires_grad = False
+
+        # print("encoder x input is ", x.min(), " ", x.max())
+        # z=self.resnet(x) # z has size 1x512x1x1
+
+
+
+        # first conv
+        # x = self.concat_coord(x)
+        x = self.first_conv(x)
+        x=gelu(x)
+
+        #encode 
+        # TIME_START("down_path")
+        for i in range(self.nr_downsampling_stages):
+            # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                # x = self.concat_coord(x)
+                x = self.blocks_down_per_stage_list[i][j] (x) 
+
+            #now we do a downsample
+            # x = self.concat_coord(x)
+            x = self.coarsens_list[i] ( x )
+            # x = self.concat_coord(x)
+        # TIME_END("down_path")
+        z=x
+
+
+
+
+
         if self.z_to_3d == None: 
             print(" full shape is ", z.flatten().shape )
             self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3).to("cuda")
         
-        z=self.relu(z)
+        # z=self.relu(z)
         z=self.z_to_3d(z.flatten())
         z=z.reshape(self.nr_points_z, 3)
+        z=self.sigmoid(z)
         return z
 
 class Decoder(torch.nn.Module):
@@ -62,7 +148,8 @@ class Decoder(torch.nn.Module):
         # self.nr_points_z=126
         self.start_channels=512
         self.start_extent=2
-        self.end_extent=256
+        # self.end_extent=256
+        self.end_extent=128
         self.layers_upblock=[self.start_channels, 256, 256, 128, 128, 64, 64, 64, 64, 16, 16]
 
         #activations
@@ -70,6 +157,7 @@ class Decoder(torch.nn.Module):
         self.sigmoid=torch.nn.Sigmoid()
 
         #layers 
+        self.concat_coord=ConcatCoord()
         self.z_to_img=None
         self.upblocks=torch.nn.ModuleList([])
         nr_upblocks=int(math.log(self.end_extent)/math.log(self.start_extent))-1 #how many layers do I need to go from extent of 2x2 to 256x256
@@ -82,7 +170,9 @@ class Decoder(torch.nn.Module):
             self.upblocks.append( 
                 torch.nn.Sequential(
                     ResnetBlock(cur_nr_channels, 3, 1, 1, [1,1], [True,True], False ),
-                    torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   
+                    ResnetBlock(cur_nr_channels, 3, 1, 1, [1,1], [True,True], False ),
+                    # ConcatCoord(),
+                    torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=4, stride=2, padding=1, dilation=1, groups=1, bias=True).cuda()   
                 )
                 #  torch.nn.ConvTranspose2d(cur_nr_channels, self.layers_upblock[i], kernel_size=2, stride=2, padding=0, dilation=1, groups=1, bias=True).cuda()   
             )
@@ -103,6 +193,7 @@ class Decoder(torch.nn.Module):
         for i in range(len(self.upblocks)):
             # print("input upblock is ", x.shape )
             x=self.upblocks[i](x)
+            # x=self.concat_coord(x)
             # print("output upblock is ", x.shape )
             x=self.relu(x)
 
@@ -134,18 +225,19 @@ class Net(torch.nn.Module):
         z=self.encoder(x)
         # print("z has shape ", z.shape)
 
-        # #transform into new view
-        # #get rotation and translation from refcam to gtcam
-        # tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
-        # translation=tf_gt_ref.translation()
-        # rotation=tf_gt_ref.linear()
-        # R=torch.from_numpy(rotation).to("cuda")
-        # t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
-        # #perform rotation and translation
-        # z=torch.transpose(z, 0, 1)
-        # z=torch.matmul(R,z)+t
-        # # z=torch.matmul(z,R)+t
-        # z=torch.transpose(z, 0, 1)
+        #transform into new view
+        #get rotation and translation from refcam to gtcam
+        tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
+        translation=tf_gt_ref.translation()
+        rotation=tf_gt_ref.linear()
+        R=torch.from_numpy(rotation).to("cuda")
+        # print("rotation is ", R)
+        t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
+        #perform rotation and translation
+        z=torch.transpose(z, 0, 1).contiguous()
+        z=torch.matmul(R,z)+t
+        # z=torch.matmul(z,R)+t
+        z=torch.transpose(z, 0, 1)
 
         
         # #transform into world
@@ -161,24 +253,15 @@ class Net(torch.nn.Module):
         # z=torch.transpose(z, 0, 1)
 
 
-        #DEBUG
-        #get rotation and translation from refcam to gtcam
-        tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
-        translation=tf_gt_ref.translation()
-        rotation=tf_gt_ref.linear()
-        R=torch.from_numpy(rotation).to("cuda")
-        t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
-        #perform rotation and translation
-        z=torch.transpose(z, 0, 1)
-        z=torch.matmul(R,z)+t
-        # z=torch.matmul(z,R)+t
-        z=torch.transpose(z, 0, 1
+        # #DEBUG
+       
 
         
 
         #raytrace from the gt_frame to get the 
 
 
+        # print("z after rotation  ", z.min(), " ", z.max())
 
         
 
@@ -984,55 +1067,165 @@ class Net(torch.nn.Module):
 
 
 
-# #https://github.com/pytorch/pytorch/issues/2001
-# def summary(self,file=sys.stderr):
-#     def repr(model):
-#         # We treat the extra repr like the sub-module, one item per line
-#         extra_lines = []
-#         extra_repr = model.extra_repr()
-#         # empty string will be split into list ['']
-#         if extra_repr:
-#             extra_lines = extra_repr.split('\n')
-#         child_lines = []
-#         total_params = 0
-#         for key, module in model._modules.items():
-#             mod_str, num_params = repr(module)
-#             mod_str = _addindent(mod_str, 2)
-#             child_lines.append('(' + key + '): ' + mod_str)
-#             total_params += num_params
-#         lines = extra_lines + child_lines
+####from https://github.com/bhpfelix/Variational-Autoencoder-PyTorch/blob/master/src/vanila_vae.py
+class VAE(nn.Module):
+    def __init__(self, nc, ngf, ndf, latent_variable_size):
+        super(VAE, self).__init__()
 
-#         for name, p in model._parameters.items():
-#             if p is not None:
-#                 total_params += reduce(lambda x, y: x * y, p.shape)
-#                 # if(p.grad==None):
-#                 #     print("p has no grad", name)
-#                 # else:
-#                 #     print("p has gradnorm ", name ,p.grad.norm() )
+        self.nc = nc
+        self.ngf = ngf
+        self.ndf = ndf
+        self.latent_variable_size = latent_variable_size
 
-#         main_str = model._get_name() + '('
-#         if lines:
-#             # simple one-liner info, which most builtin Modules will use
-#             if len(extra_lines) == 1 and not child_lines:
-#                 main_str += extra_lines[0]
-#             else:
-#                 main_str += '\n  ' + '\n  '.join(lines) + '\n'
+        # encoder
+        self.e1 = nn.Conv2d(nc, ndf, 4, 2, 1)
+        self.bn1 = nn.BatchNorm2d(ndf)
 
-#         main_str += ')'
-#         if file is sys.stderr:
-#             main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
-#             for name, p in model._parameters.items():
-#                 if(p.grad==None):
-#                     # print("p has no grad", name)
-#                     main_str+="p no grad"
-#                 else:
-#                     # print("p has gradnorm ", name ,p.grad.norm() )
-#                     main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
-#         else:
-#             main_str += ', {:,} params'.format(total_params)
-#         return main_str, total_params
+        self.e2 = nn.Conv2d(ndf, ndf*2, 4, 2, 1)
+        self.bn2 = nn.BatchNorm2d(ndf*2)
 
-#     string, count = repr(self)
-#     if file is not None:
-#         print(string, file=file)
-#     return count
+        self.e3 = nn.Conv2d(ndf*2, ndf*4, 4, 2, 1)
+        self.bn3 = nn.BatchNorm2d(ndf*4)
+
+        self.e4 = nn.Conv2d(ndf*4, ndf*8, 4, 2, 1)
+        self.bn4 = nn.BatchNorm2d(ndf*8)
+
+        self.e5 = nn.Conv2d(ndf*8, ndf*8, 4, 2, 1)
+        self.bn5 = nn.BatchNorm2d(ndf*8)
+
+        self.fc1 = nn.Linear(ndf*8*4*4, latent_variable_size)
+        self.fc2 = nn.Linear(ndf*8*4*4, latent_variable_size)
+
+        # decoder
+        self.d1 = nn.Linear(latent_variable_size, ngf*8*2*4*4)
+
+        self.up1 = nn.UpsamplingNearest2d(scale_factor=2)
+        self.pd1 = nn.ReplicationPad2d(1)
+        self.d2 = nn.Conv2d(ngf*8*2, ngf*8, 3, 1)
+        self.bn6 = nn.BatchNorm2d(ngf*8, 1.e-3)
+
+        self.up2 = nn.UpsamplingNearest2d(scale_factor=2)
+        self.pd2 = nn.ReplicationPad2d(1)
+        self.d3 = nn.Conv2d(ngf*8, ngf*4, 3, 1)
+        self.bn7 = nn.BatchNorm2d(ngf*4, 1.e-3)
+
+        self.up3 = nn.UpsamplingNearest2d(scale_factor=2)
+        self.pd3 = nn.ReplicationPad2d(1)
+        self.d4 = nn.Conv2d(ngf*4, ngf*2, 3, 1)
+        self.bn8 = nn.BatchNorm2d(ngf*2, 1.e-3)
+
+        self.up4 = nn.UpsamplingNearest2d(scale_factor=2)
+        self.pd4 = nn.ReplicationPad2d(1)
+        self.d5 = nn.Conv2d(ngf*2, ngf, 3, 1)
+        self.bn9 = nn.BatchNorm2d(ngf, 1.e-3)
+
+        self.up5 = nn.UpsamplingNearest2d(scale_factor=2)
+        self.pd5 = nn.ReplicationPad2d(1)
+        self.d6 = nn.Conv2d(ngf, nc, 3, 1)
+
+        self.leakyrelu = nn.LeakyReLU(0.2)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+    def encode(self, x):
+        h1 = self.leakyrelu(self.bn1(self.e1(x)))
+        h2 = self.leakyrelu(self.bn2(self.e2(h1)))
+        h3 = self.leakyrelu(self.bn3(self.e3(h2)))
+        h4 = self.leakyrelu(self.bn4(self.e4(h3)))
+        h5 = self.leakyrelu(self.bn5(self.e5(h4)))
+        h5 = h5.view(-1, self.ndf*8*4*4)
+
+        return self.fc1(h5), self.fc2(h5)
+
+    def reparametrize(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
+        eps = torch.cuda.FloatTensor(std.size()).normal_()
+        # eps = Variable(eps)
+        return eps.mul(std).add_(mu)
+
+    def decode(self, z):
+        h1 = self.relu(self.d1(z))
+        h1 = h1.view(-1, self.ngf*8*2, 4, 4)
+        h2 = self.leakyrelu(self.bn6(self.d2(self.pd1(self.up1(h1)))))
+        h3 = self.leakyrelu(self.bn7(self.d3(self.pd2(self.up2(h2)))))
+        h4 = self.leakyrelu(self.bn8(self.d4(self.pd3(self.up3(h3)))))
+        h5 = self.leakyrelu(self.bn9(self.d5(self.pd4(self.up4(h4)))))
+
+        return self.sigmoid(self.d6(self.pd5(self.up5(h5))))
+
+    def get_latent_var(self, x):
+        mu, logvar = self.encode(x.view(-1, self.nc, self.ndf, self.ngf))
+        z = self.reparametrize(mu, logvar)
+        return z
+
+    def forward(self, x):
+        print("x init has hsape ", x.shape)
+        size=[self.ndf, self.ngf]
+        x=F.interpolate(x, size, mode='bilinear')
+
+        mu, logvar = self.encode(x.view(-1, self.nc, self.ndf, self.ngf))
+        z = self.reparametrize(mu, logvar)
+        res = self.decode(z)
+
+        # size=[120, 160]
+        size=[285, 427]
+        res=F.interpolate(res, size, mode='bilinear')
+
+        return res, mu, logvar
+
+
+
+
+#https://github.com/pytorch/pytorch/issues/2001
+def summary(self,file=sys.stderr):
+    def repr(model):
+        # We treat the extra repr like the sub-module, one item per line
+        extra_lines = []
+        extra_repr = model.extra_repr()
+        # empty string will be split into list ['']
+        if extra_repr:
+            extra_lines = extra_repr.split('\n')
+        child_lines = []
+        total_params = 0
+        for key, module in model._modules.items():
+            mod_str, num_params = repr(module)
+            mod_str = _addindent(mod_str, 2)
+            child_lines.append('(' + key + '): ' + mod_str)
+            total_params += num_params
+        lines = extra_lines + child_lines
+
+        for name, p in model._parameters.items():
+            if p is not None:
+                total_params += reduce(lambda x, y: x * y, p.shape)
+                # if(p.grad==None):
+                #     print("p has no grad", name)
+                # else:
+                #     print("p has gradnorm ", name ,p.grad.norm() )
+
+        main_str = model._get_name() + '('
+        if lines:
+            # simple one-liner info, which most builtin Modules will use
+            if len(extra_lines) == 1 and not child_lines:
+                main_str += extra_lines[0]
+            else:
+                main_str += '\n  ' + '\n  '.join(lines) + '\n'
+
+        main_str += ')'
+        if file is sys.stderr:
+            main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
+            for name, p in model._parameters.items():
+                if (p!=None):
+                    if(p.grad==None):
+                        # print("p has no grad", name)
+                        main_str+="p no grad"
+                    else:
+                        # print("p has gradnorm ", name ,p.grad.norm() )
+                        main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
+        else:
+            main_str += ', {:,} params'.format(total_params)
+        return main_str, total_params
+
+    string, count = repr(self)
+    if file is not None:
+        print(string, file=file)
+    return count
