@@ -12,14 +12,14 @@ import torch.nn.functional as F
 import math
 
 
-# from collections import OrderedDict
+from collections import OrderedDict
 
-# from torchmeta.modules.conv import *
-# from torchmeta.modules.module import *
-# from torchmeta.modules.utils import *
-# from torchmeta.modules import (MetaModule, MetaSequential)
-# from torchmeta.modules.utils import get_subdict
-# from meta_modules import *
+from torchmeta.modules.conv import *
+from torchmeta.modules.module import *
+from torchmeta.modules.utils import *
+from torchmeta.modules import (MetaModule, MetaSequential)
+from torchmeta.modules.utils import get_subdict
+from meta_modules import *
 
 from functools import reduce
 from torch.nn.modules.module import _addindent
@@ -950,87 +950,87 @@ class Net(torch.nn.Module):
 
 
 
-# class SirenNetwork(MetaModule):
-#     def __init__(self):
-#         super(SirenNetwork, self).__init__()
+class SirenNetwork(MetaModule):
+    def __init__(self):
+        super(SirenNetwork, self).__init__()
 
-#         self.first_time=True
+        self.first_time=True
 
-#         self.nr_layers=4
-#         self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.nr_layers=4
+        self.out_channels_per_layer=[128, 128, 128, 128, 128]
 
-#         # #cnn for encoding
-#         # self.layers=torch.nn.ModuleList([])
-#         # for i in range(self.nr_layers):
-#         #     is_first_layer=i==0
-#         #     self.layers.append( Block(activ=torch.sin, out_channels=self.channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() )
-#         # self.rgb_regresor=Block(activ=torch.tanh, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda() 
+        # #cnn for encoding
+        # self.layers=torch.nn.ModuleList([])
+        # for i in range(self.nr_layers):
+        #     is_first_layer=i==0
+        #     self.layers.append( Block(activ=torch.sin, out_channels=self.channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() )
+        # self.rgb_regresor=Block(activ=torch.tanh, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda() 
 
-#         cur_nr_channels=2
+        cur_nr_channels=2
 
-#         self.net=[]
-#         # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
-#         # cur_nr_channels=self.out_channels_per_layer[0]
+        self.net=[]
+        # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
+        # cur_nr_channels=self.out_channels_per_layer[0]
 
-#         for i in range(self.nr_layers):
-#             is_first_layer=i==0
-#             self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
-#             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
-#             cur_nr_channels=self.out_channels_per_layer[i]
-#         self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
+            cur_nr_channels=self.out_channels_per_layer[i]
+        self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
-#         self.net = MetaSequential(*self.net)
+        self.net = MetaSequential(*self.net)
 
 
 
-#     def forward(self, x, params=None):
-#         if params is None:
-#             params = OrderedDict(self.named_parameters())
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
 
-#         # print("siren entry x is ", x.shape )
+        # print("siren entry x is ", x.shape )
 
-#         # print("params of sirenent is ", params)
+        # print("params of sirenent is ", params)
 
-#         #reshape x from H,W,C to 1,C,H,W
-#         # x = x.permute(2,0,1).unsqueeze(0).contiguous()
-#         # print("x input has shape, ",x.shape)
+        #reshape x from H,W,C to 1,C,H,W
+        # x = x.permute(2,0,1).unsqueeze(0).contiguous()
+        # print("x input has shape, ",x.shape)
 
-#         height=x.shape[2]
-#         width=x.shape[3]
-#         # print("height is ", height)
-#         # print("width is ", width)
+        height=x.shape[2]
+        width=x.shape[3]
+        # print("height is ", height)
+        # print("width is ", width)
 
-#         image_height=height
-#         image_width=width
-#         y_coords = 2.0 * torch.arange(image_height).unsqueeze(
-#             1).expand(image_height, image_width) / (image_height - 1.0) - 1.0
-#         x_coords = 2.0 * torch.arange(image_width).unsqueeze(
-#             0).expand(image_height, image_width) / (image_width - 1.0) - 1.0
-#         coords = torch.stack((y_coords, x_coords), dim=0).float()
-#         coords=coords.unsqueeze(0).to("cuda")
-#         # pos_encoding=positional_encoding(coords, num_encoding_functions=6, log_sampling=False)
-#         # x=torch.cat( [x,pos_encoding], dim=1)
-#         # x=torch.cat( [x,coords], dim=1)
+        image_height=height
+        image_width=width
+        y_coords = 2.0 * torch.arange(image_height).unsqueeze(
+            1).expand(image_height, image_width) / (image_height - 1.0) - 1.0
+        x_coords = 2.0 * torch.arange(image_width).unsqueeze(
+            0).expand(image_height, image_width) / (image_width - 1.0) - 1.0
+        coords = torch.stack((y_coords, x_coords), dim=0).float()
+        coords=coords.unsqueeze(0).to("cuda")
+        # pos_encoding=positional_encoding(coords, num_encoding_functions=6, log_sampling=False)
+        # x=torch.cat( [x,pos_encoding], dim=1)
+        # x=torch.cat( [x,coords], dim=1)
 
-#         x=coords
-#         # print("x coords for siren is ", x.shape)
-#         # print("the stride of the last conv is ", self.net[-1][-1].conv[-1].stride)
-#         # x=pos_encoding
+        x=coords
+        # print("x coords for siren is ", x.shape)
+        # print("the stride of the last conv is ", self.net[-1][-1].conv[-1].stride)
+        # x=pos_encoding
 
-#         # x=x*30
+        # x=x*30
 
-#         # x=(x+1.0)*0.5 #put it in range 0 to 1
+        # x=(x+1.0)*0.5 #put it in range 0 to 1
 
-#         # for i in range(self.nr_layers):
-#         #     x=self.layers[i](x)
-#         # x=self.rgb_regresor(x)
+        # for i in range(self.nr_layers):
+        #     x=self.layers[i](x)
+        # x=self.rgb_regresor(x)
 
-#         # print ("running siren")
-#         x=self.net(x, params=get_subdict(params, 'net'))
-#         # print("finished siren")
+        # print ("running siren")
+        x=self.net(x, params=get_subdict(params, 'net'))
+        # print("finished siren")
 
        
-#         return x
+        return x
 
 
 

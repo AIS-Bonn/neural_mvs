@@ -57,7 +57,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="t_resnet"
+    experiment_name="siren"
 
 
 
@@ -88,7 +88,8 @@ def run():
         # Phase('test', loader_test, grad=False)
     ]
     #model 
-    model=Net().to("cuda")
+    # model=Net().to("cuda")
+    model=SirenNetwork().to("cuda")
     # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
     model.train()
 
@@ -177,7 +178,8 @@ def run():
 
 
                         TIME_START("forward")
-                        out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
+                        # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
+                        out_tensor=model(ref_rgb_tensor )
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
