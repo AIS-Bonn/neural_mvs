@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="siren"
+    experiment_name="siren_resnet2"
 
 
 
@@ -185,7 +185,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor=model(ref_rgb_tensor )
+                        out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
@@ -239,8 +239,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if is_training: #we reduce the learning rate when the test iou plateus
-                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
+                # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1

@@ -717,43 +717,43 @@ class Encoder(torch.nn.Module):
 
 
 
-        # self.start_nr_channels=32
-        # # self.start_nr_channels=4
-        # # self.z_size=256
-        # # self.z_size=16
-        # self.z_size=256
-        # self.nr_downsampling_stages=5
-        # self.nr_blocks_down_stage=[2,2,2,2,2]
-        # # self.nr_upsampling_stages=3
-        # # self.nr_blocks_up_stage=[1,1,1]
-        # self.nr_decoder_layers=3
-        # # self.pos_encoding_elevated_channels=128
-        # # self.pos_encoding_elevated_channels=2
-        # self.pos_encoding_elevated_channels=26
-        # # self.pos_encoding_elevated_channels=0
+        self.start_nr_channels=32
+        # self.start_nr_channels=4
+        self.nr_downsampling_stages=5
+        self.nr_blocks_down_stage=[2,2,2,2,2]
+        self.nr_channels_after_coarsening_per_layer=[64,64,128,128,256,256,512,512,512,1024,1024]
+        # self.nr_upsampling_stages=3
+        # self.nr_blocks_up_stage=[1,1,1]
+        self.nr_decoder_layers=3
+        # self.pos_encoding_elevated_channels=128
+        # self.pos_encoding_elevated_channels=2
+        self.pos_encoding_elevated_channels=26
+        # self.pos_encoding_elevated_channels=0
 
 
-        # #make my own resnet so that is can take a coordconv
-        # self.concat_coord=ConcatCoord()
+        #make my own resnet so that is can take a coordconv
+        self.concat_coord=ConcatCoord()
 
-        # #start with a normal convolution
-        # self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
-        # # self.first_conv = torch.nn.utils.weight_norm( torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() )
-        # cur_nr_channels=self.start_nr_channels
+        #start with a normal convolution
+        self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        # self.first_conv = torch.nn.utils.weight_norm( torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() )
+        cur_nr_channels=self.start_nr_channels
 
-        # #cnn for encoding
-        # self.blocks_down_per_stage_list=torch.nn.ModuleList([])
-        # self.coarsens_list=torch.nn.ModuleList([])
-        # for i in range(self.nr_downsampling_stages):
-        #     self.blocks_down_per_stage_list.append( torch.nn.ModuleList([]) )
-        #     for j in range(self.nr_blocks_down_stage[i]):
-        #         # cur_nr_channels+=2 #because we concat the coords
-        #         self.blocks_down_per_stage_list[i].append( ResnetBlock(cur_nr_channels, 3, 1, 1, dilations=[1,1], biases=[True,True], with_dropout=False) )
-        #     nr_channels_after_coarsening=int(cur_nr_channels*2)
-        #     # self.coarsens_list.append( ConvGnRelu(nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False).cuda() )
-        #     self.coarsens_list.append( Block(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
-        #     cur_nr_channels=nr_channels_after_coarsening
-        #     # cur_nr_channels+=2 #because we concat the coords
+        #cnn for encoding
+        self.blocks_down_per_stage_list=torch.nn.ModuleList([])
+        self.coarsens_list=torch.nn.ModuleList([])
+        for i in range(self.nr_downsampling_stages):
+            self.blocks_down_per_stage_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_down_stage[i]):
+                # cur_nr_channels+=2 #because we concat the coords
+                self.blocks_down_per_stage_list[i].append( ResnetBlock(cur_nr_channels, 3, 1, 1, dilations=[1,1], biases=[True,True], with_dropout=False) )
+            # nr_channels_after_coarsening=int(cur_nr_channels*2)
+            nr_channels_after_coarsening=self.nr_channels_after_coarsening_per_layer[i]
+            print("nr_channels_after_coarsening is ", nr_channels_after_coarsening)
+            # self.coarsens_list.append( ConvGnRelu(nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False).cuda() )
+            self.coarsens_list.append( Block(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
+            cur_nr_channels=nr_channels_after_coarsening
+            # cur_nr_channels+=2 #because we concat the coords
 
 
 
@@ -792,30 +792,31 @@ class Encoder(torch.nn.Module):
         #     # x = self.concat_coord(x)
         # # TIME_END("down_path")
         # z=x
+        # print("z after encoding has shape ", z.shape)
 
 
 
 
 
-        # if self.z_to_3d == None: 
+        # # if self.z_to_3d == None: 
+        # #     print(" full shape is ", z.flatten().shape )
+        # #     self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3).to("cuda")
+
+        # if self.to_z == None: 
         #     print(" full shape is ", z.flatten().shape )
-        #     self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3).to("cuda")
-
-        if self.to_z == None: 
-            print(" full shape is ", z.flatten().shape )
-            self.to_z = torch.nn.Linear( z.flatten().shape[0] , self.z_size).to("cuda")
+        #     self.to_z = torch.nn.Linear( z.flatten().shape[0] , self.z_size).to("cuda")
         
         
-        # z=self.relu(z)
-        # z=self.z_to_3d(z.flatten())
-        # z=z.reshape(self.nr_points_z, 3)
-        z=z.flatten()
-        print("z before going to z has shape ", z.shape)
-        z=self.to_z(z)
-        z=self.sigmoid(z)
-        print("z has shape ", z.shape)
-        print("z has min max", z.min(), " ", z.max())
-        z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+        # # z=self.relu(z)
+        # # z=self.z_to_3d(z.flatten())
+        # # z=z.reshape(self.nr_points_z, 3)
+        # z=z.flatten()
+        # print("z before going to z has shape ", z.shape)
+        # z=self.to_z(z)
+        # z=self.sigmoid(z)
+        # print("z has shape ", z.shape)
+        # print("z has min max", z.min(), " ", z.max())
+        # # z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
         return z
 
@@ -914,19 +915,58 @@ class Net(torch.nn.Module):
 
         self.first_time=True
 
+        #params
         self.z_size=512
+        # self.z_size=2048
+
+        #activ
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
+
 
         # self.encoder=Encoder2D(self.z_size)
         self.encoder=Encoder(self.z_size)
         self.siren_net = SirenNetwork()
         self.hyper_net = HyperNetwork(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
 
+
+        self.nr_points_z=128
+        self.z_to_3d = torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
+
       
-    def forward(self, x):
+    def forward(self, x, ref_tf_cam_world, gt_tf_cam_world):
 
         # print("encoding")
         z=self.encoder(x)
-        z=z.view(1,self.z_size)
+
+
+        # #make z into a 3D thing
+        # z=self.z_to_3d(z.flatten())
+        # z=z.reshape(self.nr_points_z, 3)
+        # z=self.sigmoid(z)
+
+        #reduce it so that the hypernetwork makes smaller weights for siren
+        z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+
+
+        # #transform into new view
+        # #get rotation and translation from refcam to gtcam
+        # tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
+        # translation=tf_gt_ref.translation()
+        # rotation=tf_gt_ref.linear()
+        # R=torch.from_numpy(rotation).to("cuda")
+        # # print("rotation is ", R)
+        # t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
+        # #perform rotation and translation
+        # z=torch.transpose(z, 0, 1).contiguous()
+        # z=torch.matmul(R,z)+t
+        # # z=torch.matmul(z,R)+t
+        # z=torch.transpose(z, 0, 1)
+
+
+        # print("z has shape ", z.shape)
+        z=z.reshape(1,self.z_size)
         # print("encoder has size", z.shape )
         # print("running hypernet")
         siren_params=self.hyper_net(z)
