@@ -705,7 +705,7 @@ class Encoder(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
 
         #layers
-        resnet = torchvision.models.resnet18(pretrained=True)
+        resnet = torchvision.models.resnet50(pretrained=True)
         modules=list(resnet.children())[:-1]
         self.resnet=nn.Sequential(*modules)
         for p in self.resnet.parameters():
@@ -916,8 +916,9 @@ class Net(torch.nn.Module):
         self.first_time=True
 
         #params
-        self.z_size=512
-        # self.z_size=2048
+        # self.z_size=512
+        self.z_size=2048
+        self.nr_points_z=256
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -928,10 +929,10 @@ class Net(torch.nn.Module):
         # self.encoder=Encoder2D(self.z_size)
         self.encoder=Encoder(self.z_size)
         self.siren_net = SirenNetwork()
-        self.hyper_net = HyperNetwork(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetwork(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
 
 
-        self.nr_points_z=128
         self.z_to_3d = torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
 
       
@@ -941,32 +942,39 @@ class Net(torch.nn.Module):
         z=self.encoder(x)
 
 
-        # #make z into a 3D thing
-        # z=self.z_to_3d(z.flatten())
-        # z=z.reshape(self.nr_points_z, 3)
-        # z=self.sigmoid(z)
+        #make z into a 3D thing
+        z=self.z_to_3d(z.flatten())
+        z=z.reshape(self.nr_points_z, 3)
+        z=self.sigmoid(z)
 
         #reduce it so that the hypernetwork makes smaller weights for siren
         z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
 
-        # #transform into new view
-        # #get rotation and translation from refcam to gtcam
+        #transform into new view
+        #get rotation and translation from refcam to gtcam
         # tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
-        # translation=tf_gt_ref.translation()
-        # rotation=tf_gt_ref.linear()
-        # R=torch.from_numpy(rotation).to("cuda")
-        # # print("rotation is ", R)
-        # t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
-        # #perform rotation and translation
-        # z=torch.transpose(z, 0, 1).contiguous()
-        # z=torch.matmul(R,z)+t
-        # # z=torch.matmul(z,R)+t
-        # z=torch.transpose(z, 0, 1)
+        tf_gt_ref= ref_tf_cam_world.inverse() #from refcam to world a
+        translation=tf_gt_ref.translation()
+        rotation=tf_gt_ref.linear()
+        R=torch.from_numpy(rotation).to("cuda")
+        # print("rotation is ", R)
+        t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
+        #perform rotation and translation
+        z=torch.transpose(z, 0, 1).contiguous()
+        # print("t is ", t.norm() )
+        # exit(1)
+        z=torch.matmul(R,z) 
+        # print("z after is ", z)
+        # exit(1)
+        # z=torch.matmul(R,z)
+        # z=torch.matmul(z,R)+t
+        z=torch.transpose(z, 0, 1)
 
 
         # print("z has shape ", z.shape)
-        z=z.reshape(1,self.z_size)
+        # z=z.reshape(1,self.z_size)
+        z=z.reshape(1,-1)
         # print("encoder has size", z.shape )
         # print("running hypernet")
         siren_params=self.hyper_net(z)

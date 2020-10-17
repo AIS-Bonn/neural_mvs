@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="siren_resnet2"
+    experiment_name="s_3d_t"
 
 
 
@@ -99,8 +99,8 @@ def run():
 
     loss_fn=torch.nn.MSELoss()
 
-    # show_every=40
-    show_every=1
+    show_every=40
+    # show_every=1
 
     while True:
 
@@ -159,7 +159,7 @@ def run():
 
 
                         #get only valid pixels
-                        ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
+                        # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
                         # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         gt_frame.rgb_32f=ref_frame.rgb_32f
 
@@ -177,6 +177,7 @@ def run():
                         #     render_tf=gt_frame.tf_cam_world
                         #     render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
                         #     out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                        #     # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
                         #     if(phase.iter_nr%show_every==0):
                         #         out_mat=tensor2mat(out_tensor)
                         #         Gui.show(out_mat, "novel")
@@ -193,6 +194,7 @@ def run():
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
                         loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        # loss=(((out_tensor-gt_rgb_tensor)**2)*gt_rgb_tensor) .mean()
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
 
