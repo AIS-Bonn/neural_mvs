@@ -76,7 +76,11 @@ def run():
     #create loaders
     # loader=TinyLoader.create(config_file)
     loader=DataLoaderVolRef(config_path)
+    loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
     loader.start()
+    loader_test=DataLoaderVolRef(config_path)
+    loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] )
+    loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
     # for i in range(loader.nr_frames()):
@@ -99,8 +103,10 @@ def run():
 
     loss_fn=torch.nn.MSELoss()
 
-    show_every=40
-    # show_every=1
+    # show_every=40
+    show_every=1
+
+
 
     while True:
 
@@ -114,7 +120,7 @@ def run():
             # pbar = tqdm(total=phase.loader.nr_samples())
             for i in range(phase.loader.nr_samples()):
 
-                if phase.loader.has_data():
+                if phase.loader.has_data() and loader_test.has_data():
 
                     torch.manual_seed(0)
 
@@ -124,8 +130,8 @@ def run():
                     # if(phase.iter_nr%show_every==0):
                     #     img=tensor2mat(imgs[ref_idx])
                     #     Gui.show(img, "ref")
-                    #     frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                    #     Scene.show(frustum, "frustum"+str(ref_idx))
+                        # frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
+                        # Scene.show(frustum, "frustum"+str(ref_idx))
                     # #get a ground truth frame
                     # gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
                     # # gt_idx=0
@@ -135,11 +141,13 @@ def run():
 
                     ref_frame=phase.loader.get_color_frame()
                     # gt_frame=phase.loader.closest_color_frame(ref_frame)
-                    gt_frame=ref_frame
+                    # gt_frame=ref_frame
+                    gt_frame=loader_test.get_color_frame() #load from the gt loader
                     #get depth frames
                     ref_depth_frame=phase.loader.get_depth_frame()
                     # gt_depth_frame=phase.loader.closest_depth_frame(ref_frame)
-                    gt_depth_frame=ref_depth_frame
+                    # gt_depth_frame=ref_depth_frame
+                    gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     #debug
                     # cloud=ref_depth_frame.depth2world_xyz_mesh()
@@ -148,6 +156,12 @@ def run():
                     # Scene.show(frustum, "frustum")
 
 
+                    #show frustums 
+                    frustum_ref=ref_frame.create_frustum_mesh(0.1)
+                    Scene.show(frustum_ref, "frustum_ref"+str(phase.samples_processed_this_epoch))
+                    frustum_gt=gt_frame.create_frustum_mesh(0.1)
+                    frustum_gt.m_vis.m_line_color=[0, 1.0, 0.0]
+                    Scene.show(frustum_gt, "frustum_gt"+str(phase.samples_processed_this_epoch))
                     
 
 
@@ -161,7 +175,7 @@ def run():
                         #get only valid pixels
                         # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
                         # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
-                        gt_frame.rgb_32f=ref_frame.rgb_32f
+                        # gt_frame.rgb_32f=ref_frame.rgb_32f
 
                         ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
@@ -246,6 +260,8 @@ def run():
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
+                loader_test.reset()
+                time.sleep(0.5) #give the loaders a bit of time to load
 
 
                 # if train_params.with_viewer():
