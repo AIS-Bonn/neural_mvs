@@ -110,6 +110,26 @@ def run():
 
 
 
+    #prepare all images and concat them batchwise
+    all_imgs_list=[]
+    while True:
+        for i in range(loader.nr_samples()):
+            if loader.has_data():
+                ref_frame=loader.get_color_frame()
+                depth_frame=loader.get_depth_frame()
+                ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+                all_imgs_list.append(ref_rgb_tensor)
+                print("appending")
+        if loader.is_finished():
+            loader.reset()
+            break
+    all_imgs=torch.cat(all_imgs_list,0)
+    print("all imgs have shape ", all_imgs.shape)
+        
+
+
+
+
     while True:
 
         for phase in phases:
