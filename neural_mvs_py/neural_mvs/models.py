@@ -754,7 +754,7 @@ class Encoder(torch.nn.Module):
             print("nr_channels_after_coarsening is ", nr_channels_after_coarsening)
             # self.coarsens_list.append( ConvGnRelu(nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False).cuda() )
             cur_nr_channels+=2 #because we concat the coords
-            self.coarsens_list.append( Block(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
+            self.coarsens_list.append( BlockForResnet(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
             cur_nr_channels=nr_channels_after_coarsening
             # cur_nr_channels+=2 #because we concat the coords
 
