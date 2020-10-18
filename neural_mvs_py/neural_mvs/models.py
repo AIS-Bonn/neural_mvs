@@ -933,7 +933,17 @@ class Net(torch.nn.Module):
         self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
 
 
-        self.z_to_3d = torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
+        self.z_to_z3d = torch.nn.Sequential(
+            torch.nn.Linear( self.z_size , self.z_size).to("cuda"),
+            torch.nn.ReLU(),
+            torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
+        )
+
+        self.z_to_zapp = torch.nn.Sequential(
+            torch.nn.Linear( self.z_size , self.z_size).to("cuda"),
+            torch.nn.ReLU(),
+            torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
+        )
 
       
     def forward(self, x, ref_tf_cam_world, gt_tf_cam_world):
@@ -943,12 +953,10 @@ class Net(torch.nn.Module):
 
 
         #make z into a 3D thing
-        z=self.z_to_3d(z.flatten())
-        z=z.reshape(self.nr_points_z, 3)
-        z=self.sigmoid(z)
+        z3d=self.z_to_z3d(z.flatten())
+        z3d=z3d.reshape(self.nr_points_z, 3)
+        # z3d=self.sigmoid(z3d)
 
-        #reduce it so that the hypernetwork makes smaller weights for siren
-        z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
 
         #transform into new view
@@ -961,15 +969,21 @@ class Net(torch.nn.Module):
         # print("rotation is ", R)
         t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
         #perform rotation and translation
-        z=torch.transpose(z, 0, 1).contiguous()
+        z3d=torch.transpose(z3d, 0, 1).contiguous()
         # print("t is ", t.norm() )
         # exit(1)
-        z=torch.matmul(R,z) 
-        # print("z after is ", z)
-        # exit(1)
-        # z=torch.matmul(R,z)
-        # z=torch.matmul(z,R)+t
-        z=torch.transpose(z, 0, 1)
+        z3d=torch.matmul(R,z3d) 
+        z3d=torch.transpose(z3d, 0, 1)
+
+        #get also an apperence vector and append it
+        # zapp=self.z_to_zapp(z.flatten())
+        # z=torch.cat([zapp, z3d.flatten()], 0)
+
+        #DO NOT use the zapp
+        z=z3d
+
+        #reduce it so that the hypernetwork makes smaller weights for siren
+        z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
 
         # print("z has shape ", z.shape)
