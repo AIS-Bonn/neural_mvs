@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s"
+    experiment_name="s4"
 
 
 
@@ -76,10 +76,12 @@ def run():
     #create loaders
     # loader=TinyLoader.create(config_file)
     loader=DataLoaderVolRef(config_path)
-    loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
+    # loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
+    loader.load_only_from_idxs( [0,2,4,6] )
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
-    loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] )
+    # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] )
+    loader_test.load_only_from_idxs( [10,12,14,16] )
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
@@ -103,8 +105,8 @@ def run():
 
     loss_fn=torch.nn.MSELoss()
 
-    # show_every=40
-    show_every=1
+    show_every=39
+    # show_every=1
 
 
 
@@ -157,11 +159,11 @@ def run():
 
 
                     #show frustums 
-                    frustum_ref=ref_frame.create_frustum_mesh(0.1)
-                    Scene.show(frustum_ref, "frustum_ref"+str(phase.samples_processed_this_epoch))
-                    frustum_gt=gt_frame.create_frustum_mesh(0.1)
-                    frustum_gt.m_vis.m_line_color=[0, 1.0, 0.0]
-                    Scene.show(frustum_gt, "frustum_gt"+str(phase.samples_processed_this_epoch))
+                    # frustum_ref=ref_frame.create_frustum_mesh(0.1)
+                    # Scene.show(frustum_ref, "frustum_ref"+str(phase.samples_processed_this_epoch))
+                    # frustum_gt=gt_frame.create_frustum_mesh(0.1)
+                    # frustum_gt.m_vis.m_line_color=[0, 1.0, 0.0]
+                    # Scene.show(frustum_gt, "frustum_gt"+str(phase.samples_processed_this_epoch))
                     
 
 
@@ -186,15 +188,15 @@ def run():
                             Gui.show(ref_frame.rgb_32f, "ref")
                             Gui.show(gt_frame.rgb_32f, "gt")
 
-                        # #try another view
-                        # with torch.set_grad_enabled(False):
-                        #     render_tf=gt_frame.tf_cam_world
-                        #     render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
-                        #     out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                        #     # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
-                        #     if(phase.iter_nr%show_every==0):
-                        #         out_mat=tensor2mat(out_tensor)
-                        #         Gui.show(out_mat, "novel")
+                        #try another view
+                        with torch.set_grad_enabled(False):
+                            render_tf=gt_frame.tf_cam_world
+                            render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
+                            out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                            # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
+                            if(phase.iter_nr%show_every==0):
+                                out_mat=tensor2mat(out_tensor)
+                                Gui.show(out_mat, "novel")
 
 
 
@@ -261,7 +263,7 @@ def run():
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
                 loader_test.reset()
-                time.sleep(0.5) #give the loaders a bit of time to load
+                time.sleep(0.1) #give the loaders a bit of time to load
 
 
                 # if train_params.with_viewer():
