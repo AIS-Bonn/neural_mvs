@@ -64,7 +64,7 @@ def cumprod_exclusive(tensor: torch.Tensor) -> torch.Tensor:
 
 
 def get_ray_bundle(
-    height: int, width: int, focal_length: float, tform_cam2world: torch.Tensor
+    height: int, width: int, fx: float, fy: float, cx: float, cy: float,  tform_cam2world: torch.Tensor
 ):
     r"""Compute the bundle of rays passing through all pixels of an image (one ray per pixel).
     Args:
@@ -94,8 +94,8 @@ def get_ray_bundle(
     )
     directions = torch.stack(
         [
-            (ii - width * 0.5) / focal_length,
-            -(jj - height * 0.5) / focal_length,
+            (ii - cx) / fx,
+            -(jj - cy) / fy,
             -torch.ones_like(ii),
         ],
         dim=-1,

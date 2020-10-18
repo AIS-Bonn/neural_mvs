@@ -1053,7 +1053,10 @@ class Net(torch.nn.Module):
         print("x has shape", x.shape)
         height=x.shape[2]
         width=x.shape[3]
-        focal_length=gt_K[0,0] ### TODO we actually need both focal length but for now that should be fine
+        fx=gt_K[0,0] ### 
+        fy=gt_K[1,1] ### 
+        cx=gt_K[0,2] ### 
+        cy=gt_K[0,2] ### 
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
         near_thresh=1.0
         far_thresh=4.0
@@ -1062,7 +1065,7 @@ class Net(torch.nn.Module):
 
         # Get the "bundle" of rays through all image pixels.
         ray_origins, ray_directions = get_ray_bundle(
-            height, width, focal_length, tform_cam2world
+            height, width, fx,fy,cx,cy, tform_cam2world
         )
 
         # Sample query points along each ray
