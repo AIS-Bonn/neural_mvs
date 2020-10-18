@@ -105,13 +105,15 @@ def run():
 
     loss_fn=torch.nn.MSELoss()
 
-    show_every=39
-    # show_every=1
+    # show_every=39
+    show_every=1
 
 
 
     #prepare all images and concat them batchwise
     all_imgs_list=[]
+    all_imgs_poses_cam_world_list=[]
+    all_imgs_Ks_list=[]
     while True:
         for i in range(loader.nr_samples()):
             if loader.has_data():
@@ -119,11 +121,13 @@ def run():
                 depth_frame=loader.get_depth_frame()
                 ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                 all_imgs_list.append(ref_rgb_tensor)
+                all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
+                all_imgs_Ks_list.append(ref_frame.K)
                 print("appending")
         if loader.is_finished():
             loader.reset()
             break
-    all_imgs=torch.cat(all_imgs_list,0)
+    all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
     print("all imgs have shape ", all_imgs.shape)
         
 
@@ -142,33 +146,13 @@ def run():
             # pbar = tqdm(total=phase.loader.nr_samples())
             for i in range(phase.loader.nr_samples()):
 
-                if phase.loader.has_data() and loader_test.has_data():
+                # if phase.loader.has_data() and loader_test.has_data():
+                if loader_test.has_data():
 
                     torch.manual_seed(0)
 
-                    # #get a reference frame
-                    # ref_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                    # # ref_idx=0
-                    # if(phase.iter_nr%show_every==0):
-                    #     img=tensor2mat(imgs[ref_idx])
-                    #     Gui.show(img, "ref")
-                        # frustum=phase.loader.get_frame(ref_idx).create_frustum_mesh(0.1)
-                        # Scene.show(frustum, "frustum"+str(ref_idx))
-                    # #get a ground truth frame
-                    # gt_idx=random.randint(0, phase.loader.nr_frames()-1 )
-                    # # gt_idx=0
-                    # if(phase.iter_nr%show_every==0):
-                    #     img=tensor2mat(imgs[gt_idx])
-                    #     Gui.show(img, "gt")
 
-                    ref_frame=phase.loader.get_color_frame()
-                    # gt_frame=phase.loader.closest_color_frame(ref_frame)
-                    # gt_frame=ref_frame
                     gt_frame=loader_test.get_color_frame() #load from the gt loader
-                    #get depth frames
-                    ref_depth_frame=phase.loader.get_depth_frame()
-                    # gt_depth_frame=phase.loader.closest_depth_frame(ref_frame)
-                    # gt_depth_frame=ref_depth_frame
                     gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     #debug
@@ -199,30 +183,30 @@ def run():
                         # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         # gt_frame.rgb_32f=ref_frame.rgb_32f
 
-                        ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+                        # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
-                        ref_rgb_tensor=ref_rgb_tensor.contiguous()
+                        # ref_rgb_tensor=ref_rgb_tensor.contiguous()
 
-                        if(phase.iter_nr%show_every==0):
+                        # if(phase.iter_nr%show_every==0):
                             # print("width and height ", ref_frame.width)
-                            Gui.show(ref_frame.rgb_32f, "ref")
-                            Gui.show(gt_frame.rgb_32f, "gt")
+                            # Gui.show(ref_frame.rgb_32f, "ref")
+                            # Gui.show(gt_frame.rgb_32f, "gt")
 
-                        #try another view
-                        with torch.set_grad_enabled(False):
-                            render_tf=gt_frame.tf_cam_world
-                            render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
-                            out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
-                            if(phase.iter_nr%show_every==0):
-                                out_mat=tensor2mat(out_tensor)
-                                Gui.show(out_mat, "novel")
+                        # #try another view
+                        # with torch.set_grad_enabled(False):
+                        #     render_tf=gt_frame.tf_cam_world
+                        #     render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
+                        #     out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                        #     # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
+                        #     if(phase.iter_nr%show_every==0):
+                        #         out_mat=tensor2mat(out_tensor)
+                        #         Gui.show(out_mat, "novel")
 
 
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
+                        out_tensor=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 

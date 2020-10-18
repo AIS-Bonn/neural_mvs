@@ -20,6 +20,8 @@ from meta_modules import *
 from functools import reduce
 from torch.nn.modules.module import _addindent
 
+from neural_mvs.nerf_utils import *
+
 
 ##Network with convgnrelu so that the coord added by concat coord are not destroyed y the gn in gnreluconv
 class VAE_2(torch.nn.Module):
@@ -825,7 +827,7 @@ class Encoder(torch.nn.Module):
 
 
 class SirenNetwork(MetaModule):
-    def __init__(self):
+    def __init__(self, in_channels, out_channels):
         super(SirenNetwork, self).__init__()
 
         self.first_time=True
@@ -840,7 +842,7 @@ class SirenNetwork(MetaModule):
         #     self.layers.append( Block(activ=torch.sin, out_channels=self.channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() )
         # self.rgb_regresor=Block(activ=torch.tanh, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda() 
 
-        cur_nr_channels=2
+        cur_nr_channels=in_channels
 
         self.net=[]
         # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
@@ -851,7 +853,7 @@ class SirenNetwork(MetaModule):
             self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
             cur_nr_channels=self.out_channels_per_layer[i]
-        self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         self.net = MetaSequential(*self.net)
 
@@ -908,6 +910,60 @@ class SirenNetwork(MetaModule):
 
 
 
+#this siren net receives directly the coordinates, no need to make a concat coord or whatever
+class SirenNetworkDirect(MetaModule):
+    def __init__(self, in_channels, out_channels):
+        super(SirenNetworkDirect, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=4
+        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+
+        # #cnn for encoding
+        # self.layers=torch.nn.ModuleList([])
+        # for i in range(self.nr_layers):
+        #     is_first_layer=i==0
+        #     self.layers.append( Block(activ=torch.sin, out_channels=self.channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() )
+        # self.rgb_regresor=Block(activ=torch.tanh, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda() 
+
+        cur_nr_channels=in_channels
+
+        self.net=[]
+        # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
+        # cur_nr_channels=self.out_channels_per_layer[0]
+
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
+            cur_nr_channels=self.out_channels_per_layer[i]
+        self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+
+        self.net = MetaSequential(*self.net)
+
+
+
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
+        nr_points=x.shape[0]
+        x=x.view(nr_points,3,1,1)
+
+
+        # print ("running siren")
+        x=self.net(x, params=get_subdict(params, 'net'))
+        # print("finished siren")
+
+        x=x.view(nr_points,-1,1,1)
+       
+        return x
+
+
+
 
 class Net(torch.nn.Module):
     def __init__(self):
@@ -928,7 +984,8 @@ class Net(torch.nn.Module):
 
         # self.encoder=Encoder2D(self.z_size)
         self.encoder=Encoder(self.z_size)
-        self.siren_net = SirenNetwork()
+        # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
+        self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
 
@@ -946,34 +1003,40 @@ class Net(torch.nn.Module):
         )
 
       
-    def forward(self, x, ref_tf_cam_world, gt_tf_cam_world):
+    def forward(self, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K):
+
+        nr_imgs=x.shape[0]
 
         # print("encoding")
         z=self.encoder(x)
+        print("encoder outputs z", z.shape)
 
+        #make z into a nr_imgs x z_size
+        z=z.view(nr_imgs, self.z_size)
 
         #make z into a 3D thing
-        z3d=self.z_to_z3d(z.flatten())
-        z3d=z3d.reshape(self.nr_points_z, 3)
+        z3d=self.z_to_z3d(z)
+        z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
         # z3d=self.sigmoid(z3d)
+        print("after making 3d z is ", z.shape)
 
+        #rotate everything into the same world frame
+        R_world_cam_all_list=[]
+        for i in range(nr_imgs):
+            tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+            R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+            R_world_cam_all_list.append(R.unsqueeze(0))
+        R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        print("R_world_cam_all is ", R_world_cam_all.shape)
+        # print("before rotatin z3d is", z3d)
+        z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2)) 
+        # print("aftering rotatin z3d is", z3d)
+        print("after multiplying z3d is ", z3d.shape)
 
+        #aggregate all the z from every camera now expressed in world coords, into one z vector
+        z3d=z3d.mean(0)
+        print("after agregating z3d is ", z3d.shape)
 
-        #transform into new view
-        #get rotation and translation from refcam to gtcam
-        # tf_gt_ref= gt_tf_cam_world * ref_tf_cam_world.inverse() #from refcam to world and from world to gtcam
-        tf_gt_ref= ref_tf_cam_world.inverse() #from refcam to world a
-        translation=tf_gt_ref.translation()
-        rotation=tf_gt_ref.linear()
-        R=torch.from_numpy(rotation).to("cuda")
-        # print("rotation is ", R)
-        t=torch.from_numpy(translation).unsqueeze(1).to("cuda")
-        #perform rotation and translation
-        z3d=torch.transpose(z3d, 0, 1).contiguous()
-        # print("t is ", t.norm() )
-        # exit(1)
-        z3d=torch.matmul(R,z3d) 
-        z3d=torch.transpose(z3d, 0, 1)
 
         #get also an apperence vector and append it
         # zapp=self.z_to_zapp(z.flatten())
@@ -997,8 +1060,69 @@ class Net(torch.nn.Module):
         # print("sirenparams", siren_params)
         # print("x shape is ", x.shape)
         # x.unsqueeze_(0)
-        x=self.siren_net(x, params=siren_params)
+        # x=self.siren_net(x, params=siren_params)
         # x=self.siren_net(x, params=None)
+
+
+        #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
+        #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
+
+        print("x has shape", x.shape)
+        height=x.shape[2]
+        width=x.shape[3]
+        focal_length=gt_K[0,0] ### TODO we actually need both focal length but for now that should be fine
+        tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
+        near_thresh=0.1
+        far_thresh=4.0
+        depth_samples_per_ray=64
+        chunksize=512*512
+
+        # Get the "bundle" of rays through all image pixels.
+        ray_origins, ray_directions = get_ray_bundle(
+            height, width, focal_length, tform_cam2world
+        )
+
+        # Sample query points along each ray
+        query_points, depth_values = compute_query_points_from_rays(
+            ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray
+        )
+
+        # "Flatten" the query points.
+        flattened_query_points = query_points.reshape((-1, 3))
+        print("flattened_query_points is ", flattened_query_points.shape)
+
+        batches = get_minibatches(flattened_query_points, chunksize=chunksize)
+        predictions = []
+        nr_batches=0
+        for batch in batches:
+            # print("batch is ", batch.shape)
+            nr_batches+=1
+            predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
+            # print(" nr batch ", nr_batches, " / ", len(batches))
+        print("got nr_batches ", nr_batches)
+        radiance_field_flattened = torch.cat(predictions, dim=0)
+
+
+        # "Unflatten" to obtain the radiance field.
+        unflattened_shape = list(query_points.shape[:-1]) + [4]
+        radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
+
+        # Perform differentiable volume rendering to re-synthesize the RGB image.
+        rgb_predicted, _, _ = render_volume_density(
+            radiance_field, ray_origins.to("cuda"), depth_values.to("cuda")
+        )
+
+        print("rgb predicted has shpae ", rgb_predicted.shape)
+        # rgb_predicted=rgb_predicted.view(1,3,height,width)
+        rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+
+        return rgb_predicted
+
+
+
+
+
+
         return x
 
 
