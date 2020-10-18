@@ -721,8 +721,8 @@ class Encoder(torch.nn.Module):
 
         self.start_nr_channels=32
         # self.start_nr_channels=4
-        self.nr_downsampling_stages=5
-        self.nr_blocks_down_stage=[2,2,2,2,2]
+        self.nr_downsampling_stages=6
+        self.nr_blocks_down_stage=[2,2,2,2,2,2,2]
         self.nr_channels_after_coarsening_per_layer=[64,64,128,128,256,256,512,512,512,1024,1024]
         # self.nr_upsampling_stages=3
         # self.nr_blocks_up_stage=[1,1,1]
@@ -737,7 +737,7 @@ class Encoder(torch.nn.Module):
         self.concat_coord=ConcatCoord()
 
         #start with a normal convolution
-        self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        self.first_conv = torch.nn.Conv2d(5, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         # self.first_conv = torch.nn.utils.weight_norm( torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() )
         cur_nr_channels=self.start_nr_channels
 
@@ -747,12 +747,13 @@ class Encoder(torch.nn.Module):
         for i in range(self.nr_downsampling_stages):
             self.blocks_down_per_stage_list.append( torch.nn.ModuleList([]) )
             for j in range(self.nr_blocks_down_stage[i]):
-                # cur_nr_channels+=2 #because we concat the coords
+                cur_nr_channels+=2 #because we concat the coords
                 self.blocks_down_per_stage_list[i].append( ResnetBlock(cur_nr_channels, 3, 1, 1, dilations=[1,1], biases=[True,True], with_dropout=False) )
             # nr_channels_after_coarsening=int(cur_nr_channels*2)
             nr_channels_after_coarsening=self.nr_channels_after_coarsening_per_layer[i]
             print("nr_channels_after_coarsening is ", nr_channels_after_coarsening)
             # self.coarsens_list.append( ConvGnRelu(nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False).cuda() )
+            cur_nr_channels+=2 #because we concat the coords
             self.coarsens_list.append( Block(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
             cur_nr_channels=nr_channels_after_coarsening
             # cur_nr_channels+=2 #because we concat the coords
@@ -770,55 +771,32 @@ class Encoder(torch.nn.Module):
         #     p.requires_grad = False
 
         # print("encoder x input is ", x.min(), " ", x.max())
-        z=self.resnet(x) # z has size 1x512x1x1
+        # z=self.resnet(x) # z has size 1x512x1x1
 
 
 
-        # # first conv
-        # # x = self.concat_coord(x)
-        # x = self.first_conv(x)
-        # x=gelu(x)
+        # first conv
+        x = self.concat_coord(x)
+        x = self.first_conv(x)
+        x=gelu(x)
 
-        # #encode 
-        # # TIME_START("down_path")
-        # for i in range(self.nr_downsampling_stages):
-        #     # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
-        #     #resnet blocks
-        #     for j in range(self.nr_blocks_down_stage[i]):
-        #         # x = self.concat_coord(x)
-        #         x = self.blocks_down_per_stage_list[i][j] (x) 
+        #encode 
+        # TIME_START("down_path")
+        for i in range(self.nr_downsampling_stages):
+            # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                x = self.concat_coord(x)
+                x = self.blocks_down_per_stage_list[i][j] (x) 
 
-        #     #now we do a downsample
-        #     # x = self.concat_coord(x)
-        #     x = self.coarsens_list[i] ( x )
-        #     # x = self.concat_coord(x)
-        # # TIME_END("down_path")
-        # z=x
-        # print("z after encoding has shape ", z.shape)
-
+            #now we do a downsample
+            x = self.concat_coord(x)
+            x = self.coarsens_list[i] ( x )
+        # TIME_END("down_path")
+        z=x
+        print("z after encoding has shape ", z.shape)
 
 
-
-
-        # # if self.z_to_3d == None: 
-        # #     print(" full shape is ", z.flatten().shape )
-        # #     self.z_to_3d = torch.nn.Linear( z.flatten().shape[0] , self.nr_points_z*3).to("cuda")
-
-        # if self.to_z == None: 
-        #     print(" full shape is ", z.flatten().shape )
-        #     self.to_z = torch.nn.Linear( z.flatten().shape[0] , self.z_size).to("cuda")
-        
-        
-        # # z=self.relu(z)
-        # # z=self.z_to_3d(z.flatten())
-        # # z=z.reshape(self.nr_points_z, 3)
-        # z=z.flatten()
-        # print("z before going to z has shape ", z.shape)
-        # z=self.to_z(z)
-        # z=self.sigmoid(z)
-        # print("z has shape ", z.shape)
-        # print("z has min max", z.min(), " ", z.max())
-        # # z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
         return z
 
@@ -973,7 +951,8 @@ class Net(torch.nn.Module):
 
         #params
         # self.z_size=512
-        self.z_size=2048
+        self.z_size=256
+        # self.z_size=2048
         self.nr_points_z=256
 
         #activ

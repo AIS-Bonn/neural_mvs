@@ -211,6 +211,7 @@ class ConcatCoord(torch.nn.Module):
             0).expand(image_height, image_width) / (image_width - 1.0) - 1.0
         coords = torch.stack((y_coords, x_coords), dim=0).float()
         coords=coords.unsqueeze(0)
+        coords=coords.repeat(x.shape[0],1,1,1)
         # print("coords have size ", coords.size())
         x_coord = torch.cat((coords.to("cuda"), x), dim=1)
 
