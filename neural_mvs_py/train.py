@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s4"
+    experiment_name="s2"
 
 
 
@@ -81,7 +81,8 @@ def run():
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] )
-    loader_test.load_only_from_idxs( [10,12,14,16] )
+    # loader_test.load_only_from_idxs( [10,12,14,16] )
+    # loader_test.load_only_from_idxs( [10] )
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
@@ -144,7 +145,7 @@ def run():
 
 
             # pbar = tqdm(total=phase.loader.nr_samples())
-            for i in range(phase.loader.nr_samples()):
+            for i in range(loader_test.nr_samples()):
 
                 # if phase.loader.has_data() and loader_test.has_data():
                 if loader_test.has_data():
@@ -162,7 +163,7 @@ def run():
                     # Scene.show(frustum, "frustum")
 
 
-                    #show frustums 
+                    # #show frustums 
                     # frustum_ref=ref_frame.create_frustum_mesh(0.1)
                     # Scene.show(frustum_ref, "frustum_ref"+str(phase.samples_processed_this_epoch))
                     # frustum_gt=gt_frame.create_frustum_mesh(0.1)
@@ -180,17 +181,17 @@ def run():
 
                         #get only valid pixels
                         # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
-                        # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         # gt_frame.rgb_32f=ref_frame.rgb_32f
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
                         # ref_rgb_tensor=ref_rgb_tensor.contiguous()
 
-                        # if(phase.iter_nr%show_every==0):
+                        if(phase.iter_nr%show_every==0):
                             # print("width and height ", ref_frame.width)
                             # Gui.show(ref_frame.rgb_32f, "ref")
-                            # Gui.show(gt_frame.rgb_32f, "gt")
+                            Gui.show(gt_frame.rgb_32f, "gt")
 
                         # #try another view
                         # with torch.set_grad_enabled(False):
@@ -210,18 +211,20 @@ def run():
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
+                        mask=gt_rgb_tensor>0.0
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
-                        loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        # loss=(((out_tensor-gt_rgb_tensor)**2)*gt_rgb_tensor) .mean()
+                        # loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        loss=(((out_tensor-gt_rgb_tensor)**2)*mask) .mean()
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
 
 
 
                         if(phase.iter_nr%show_every==0):
-                            out_mat=tensor2mat(out_tensor)
+                            # out_mat=tensor2mat(out_tensor)
+                            out_mat=tensor2mat(out_tensor*mask)
                             Gui.show(out_mat, "output")
             
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
@@ -260,7 +263,7 @@ def run():
 
             # finished all the images 
             # pbar.close()
-            if is_training: #we reduce the learning rate when the test iou plateus
+            if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
                 # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 

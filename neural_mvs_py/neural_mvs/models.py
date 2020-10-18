@@ -987,7 +987,7 @@ class Net(torch.nn.Module):
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
-        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
 
 
         self.z_to_z3d = torch.nn.Sequential(
@@ -1033,17 +1033,21 @@ class Net(torch.nn.Module):
         # print("aftering rotatin z3d is", z3d)
         print("after multiplying z3d is ", z3d.shape)
 
-        #aggregate all the z from every camera now expressed in world coords, into one z vector
-        z3d=z3d.mean(0)
-        print("after agregating z3d is ", z3d.shape)
 
 
         #get also an apperence vector and append it
-        # zapp=self.z_to_zapp(z.flatten())
-        # z=torch.cat([zapp, z3d.flatten()], 0)
+        zapp=self.z_to_zapp(z)
+        zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
+        print("zapp has size ", zapp.shape)
+        print("z3d has size ", z3d.shape)
+        z=torch.cat([zapp, z3d], 1)
+        # DO NOT use the zapp
+        # z=z3d
 
-        #DO NOT use the zapp
-        z=z3d
+        #aggregate all the z from every camera now expressed in world coords, into one z vector
+        # z3d=z3d.mean(0)
+        z=z.mean(0)
+        # print("after agregating z3d is ", z3d.shape)
 
         #reduce it so that the hypernetwork makes smaller weights for siren
         z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
@@ -1072,9 +1076,9 @@ class Net(torch.nn.Module):
         width=x.shape[3]
         focal_length=gt_K[0,0] ### TODO we actually need both focal length but for now that should be fine
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
-        near_thresh=0.1
+        near_thresh=1.0
         far_thresh=4.0
-        depth_samples_per_ray=64
+        depth_samples_per_ray=100
         chunksize=512*512
 
         # Get the "bundle" of rays through all image pixels.
