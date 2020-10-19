@@ -15,8 +15,8 @@ from torchmeta.modules import (MetaModule, MetaSequential)
 
 
 
-def gelu(x):
-    return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
+# def gelu(x):
+#     return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
 
 
 

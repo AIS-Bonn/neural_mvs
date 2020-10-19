@@ -705,6 +705,7 @@ class Encoder(torch.nn.Module):
         self.relu=torch.nn.ReLU()
         self.sigmoid=torch.nn.Sigmoid()
         self.tanh=torch.nn.Tanh()
+        self.gelu=torch.nn.GELU()
 
         #layers
         resnet = torchvision.models.resnet50(pretrained=True)
@@ -778,7 +779,7 @@ class Encoder(torch.nn.Module):
         # first conv
         x = self.concat_coord(x)
         x = self.first_conv(x)
-        x=gelu(x)
+        x=self.relu(x)
 
         #encode 
         # TIME_START("down_path")
@@ -1076,13 +1077,14 @@ class Net(torch.nn.Module):
         zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
         print("zapp has size ", zapp.shape)
         print("z3d has size ", z3d.shape)
-        z=torch.cat([zapp, z3d], 1)
+        z=torch.cat([zapp, z3d], 2)
         # DO NOT use the zapp
         # z=z3d
 
         #aggregate all the z from every camera now expressed in world coords, into one z vector
         # z3d=z3d.mean(0)
-        z=z.mean(0)
+        # z=z.mean(0)
+        z,_=z.max(0)
         # print("after agregating z3d is ", z3d.shape)
 
         #reduce it so that the hypernetwork makes smaller weights for siren
