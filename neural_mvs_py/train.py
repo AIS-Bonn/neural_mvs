@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_4zeros_resnet"
+    experiment_name="s_everystep"
 
 
 
@@ -243,7 +243,7 @@ def run():
                     if is_training:
                         # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
-                        # optimizer.zero_grad()
+                        optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")
                         loss.backward()
@@ -258,7 +258,7 @@ def run():
                         # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
                         # print("first_conv norm", model.first_conv.weight.grad.norm())
 
-                        # optimizer.step()
+                        optimizer.step()
 
                 if train_params.with_viewer():
                     view.update()
@@ -266,8 +266,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
-                optimizer.step() # DO it only once after getting gradients for all images
-                    # optimizer.zero_grad()
+                # optimizer.step() # DO it only once after getting gradients for all images
+                # optimizer.zero_grad()
                 # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 

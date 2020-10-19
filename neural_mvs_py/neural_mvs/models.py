@@ -1049,7 +1049,6 @@ class Net(torch.nn.Module):
 
         #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
         #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
-
         print("x has shape", x.shape)
         height=x.shape[2]
         width=x.shape[3]
@@ -1062,6 +1061,7 @@ class Net(torch.nn.Module):
         far_thresh=2.0
         depth_samples_per_ray=100
         chunksize=512*512
+        # chunksize=1024*1024
 
         # Get the "bundle" of rays through all image pixels.
         ray_origins, ray_directions = get_ray_bundle(
@@ -1084,12 +1084,13 @@ class Net(torch.nn.Module):
             # print("batch is ", batch.shape)
             nr_batches+=1
             predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
+            # predictions.append( self.siren_net(batch.to("cuda") ) )
             # if not Scene.does_mesh_with_name_exist("rays"):
             #     rays_mesh=Mesh()
             #     rays_mesh.V=batch.numpy()
             #     Scene.show(rays_mesh, "rays_mesh")
             # print(" nr batch ", nr_batches, " / ", len(batches))
-        print("got nr_batches ", nr_batches)
+        # print("got nr_batches ", nr_batches)
         radiance_field_flattened = torch.cat(predictions, dim=0)
 
 
