@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_div10cc"
+    experiment_name="nf_4z_hyp_div1_2"
 
 
 
@@ -77,12 +77,14 @@ def run():
     # loader=TinyLoader.create(config_file)
     loader=DataLoaderVolRef(config_path)
     # loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
+    loader.set_shuffle(False)
     loader.load_only_from_idxs( [0,2,4,6] )
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] )
     # loader_test.load_only_from_idxs( [10,12,14,16] )
     # loader_test.load_only_from_idxs( [10] )
+    loader_test.set_shuffle(True)
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
