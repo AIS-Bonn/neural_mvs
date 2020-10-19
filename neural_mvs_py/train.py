@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_4ccBN_corK"
+    experiment_name="s_4zeros_resnet"
 
 
 
@@ -157,13 +157,13 @@ def run():
                     gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     #debug
-                    # cloud=ref_depth_frame.depth2world_xyz_mesh()
+                    # cloud=gt_depth_frame.depth2world_xyz_mesh()
                     # frustum=ref_depth_frame.create_frustum_mesh(0.1)
                     # Scene.show(cloud, "cloud")
                     # Scene.show(frustum, "frustum")
 
 
-                    # #show frustums 
+                    #show frustums 
                     # frustum_ref=ref_frame.create_frustum_mesh(0.1)
                     # Scene.show(frustum_ref, "frustum_ref"+str(phase.samples_processed_this_epoch))
                     # frustum_gt=gt_frame.create_frustum_mesh(0.1)
@@ -197,7 +197,8 @@ def run():
                         # with torch.set_grad_enabled(False):
                         #     render_tf=gt_frame.tf_cam_world
                         #     render_tf.rotate_axis_angle([0,1,0], random.randint(-60,60) )
-                        #     out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                        #     # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                        #     out_tensor=model(all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K )
                         #     # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
                         #     if(phase.iter_nr%show_every==0):
                         #         out_mat=tensor2mat(out_tensor)
@@ -216,7 +217,7 @@ def run():
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
                         # loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        loss=(((out_tensor-gt_rgb_tensor)**2)*mask) .mean()
+                        loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean() /loader_test.nr_samples() #gradient is dampened as we do an update after all iamges
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
 
@@ -233,6 +234,7 @@ def run():
                             optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
+                            optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                     #     # pbar.update(1)
@@ -241,7 +243,7 @@ def run():
                     if is_training:
                         # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
-                        optimizer.zero_grad()
+                        # optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")
                         loss.backward()
@@ -256,7 +258,7 @@ def run():
                         # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
                         # print("first_conv norm", model.first_conv.weight.grad.norm())
 
-                        optimizer.step()
+                        # optimizer.step()
 
                 if train_params.with_viewer():
                     view.update()
@@ -264,6 +266,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
+                optimizer.step() # DO it only once after getting gradients for all images
+                    # optimizer.zero_grad()
                 # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 

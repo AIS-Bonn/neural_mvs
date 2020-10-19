@@ -771,30 +771,30 @@ class Encoder(torch.nn.Module):
         #     p.requires_grad = False
 
         # print("encoder x input is ", x.min(), " ", x.max())
-        # z=self.resnet(x) # z has size 1x512x1x1
+        z=self.resnet(x) # z has size 1x512x1x1
 
 
 
-        # first conv
-        x = self.concat_coord(x)
-        x = self.first_conv(x)
-        x=gelu(x)
+        # # first conv
+        # x = self.concat_coord(x)
+        # x = self.first_conv(x)
+        # x=gelu(x)
 
-        #encode 
-        # TIME_START("down_path")
-        for i in range(self.nr_downsampling_stages):
-            # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
-            #resnet blocks
-            for j in range(self.nr_blocks_down_stage[i]):
-                x = self.concat_coord(x)
-                x = self.blocks_down_per_stage_list[i][j] (x) 
+        # #encode 
+        # # TIME_START("down_path")
+        # for i in range(self.nr_downsampling_stages):
+        #     # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
+        #     #resnet blocks
+        #     for j in range(self.nr_blocks_down_stage[i]):
+        #         x = self.concat_coord(x)
+        #         x = self.blocks_down_per_stage_list[i][j] (x) 
 
-            #now we do a downsample
-            x = self.concat_coord(x)
-            x = self.coarsens_list[i] ( x )
-        # TIME_END("down_path")
-        z=x
-        print("z after encoding has shape ", z.shape)
+        #     #now we do a downsample
+        #     x = self.concat_coord(x)
+        #     x = self.coarsens_list[i] ( x )
+        # # TIME_END("down_path")
+        # z=x
+        # print("z after encoding has shape ", z.shape)
 
 
 
@@ -951,8 +951,8 @@ class Net(torch.nn.Module):
 
         #params
         # self.z_size=512
-        self.z_size=256
-        # self.z_size=2048
+        # self.z_size=256
+        self.z_size=2048
         self.nr_points_z=256
 
         #activ
@@ -1059,7 +1059,7 @@ class Net(torch.nn.Module):
         cy=gt_K[0,2] ### 
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
         near_thresh=1.0
-        far_thresh=4.0
+        far_thresh=2.0
         depth_samples_per_ray=100
         chunksize=512*512
 
@@ -1084,6 +1084,10 @@ class Net(torch.nn.Module):
             # print("batch is ", batch.shape)
             nr_batches+=1
             predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
+            # if not Scene.does_mesh_with_name_exist("rays"):
+            #     rays_mesh=Mesh()
+            #     rays_mesh.V=batch.numpy()
+            #     Scene.show(rays_mesh, "rays_mesh")
             # print(" nr batch ", nr_batches, " / ", len(batches))
         print("got nr_batches ", nr_batches)
         radiance_field_flattened = torch.cat(predictions, dim=0)

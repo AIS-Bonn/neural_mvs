@@ -96,7 +96,7 @@ def get_ray_bundle(
         [
             (ii - cx) / fx,
             -(jj - cy) / fy,
-            -torch.ones_like(ii),
+            torch.ones_like(ii),
         ],
         dim=-1,
     )
