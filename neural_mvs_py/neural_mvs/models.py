@@ -771,30 +771,30 @@ class Encoder(torch.nn.Module):
         #     p.requires_grad = False
 
         # print("encoder x input is ", x.min(), " ", x.max())
-        z=self.resnet(x) # z has size 1x512x1x1
+        # z=self.resnet(x) # z has size 1x512x1x1
 
 
 
-        # # first conv
-        # x = self.concat_coord(x)
-        # x = self.first_conv(x)
-        # x=gelu(x)
+        # first conv
+        x = self.concat_coord(x)
+        x = self.first_conv(x)
+        x=gelu(x)
 
-        # #encode 
-        # # TIME_START("down_path")
-        # for i in range(self.nr_downsampling_stages):
-        #     # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
-        #     #resnet blocks
-        #     for j in range(self.nr_blocks_down_stage[i]):
-        #         x = self.concat_coord(x)
-        #         x = self.blocks_down_per_stage_list[i][j] (x) 
+        #encode 
+        # TIME_START("down_path")
+        for i in range(self.nr_downsampling_stages):
+            # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                x = self.concat_coord(x)
+                x = self.blocks_down_per_stage_list[i][j] (x) 
 
-        #     #now we do a downsample
-        #     x = self.concat_coord(x)
-        #     x = self.coarsens_list[i] ( x )
-        # # TIME_END("down_path")
-        # z=x
-        # print("z after encoding has shape ", z.shape)
+            #now we do a downsample
+            x = self.concat_coord(x)
+            x = self.coarsens_list[i] ( x )
+        # TIME_END("down_path")
+        z=x
+        print("z after encoding has shape ", z.shape)
 
 
 
@@ -951,8 +951,8 @@ class Net(torch.nn.Module):
 
         #params
         # self.z_size=512
-        # self.z_size=256
-        self.z_size=2048
+        self.z_size=256
+        # self.z_size=2048
         self.nr_points_z=256
 
         #activ
@@ -1029,7 +1029,7 @@ class Net(torch.nn.Module):
         # print("after agregating z3d is ", z3d.shape)
 
         #reduce it so that the hypernetwork makes smaller weights for siren
-        z=z/30 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+        z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
 
         # print("z has shape ", z.shape)

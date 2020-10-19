@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_everystep"
+    experiment_name="s_div10cc"
 
 
 
@@ -217,7 +217,7 @@ def run():
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
                         # loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean() /loader_test.nr_samples() #gradient is dampened as we do an update after all iamges
+                        loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean() 
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
 
