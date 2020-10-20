@@ -829,10 +829,11 @@ class SirenNetwork(MetaModule):
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
-            self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
-            cur_nr_channels=self.out_channels_per_layer[i]
-        self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+            cur_nr_channels=self.out_channels_per_layer[i] * 2 #because we also added a relu
+            # cur_nr_channels=self.out_channels_per_layer[i]  #when we do NOT add a relu
+        self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         self.net = MetaSequential(*self.net)
 
@@ -868,21 +869,15 @@ class SirenNetwork(MetaModule):
         # x=torch.cat( [x,coords], dim=1)
 
         x=coords
-        # print("x coords for siren is ", x.shape)
-        # print("the stride of the last conv is ", self.net[-1][-1].conv[-1].stride)
-        # x=pos_encoding
-
-        # x=x*30
-
-        # x=(x+1.0)*0.5 #put it in range 0 to 1
-
-        # for i in range(self.nr_layers):
-        #     x=self.layers[i](x)
-        # x=self.rgb_regresor(x)
+        print("x coords for siren is ", x.shape)
+        print("x which is actually coords is ", x)
+        print("as input to siren x is  " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+     
 
         # print ("running siren")
         x=self.net(x, params=get_subdict(params, 'net'))
-        # print("finished siren")
+        print("finished siren")
+        # exit(1)
 
        
         return x
