@@ -54,6 +54,19 @@ class Block(MetaModule):
         # self.norm = torch.nn.BatchNorm2d(self.out_channels, momentum=0.01).cuda()
         # self.norm = torch.nn.GroupNorm(1, in_channels).cuda()
 
+        # self.sine_scale=torch.nn.Parameter(torch.Tensor(1)).cuda()
+        # self.sine_scale=torch.nn.Parameter(torch.randn(3,6)).cuda()
+        # torch.nn.init.constant_(self.sine_scale, 30)
+        # with torch.set_grad_enabled(False):
+            # self.sine_scale=30
+        # self.sine_scale.requires_grad = True
+        # self.wtf=torch.nn.Linear(10,10)
+        # self.weight = torch.nn.Parameter(torch.Tensor(10, 10))
+        # torch.nn.init.uniform_(self.sine_scale, -1, 1)
+        # self.W = torch.nn.Parameter(torch.randn(3,4,5))
+        self.sine_scale = torch.nn.Parameter(torch.randn(1))
+        torch.nn.init.constant_(self.sine_scale, 30)
+        # self.W.requires_grad = True
 
         if not self.transposed:
             self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
@@ -80,6 +93,7 @@ class Block(MetaModule):
                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/7 , np.sqrt(6 / num_input)/7 )
                     # print("conv any other is ", self.conv[-1].weight )
+        
 
     def forward(self, x, params=None):
         if params is None:
@@ -158,13 +172,16 @@ class Block(MetaModule):
         # x=self.relu(x)
         # x=self.norm(x) # TODO The vae seems to work a lot better without any normalization but more testing might be needed
         if self.activ==torch.sin:
+            # x=30*x
             x=30*x
+            # x=self.sine_scale*x
+            # print("self.sine_scale", self.sine_scale)
             # print("before activ, x has mean and std " , x.mean() , " std ", x.std() )
             # print("before activ, x*30 has mean and std " , (x*30).mean() , " std ", (x*30).std() )
             # x=self.activ(30*x)
             x=self.activ(x)
             # print("after activ, x has mean and std " , x.mean() , " std ", x.std() )
-        else:
+        elif self.activ is not None:
             x=self.activ(x)
         # x=gelu(x)
         # x=torch.sin(x)

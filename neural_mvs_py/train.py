@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="nf_max3"
+    experiment_name="nf2"
 
 
 
@@ -234,6 +234,33 @@ def run():
                         if first_time:
                             first_time=False
                             optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer = RAdam([
+                            #     {'params': model.siren_net.net[0][0].sine_scale, 'lr': 0.1 },
+                            #     {'params': model.siren_net.net[1][0].sine_scale, 'lr': 0.1 },
+                            #     {'params': model.siren_net.net[2][0].sine_scale, 'lr': 0.1 },
+                            # ], lr=train_params.lr(), weight_decay=0.0)
+
+                            # #make a parameter group for the sirens and another for the rest
+                            # param_rest=[]
+                            # param_sine_scale=[]
+                            # # for p in model.parameters():
+                            # for name, param in model.named_parameters():
+                            #     # print(param)
+                            #     if "sine_scale" in name:
+                            #         print (name)
+                            #         param_sine_scale.append(param)
+                            #     else: 
+                            #         param_rest.append(param)
+                            # # param_rest=model.parameters() 
+                            # # print(param_rest)
+                            # # optimizer=RAdam( param_rest, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer = RAdam([
+                            #     {'params': param_sine_scale, 'lr': 0.5 },
+                            #     {'params': param_rest, 'lr': train_params.lr() },
+                            # ], lr=train_params.lr(), weight_decay=0.0)
+
+
+
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             optimizer.zero_grad()
@@ -256,6 +283,15 @@ def run():
                         # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
                         # summary(model)
                         # exit()
+
+                        # ##aply more lr to the sine scale
+                        # with torch.set_grad_enabled(False):
+                        #     # model.siren_net.net[0][0].sine_scale
+                        #     nr_siren_layers=model.siren_net.nr_layers
+                        #     for i in range( nr_siren_layers ):
+                        #         grad=model.siren_net.net[i][0].sine_scale.grad
+                        #         print("grad norm is ", grad.norm() )
+                        #         model.siren_net.net[i][0].sine_scale.data += grad.detach()*-10000
 
                         # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
                         # print("first_conv norm", model.first_conv.weight.grad.norm())

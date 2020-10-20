@@ -897,7 +897,8 @@ class SirenNetworkDirect(MetaModule):
         self.first_time=True
 
         self.nr_layers=4
-        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.out_channels_per_layer=[100, 100, 100, 100, 100]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -917,7 +918,8 @@ class SirenNetworkDirect(MetaModule):
             self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
             cur_nr_channels=self.out_channels_per_layer[i]
-        self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        self.net.append( MetaSequential(Block(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         self.net = MetaSequential(*self.net)
 
@@ -950,7 +952,8 @@ class NerfDirect(MetaModule):
         self.first_time=True
 
         self.nr_layers=4
-        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.out_channels_per_layer=[100, 100, 100, 100, 100]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -972,7 +975,7 @@ class NerfDirect(MetaModule):
             self.net.append( MetaSequential( Block( in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
             cur_nr_channels=self.out_channels_per_layer[i]
-        self.net.append( MetaSequential(Block(activ=torch.tanh, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         self.net = MetaSequential(*self.net)
 
@@ -1045,9 +1048,12 @@ class Net(torch.nn.Module):
         nr_imgs=x.shape[0]
 
         # print("encoding")
+        TIME_START("encoding")
         z=self.encoder(x)
+        TIME_END("encoding")
         print("encoder outputs z", z.shape)
 
+        TIME_START("rotate")
         #make z into a nr_imgs x z_size
         z=z.view(nr_imgs, self.z_size)
 
@@ -1086,6 +1092,7 @@ class Net(torch.nn.Module):
         # z=z.mean(0)
         z,_=z.max(0)
         # print("after agregating z3d is ", z3d.shape)
+        TIME_END("rotate")
 
         #reduce it so that the hypernetwork makes smaller weights for siren
         # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
@@ -1096,7 +1103,9 @@ class Net(torch.nn.Module):
         z=z.reshape(1,-1)
         # print("encoder has size", z.shape )
         # print("running hypernet")
+        TIME_START("hyper")
         siren_params=self.hyper_net(z)
+        TIME_END("hyper")
         # print("finished hypernet")
         # print("computer params of siren")
         # print("sirenparams", siren_params)
@@ -1106,6 +1115,7 @@ class Net(torch.nn.Module):
         # x=self.siren_net(x, params=None)
 
 
+        TIME_START("full_siren")
         #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
         #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
         print("x has shape", x.shape)
@@ -1123,29 +1133,39 @@ class Net(torch.nn.Module):
         # chunksize=1024*1024
 
         # Get the "bundle" of rays through all image pixels.
+        TIME_START("ray_bundle")
         ray_origins, ray_directions = get_ray_bundle(
             height, width, fx,fy,cx,cy, tform_cam2world
         )
+        TIME_END("ray_bundle")
 
+        TIME_START("sample")
         # Sample query points along each ray
         query_points, depth_values = compute_query_points_from_rays(
             ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray
         )
+        TIME_END("sample")
 
         # "Flatten" the query points.
         flattened_query_points = query_points.reshape((-1, 3))
         print("flattened_query_points is ", flattened_query_points.shape)
 
+        TIME_START("pos_encode")
         flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=10, log_sampling=True)
+        TIME_END("pos_encode")
 
         batches = get_minibatches(flattened_query_points, chunksize=chunksize)
         predictions = []
         nr_batches=0
+        TIME_START("siren_batches")
         for batch in batches:
             # print("batch is ", batch.shape)
             nr_batches+=1
             # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
-            # predictions.append( self.siren_net(batch.to("cuda") ) )
+            # batch=batch-0.4
+            batch=((batch+1.92)/2.43)*2.0-1.0
+            # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
+            # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
             predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
             # if not Scene.does_mesh_with_name_exist("rays"):
             #     rays_mesh=Mesh()
@@ -1153,6 +1173,7 @@ class Net(torch.nn.Module):
             #     Scene.show(rays_mesh, "rays_mesh")
             # print(" nr batch ", nr_batches, " / ", len(batches))
         # print("got nr_batches ", nr_batches)
+        TIME_END("siren_batches")
         radiance_field_flattened = torch.cat(predictions, dim=0)
 
 
@@ -1168,6 +1189,7 @@ class Net(torch.nn.Module):
         print("rgb predicted has shpae ", rgb_predicted.shape)
         # rgb_predicted=rgb_predicted.view(1,3,height,width)
         rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        TIME_END("full_siren")
 
         return rgb_predicted
 
@@ -1218,12 +1240,13 @@ def summary(self,file=sys.stderr):
         if file is sys.stderr:
             main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
             for name, p in model._parameters.items():
-                if(p.grad==None):
-                    # print("p has no grad", name)
-                    main_str+="p no grad"
-                else:
-                    # print("p has gradnorm ", name ,p.grad.norm() )
-                    main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
+                if hasattr(p, 'grad'):
+                    if(p.grad==None):
+                        # print("p has no grad", name)
+                        main_str+="p no grad"
+                    else:
+                        # print("p has gradnorm ", name ,p.grad.norm() )
+                        main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
         else:
             main_str += ', {:,} params'.format(total_params)
         return main_str, total_params
