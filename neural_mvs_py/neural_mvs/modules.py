@@ -281,7 +281,7 @@ class BlockSiren(MetaModule):
                 # x_conv_scaled=30*x_conv
                 x=30*x
             # x_conv_scaled=x_conv
-            print("before activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+            # print("before activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             x=self.activ(x)
             # x_relu=self.relu(x_conv)
             #each x will map into a certain period of the sine depending on their value, the network has to be aware of which sine it will activate
@@ -291,13 +291,13 @@ class BlockSiren(MetaModule):
             # x=x_sine+x_conv%(3.14)
             # x=x_sine + x_relu
             # x=x_sine
-            print("after activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+            # print("after activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
         elif self.activ is not None:
             x=self.activ(x)
         # elif self.activ is None:
             # x=x_conv
 
-        print("x has shape ", x.shape)
+        # print("x has shape ", x.shape)
 
         return x
 

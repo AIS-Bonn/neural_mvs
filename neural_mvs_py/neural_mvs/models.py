@@ -869,14 +869,14 @@ class SirenNetwork(MetaModule):
         # x=torch.cat( [x,coords], dim=1)
 
         x=coords
-        print("x coords for siren is ", x.shape)
-        print("x which is actually coords is ", x)
-        print("as input to siren x is  " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+        # print("x coords for siren is ", x.shape)
+        # print("x which is actually coords is ", x)
+        # print("as input to siren x is  " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
      
 
         # print ("running siren")
         x=self.net(x, params=get_subdict(params, 'net'))
-        print("finished siren")
+        # print("finished siren")
         # exit(1)
 
        
