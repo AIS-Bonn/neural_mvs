@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_70x"
+    experiment_name="s_70x_3z_hyp"
 
 
 
@@ -84,9 +84,9 @@ def run():
     loader_test=DataLoaderVolRef(config_path)
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] )
     # loader_test.load_only_from_idxs( [10,12,14,16] )
-    loader_test.load_only_from_idxs( [10] )
+    # loader_test.load_only_from_idxs( [10] )
     loader_test.set_shuffle(True)
-    loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
+    # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
