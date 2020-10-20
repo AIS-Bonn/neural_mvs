@@ -61,7 +61,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_c4"
+    experiment_name="s_70x"
 
 
 
@@ -103,8 +103,8 @@ def run():
         # Phase('test', loader_test, grad=False)
     ]
     #model 
-    # model=Net().to("cuda")
-    model=SirenNetwork(in_channels=2, out_channels=3).to("cuda")
+    model=Net().to("cuda")
+    # model=SirenNetwork(in_channels=2, out_channels=3).to("cuda")
     # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
     model.train()
 
@@ -212,8 +212,8 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        # out_tensor=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
-                        out_tensor=model(gt_rgb_tensor)
+                        out_tensor=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
+                        # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 

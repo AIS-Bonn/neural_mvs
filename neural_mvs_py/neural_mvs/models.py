@@ -910,11 +910,11 @@ class SirenNetworkDirect(MetaModule):
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
-            self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
             cur_nr_channels=self.out_channels_per_layer[i]
         # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
-        self.net.append( MetaSequential(Block(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         self.net = MetaSequential(*self.net)
 
@@ -1019,10 +1019,10 @@ class Net(torch.nn.Module):
         # self.encoder=Encoder2D(self.z_size)
         self.encoder=Encoder(self.z_size)
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
-        # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
-        self.nerf_net = NerfDirect(in_channels=3+3*10*2, out_channels=4)
-        # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
-        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
+        self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
+        # self.nerf_net = NerfDirect(in_channels=3+3*10*2, out_channels=4)
+        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
 
 
         self.z_to_z3d = torch.nn.Sequential(
@@ -1040,74 +1040,74 @@ class Net(torch.nn.Module):
       
     def forward(self, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K):
 
-        nr_imgs=x.shape[0]
+        # nr_imgs=x.shape[0]
 
-        # print("encoding")
-        TIME_START("encoding")
-        z=self.encoder(x)
-        TIME_END("encoding")
-        print("encoder outputs z", z.shape)
+        # # print("encoding")
+        # TIME_START("encoding")
+        # z=self.encoder(x)
+        # TIME_END("encoding")
+        # print("encoder outputs z", z.shape)
 
-        TIME_START("rotate")
-        #make z into a nr_imgs x z_size
-        z=z.view(nr_imgs, self.z_size)
+        # TIME_START("rotate")
+        # #make z into a nr_imgs x z_size
+        # z=z.view(nr_imgs, self.z_size)
 
-        #make z into a 3D thing
-        z3d=self.z_to_z3d(z)
-        z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
-        # z3d=self.sigmoid(z3d)
-        print("after making 3d z is ", z.shape)
+        # #make z into a 3D thing
+        # z3d=self.z_to_z3d(z)
+        # z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
+        # # z3d=self.sigmoid(z3d)
+        # print("after making 3d z is ", z.shape)
 
-        #rotate everything into the same world frame
-        R_world_cam_all_list=[]
-        for i in range(nr_imgs):
-            tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
-            R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
-            R_world_cam_all_list.append(R.unsqueeze(0))
-        R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
-        print("R_world_cam_all is ", R_world_cam_all.shape)
-        # print("before rotatin z3d is", z3d)
-        z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2)) 
-        # print("aftering rotatin z3d is", z3d)
-        print("after multiplying z3d is ", z3d.shape)
-
-
-
-        #get also an apperence vector and append it
-        zapp=self.z_to_zapp(z)
-        zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
-        print("zapp has size ", zapp.shape)
-        print("z3d has size ", z3d.shape)
-        z=torch.cat([zapp, z3d], 2)
-        # DO NOT use the zapp
-        # z=z3d
-
-        #aggregate all the z from every camera now expressed in world coords, into one z vector
-        # z3d=z3d.mean(0)
-        # z=z.mean(0)
-        z,_=z.max(0)
-        # print("after agregating z3d is ", z3d.shape)
-        TIME_END("rotate")
-
-        #reduce it so that the hypernetwork makes smaller weights for siren
-        # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+        # #rotate everything into the same world frame
+        # R_world_cam_all_list=[]
+        # for i in range(nr_imgs):
+        #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+        #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+        #     R_world_cam_all_list.append(R.unsqueeze(0))
+        # R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        # print("R_world_cam_all is ", R_world_cam_all.shape)
+        # # print("before rotatin z3d is", z3d)
+        # z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2)) 
+        # # print("aftering rotatin z3d is", z3d)
+        # print("after multiplying z3d is ", z3d.shape)
 
 
-        # print("z has shape ", z.shape)
-        # z=z.reshape(1,self.z_size)
-        z=z.reshape(1,-1)
-        # print("encoder has size", z.shape )
-        # print("running hypernet")
-        TIME_START("hyper")
-        siren_params=self.hyper_net(z)
-        TIME_END("hyper")
-        # print("finished hypernet")
-        # print("computer params of siren")
-        # print("sirenparams", siren_params)
-        # print("x shape is ", x.shape)
-        # x.unsqueeze_(0)
-        # x=self.siren_net(x, params=siren_params)
-        # x=self.siren_net(x, params=None)
+
+        # #get also an apperence vector and append it
+        # zapp=self.z_to_zapp(z)
+        # zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
+        # print("zapp has size ", zapp.shape)
+        # print("z3d has size ", z3d.shape)
+        # z=torch.cat([zapp, z3d], 2)
+        # # DO NOT use the zapp
+        # # z=z3d
+
+        # #aggregate all the z from every camera now expressed in world coords, into one z vector
+        # # z3d=z3d.mean(0)
+        # # z=z.mean(0)
+        # z,_=z.max(0)
+        # # print("after agregating z3d is ", z3d.shape)
+        # TIME_END("rotate")
+
+        # #reduce it so that the hypernetwork makes smaller weights for siren
+        # # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+
+
+        # # print("z has shape ", z.shape)
+        # # z=z.reshape(1,self.z_size)
+        # z=z.reshape(1,-1)
+        # # print("encoder has size", z.shape )
+        # # print("running hypernet")
+        # TIME_START("hyper")
+        # siren_params=self.hyper_net(z)
+        # TIME_END("hyper")
+        # # print("finished hypernet")
+        # # print("computer params of siren")
+        # # print("sirenparams", siren_params)
+        # # print("x shape is ", x.shape)
+        # # x.unsqueeze_(0)
+        # # x=self.siren_net(x, params=siren_params)
+        # # x=self.siren_net(x, params=None)
 
 
         TIME_START("full_siren")
@@ -1145,9 +1145,9 @@ class Net(torch.nn.Module):
         flattened_query_points = query_points.reshape((-1, 3))
         print("flattened_query_points is ", flattened_query_points.shape)
 
-        TIME_START("pos_encode")
-        flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=10, log_sampling=True)
-        TIME_END("pos_encode")
+        # TIME_START("pos_encode")
+        # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=10, log_sampling=True)
+        # TIME_END("pos_encode")
 
         batches = get_minibatches(flattened_query_points, chunksize=chunksize)
         predictions = []
@@ -1161,7 +1161,8 @@ class Net(torch.nn.Module):
             batch=((batch+1.92)/2.43)*2.0-1.0
             # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
             # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
-            predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
+            predictions.append( self.siren_net(batch.to("cuda") ) )
+            # predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
             # if not Scene.does_mesh_with_name_exist("rays"):
             #     rays_mesh=Mesh()
             #     rays_mesh.V=batch.numpy()
