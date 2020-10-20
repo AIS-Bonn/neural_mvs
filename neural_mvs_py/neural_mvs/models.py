@@ -831,8 +831,8 @@ class SirenNetwork(MetaModule):
             is_first_layer=i==0
             self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
-            cur_nr_channels=self.out_channels_per_layer[i] * 2 #because we also added a relu
-            # cur_nr_channels=self.out_channels_per_layer[i]  #when we do NOT add a relu
+            # cur_nr_channels=self.out_channels_per_layer[i] * 2 #because we also added a relu
+            cur_nr_channels=self.out_channels_per_layer[i]  #when we do NOT add a relu
         self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         self.net = MetaSequential(*self.net)

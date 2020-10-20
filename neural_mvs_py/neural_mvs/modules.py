@@ -218,6 +218,7 @@ class BlockSiren(MetaModule):
             self.drop=torch.nn.Dropout2d(0.2)
 
         self.relu=torch.nn.ReLU()
+        self.leaky_relu=torch.nn.LeakyReLU(negative_slope=0.1)
 
         # self.conv=None
 
@@ -256,15 +257,11 @@ class BlockSiren(MetaModule):
                 # See supplement Sec. 1.5 for discussion of factor 30
                 if self.is_first_layer:
                     # self.conv[-1].weight.uniform_(-1 / num_input, 1 / num_input)
-                    # self.conv[-1].weight.uniform_(-1 / num_input*2, 1 / num_input*2)
-                    self.conv[-1].weight.uniform_(-1 / num_input, 1 / num_input)
-                    # self.conv[-1].bias.uniform_(-1 / num_input*100, 1 / num_input*100)
+                    self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # print("conv 1 is ", self.conv[-1].weight )
                 else:
-                    self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/30 , np.sqrt(6 / num_input)/30 )
-                    # self.conv[-1].bias.uniform_(-np.sqrt(6 / num_input)*10 , np.sqrt(6 / num_input)*10 )
-                    # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
-                    # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/7 , np.sqrt(6 / num_input)/7 )
+                    # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/30 , np.sqrt(6 / num_input)/30 )
+                    self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # print("conv any other is ", self.conv[-1].weight )
         
 
@@ -280,15 +277,27 @@ class BlockSiren(MetaModule):
         x = self.conv(x, params=get_subdict(params, 'conv') )
         if self.activ==torch.sin:
             # print("before 30x, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
-            x=30*x
+            if self.is_first_layer: 
+                # x_conv_scaled=30*x_conv
+                x=30*x
+            # x_conv_scaled=x_conv
             print("before activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
-            x_sine=self.activ(x)
-            x_relu=self.relu(x)
-            x=torch.cat( [x_sine, x_relu],1)
+            x=self.activ(x)
+            # x_relu=self.relu(x_conv)
+            #each x will map into a certain period of the sine depending on their value, the network has to be aware of which sine it will activate
+            # x_pos = x/30
+            # x=torch.cat( [x_sine, x_relu],1)
+            # x=torch.cat( [x_sine, x_pos],1)
+            # x=x_sine+x_conv%(3.14)
+            # x=x_sine + x_relu
             # x=x_sine
             print("after activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
         elif self.activ is not None:
             x=self.activ(x)
+        # elif self.activ is None:
+            # x=x_conv
+
+        print("x has shape ", x.shape)
 
         return x
 
