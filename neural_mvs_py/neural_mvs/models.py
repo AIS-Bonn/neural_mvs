@@ -1178,16 +1178,19 @@ class Net(torch.nn.Module):
         radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
 
         # Perform differentiable volume rendering to re-synthesize the RGB image.
-        rgb_predicted, _, _ = render_volume_density(
+        rgb_predicted, depth_map, _ = render_volume_density(
             radiance_field, ray_origins.to("cuda"), depth_values.to("cuda")
         )
 
         # print("rgb predicted has shpae ", rgb_predicted.shape)
         # rgb_predicted=rgb_predicted.view(1,3,height,width)
         rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        # print("depth map size is ", depth_map.shape)
+        depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
+        # depth_map_mat=tensor2mat(depth_map)
         TIME_END("full_siren")
 
-        return rgb_predicted
+        return rgb_predicted, depth_map
 
 
 

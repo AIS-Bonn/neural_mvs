@@ -39,9 +39,9 @@ class MetaConv2d(nn.Conv2d, MetaModule):
 
     #     # super(MetaConv2d, self).__init__()
         self.alpha_weights = torch.nn.Parameter(torch.randn(1))
-        torch.nn.init.constant_(self.alpha_weights, 0.1)
+        torch.nn.init.constant_(self.alpha_weights, 0.01)
         self.alpha_bias = torch.nn.Parameter(torch.randn(1))
-        torch.nn.init.constant_(self.alpha_bias, 0.1)
+        torch.nn.init.constant_(self.alpha_bias, 0.01)
 
     def forward(self, input, params=None):
         if params is None:
