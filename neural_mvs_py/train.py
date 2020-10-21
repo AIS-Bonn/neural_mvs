@@ -65,7 +65,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_30x_3zbw"
+    experiment_name="s_2z_bw_t_all"
 
 
 
@@ -239,9 +239,9 @@ def run():
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
-                        loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        # loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean() 
-                        # loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean()  / loader_test.nr_samples()
+                        # loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / loader_test.nr_samples()
+                        loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / 10
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
 
@@ -295,7 +295,7 @@ def run():
                     if is_training:
                         # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
-                        optimizer.zero_grad()
+                        # optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")
                         loss.backward()
@@ -319,7 +319,12 @@ def run():
                         # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
                         # print("first_conv norm", model.first_conv.weight.grad.norm())
 
-                        optimizer.step()
+                        # optimizer.step()
+
+                        if (phase.iter_nr%10==0):
+                            optimizer.step() # DO it only once after getting gradients for all images
+                            optimizer.zero_grad()
+
 
                 if train_params.with_viewer():
                     view.update()

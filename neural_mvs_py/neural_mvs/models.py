@@ -1060,14 +1060,18 @@ class Net(torch.nn.Module):
 
         #rotate everything into the same world frame
         R_world_cam_all_list=[]
+        t_world_cam_all_list=[]
         for i in range(nr_imgs):
             tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
             R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+            t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
             R_world_cam_all_list.append(R.unsqueeze(0))
+            t_world_cam_all_list.append(t.view(1,1,3) )
         R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
         # print("R_world_cam_all is ", R_world_cam_all.shape)
         # print("before rotatin z3d is", z3d)
-        z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2)) 
+        z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all
         # print("aftering rotatin z3d is", z3d)
         # print("after multiplying z3d is ", z3d.shape)
 
