@@ -65,7 +65,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_70x_3z3"
+    experiment_name="s_70x_3z5"
 
 
 
@@ -228,14 +228,14 @@ def run():
                             # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                             # depth_map_nonzero=depth_map!=0.0
                             print("min max", depth_map.min(), " ", depth_map.max())
-                            depth_map=map_range(depth_map, 1.0, 1.37, 0.0, 1.0)
+                            depth_map=map_range(depth_map, 1.1, 1.65, 0.0, 1.0)
                             depth_map_mat=tensor2mat(depth_map)
                             Gui.show(depth_map_mat, "depth")
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
-                        # loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean() 
+                        loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        # loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean() 
                         # loss=(((out_tensor-gt_rgb_tensor)**2)*mask).mean()  / loader_test.nr_samples()
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
@@ -244,7 +244,8 @@ def run():
 
                         if(phase.iter_nr%show_every==0):
                             # out_mat=tensor2mat(out_tensor)
-                            out_mat=tensor2mat(out_tensor*mask)
+                            # out_mat=tensor2mat(out_tensor*mask)
+                            out_mat=tensor2mat(out_tensor)
                             Gui.show(out_mat, "output")
             
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
