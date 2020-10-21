@@ -65,7 +65,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_70x_3z5"
+    experiment_name="s_30x_3zbw"
 
 
 
@@ -128,6 +128,7 @@ def run():
             if loader.has_data():
                 ref_frame=loader.get_color_frame()
                 depth_frame=loader.get_depth_frame()
+                # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
                 ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                 all_imgs_list.append(ref_rgb_tensor)
                 all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
@@ -194,7 +195,12 @@ def run():
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
+                        mask=gt_rgb_tensor>0.0
                         # ref_rgb_tensor=ref_rgb_tensor.contiguous()
+
+                        #EXPERIMENT make the gt tensor just black and white  SO we predict just black for background and white for the objects
+                        gt_rgb_tensor=mask*1.0
+                        gt_frame.rgb_32f=tensor2mat(gt_rgb_tensor)
 
                         if(phase.iter_nr%show_every==0):
                             # print("width and height ", ref_frame.width)
@@ -221,14 +227,13 @@ def run():
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
-                        mask=gt_rgb_tensor>0.0
 
                         with torch.set_grad_enabled(False):
                             depth_map=depth_map*mask
                             # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                             # depth_map_nonzero=depth_map!=0.0
                             print("min max", depth_map.min(), " ", depth_map.max())
-                            depth_map=map_range(depth_map, 1.1, 1.65, 0.0, 1.0)
+                            depth_map=map_range(depth_map, 1.1, 1.8, 0.0, 1.0)
                             depth_map_mat=tensor2mat(depth_map)
                             Gui.show(depth_map_mat, "depth")
 

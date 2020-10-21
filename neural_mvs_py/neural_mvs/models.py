@@ -795,7 +795,7 @@ class Encoder(torch.nn.Module):
             x = self.coarsens_list[i] ( x )
         # TIME_END("down_path")
         z=x
-        # print("z after encoding has shape ", z.shape)
+        print("z after encoding has shape ", z.shape)
 
 
 
