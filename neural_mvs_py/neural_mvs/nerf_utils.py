@@ -370,7 +370,7 @@ def render_volume_density(
       transmittance map).
     """
     # TESTED
-    sigma_a = torch.nn.functional.relu(radiance_field[..., 3])
+    sigma_a = torch.abs(radiance_field[..., 3])
     rgb = torch.sigmoid(radiance_field[..., :3])
     one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device)
     dists = torch.cat(

@@ -65,7 +65,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_2z_bw_t_all"
+    experiment_name="s_2z_t_all_abs"
 
 
 
@@ -165,14 +165,14 @@ def run():
                     gt_frame=loader_test.get_color_frame() #load from the gt loader
                     gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
-                    #debug
+                    # #debug
                     # cloud=gt_depth_frame.depth2world_xyz_mesh()
-                    # frustum=ref_depth_frame.create_frustum_mesh(0.1)
+                    # frustum=gt_depth_frame.create_frustum_mesh(0.1)
                     # Scene.show(cloud, "cloud")
                     # Scene.show(frustum, "frustum")
 
 
-                    #show frustums 
+                    # #show frustums 
                     # frustum_ref=ref_frame.create_frustum_mesh(0.1)
                     # Scene.show(frustum_ref, "frustum_ref"+str(phase.samples_processed_this_epoch))
                     # frustum_gt=gt_frame.create_frustum_mesh(0.1)

@@ -1162,7 +1162,7 @@ class Net(torch.nn.Module):
             nr_batches+=1
             # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
             # batch=batch-0.4
-            batch=((batch+1.92)/2.43)*2.0-1.0
+            # batch=((batch+1.92)/2.43)*2.0-1.0
             # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
             predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
             # predictions.append( self.siren_net(batch.to("cuda") ) )
