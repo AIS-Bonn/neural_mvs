@@ -65,7 +65,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_2z_nerf"
+    experiment_name="s_2z_relu"
 
 
 
@@ -86,11 +86,11 @@ def run():
     loader.load_only_from_idxs( [0,2,4,6] )
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
-    loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
+    # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
     # loader_test.load_only_from_idxs( [10] )
     # loader_test.set_shuffle(True)
-    loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
+    # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
@@ -143,7 +143,7 @@ def run():
         
     novel_cam=Camera()
     novel_cam.set_position([0, 0.3, 0.2])
-    novel_cam.set_lookat([0, -0.1, -1.3])
+    novel_cam.set_lookat([-0.02, 0.1, -1.3])
     novel_cam.m_fov=40
     novel_cam.m_near=0.01
     novel_cam.m_far=3
@@ -165,7 +165,7 @@ def run():
                 # if phase.loader.has_data() and loader_test.has_data():
                 if loader_test.has_data():
 
-                    torch.manual_seed(0)
+                    # torch.manual_seed(0)
 
 
                     gt_frame=loader_test.get_color_frame() #load from the gt loader
@@ -258,7 +258,7 @@ def run():
                             # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                             # depth_map_nonzero=depth_map!=0.0
                             # print("min max", depth_map.min(), " ", depth_map.max())
-                            depth_map=map_range(depth_map, 1.1, 1.9, 0.0, 1.0)
+                            depth_map=map_range(depth_map, 0.9, 2.1, 0.0, 1.0)
                             depth_map_mat=tensor2mat(depth_map)
                             Gui.show(depth_map_mat, "depth")
 

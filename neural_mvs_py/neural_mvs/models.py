@@ -1124,7 +1124,7 @@ class Net(torch.nn.Module):
         fx=gt_K[0,0] ### 
         fy=gt_K[1,1] ### 
         cx=gt_K[0,2] ### 
-        cy=gt_K[0,2] ### 
+        cy=gt_K[1,2] ### 
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
         near_thresh=1.0
         far_thresh=2.0
