@@ -948,8 +948,8 @@ class NerfDirect(MetaModule):
         self.first_time=True
 
         self.nr_layers=4
-        # self.out_channels_per_layer=[128, 128, 128, 128, 128]
-        self.out_channels_per_layer=[100, 100, 100, 100, 100]
+        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[100, 100, 100, 100, 100]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -992,6 +992,8 @@ class NerfDirect(MetaModule):
         # print("finished siren")
 
         x=x.view(nr_points,-1,1,1)
+
+        # print("nerf output has min max", x.min().item(), x.mean().item(), "mean ", x.mean() )
        
         return x
 
@@ -1181,21 +1183,21 @@ class Net(torch.nn.Module):
             # batch=((batch+1.92)/2.43)*2.0-1.0
             # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
             # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
-            predictions.append( self.siren_net(batch.to("cuda") ) )
+            predictions.append( self.siren_net(batch.to("cuda") )-3.0 )
             # predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
             # predictions.append( self.nerf_net(batch.to("cuda") ) )
             # if not Scene.does_mesh_with_name_exist("rays"):
-            if not novel:
-                rays_mesh=Mesh()
-                rays_mesh.V=batch.numpy()
-                rays_mesh.m_vis.m_show_points=True
-                Scene.show(rays_mesh, "rays_mesh")
-            if novel:
-                rays_mesh=Mesh()
-                rays_mesh.V=batch.numpy()
-                rays_mesh.m_vis.m_show_points=True
-                Scene.show(rays_mesh, "rays_mesh_novel")
-            print(" nr batch ", nr_batches, " / ", len(batches))
+            # if not novel:
+            #     rays_mesh=Mesh()
+            #     rays_mesh.V=batch.numpy()
+            #     rays_mesh.m_vis.m_show_points=True
+            #     Scene.show(rays_mesh, "rays_mesh")
+            # if novel:
+            #     rays_mesh=Mesh()
+            #     rays_mesh.V=batch.numpy()
+            #     rays_mesh.m_vis.m_show_points=True
+            #     Scene.show(rays_mesh, "rays_mesh_novel")
+            # print(" nr batch ", nr_batches, " / ", len(batches))
         # print("got nr_batches ", nr_batches)
         TIME_END("siren_batches")
         radiance_field_flattened = torch.cat(predictions, dim=0)

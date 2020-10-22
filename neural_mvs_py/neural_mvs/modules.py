@@ -183,6 +183,7 @@ class Block(MetaModule):
             # print("after activ, x has mean and std " , x.mean() , " std ", x.std() )
         elif self.activ is not None:
             x=self.activ(x)
+            # print("after activ, x has mean and std " , x.mean() , " std ", x.std() )
         # x=gelu(x)
         # x=torch.sin(x)
         # x=torch.sigmoid(x)
@@ -247,7 +248,7 @@ class BlockSiren(MetaModule):
 
         if self.init=="zero":
                 torch.nn.init.zeros_(self.conv[-1].weight) 
-        if self.activ==torch.sin:
+        if self.activ==torch.sin or self.activ==None:
             with torch.no_grad():
                 # print(":we are usign sin")
                 # print("in channels is ", in_channels, " and conv weight size 1 is ", self.conv.weight.size(-1) )
