@@ -16,8 +16,8 @@ class Vis():
     def __init__(self, env, port):
         self.port=port
         self.env=env
-        self.win_id="0"
-        # self.win_id=None
+        # self.win_id="0"
+        self.win_id=None
 
         self.name_dict=dict()
         self.logger_dict=dict()
@@ -39,6 +39,7 @@ class Vis():
             self.logger_dict[name_window]=torchnet.logger.VisdomPlotLogger('line', opts={'title': name_window}, port=self.port, env=self.env, win=self.win_id)
             print("started new line plot on win ", self.logger_dict[name_window].win)
 
+        print("update_logger val is ", val, "name plot is ", name_plot)
         self.logger_dict[name_window].log(x_axis, val, name=name_plot)
 
     def log(self, x_axis, val, name_window, name_plot, smooth, show_every=1):

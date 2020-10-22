@@ -243,6 +243,7 @@ class BlockSiren(MetaModule):
 
         if not self.transposed:
             self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+            # self.conv_alt= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=3, stride=self.stride, padding=1, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
         else:
             self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
 
@@ -273,9 +274,13 @@ class BlockSiren(MetaModule):
 
         in_channels=x.shape[1]
 
+        x_input=x
+
 
         # print("before conv, x has mean and std " , x.mean() , " std ", x.std() )
         x = self.conv(x, params=get_subdict(params, 'conv') )
+        # x_relu=self.conv_alt(x_input,  params=get_subdict(params, 'conv_alt') )
+        # x_relu=self.leaky_relu(x_relu)
         if self.activ==torch.sin:
             # print("before 30x, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             if self.is_first_layer: 
@@ -299,6 +304,8 @@ class BlockSiren(MetaModule):
             # x=x_conv
 
         # print("x has shape ", x.shape)
+
+        # x=x+x_relu
 
         return x
 

@@ -1171,7 +1171,7 @@ class Net(torch.nn.Module):
         TIME_END("sample")
 
         # "Flatten" the query points.
-        print("query points is ", query_points.shape)
+        # print("query points is ", query_points.shape)
         # flattened_query_points = query_points.reshape((-1, 3))
         # print("flattened_query_points is ", flattened_query_points.shape)
 
@@ -1219,7 +1219,7 @@ class Net(torch.nn.Module):
         radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
 
         # Perform differentiable volume rendering to re-synthesize the RGB image.
-        rgb_predicted, depth_map, _ = render_volume_density(
+        rgb_predicted, depth_map, acc_map = render_volume_density(
         # rgb_predicted, depth_map, _ = render_volume_density_nerfplusplus(
             radiance_field, ray_origins.to("cuda"), depth_values.to("cuda")
         )
@@ -1232,7 +1232,7 @@ class Net(torch.nn.Module):
         # depth_map_mat=tensor2mat(depth_map)
         TIME_END("full_siren")
 
-        return rgb_predicted, depth_map
+        return rgb_predicted, depth_map, acc_map
 
 
 

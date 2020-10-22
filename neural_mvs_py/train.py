@@ -25,6 +25,8 @@ from optimizers.over9000.radam import *
 from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
 
+from neural_mvs.smooth_loss import *
+
 #debug 
 from easypbr import Gui
 from easypbr import Scene
@@ -65,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_2z_sir2"
+    experiment_name="s_2z_sir3"
 
 
 
@@ -226,7 +228,7 @@ def run():
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor, depth_map=model(all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
+                            out_tensor, depth_map, acc_map=model(all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
                             # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
                             if(phase.iter_nr%show_every==0):
                                 out_mat=tensor2mat(out_tensor)
@@ -241,17 +243,21 @@ def run():
                                 Scene.show(frustum, "frustum_novel")
 
 
+
                             
 
 
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
+                        out_tensor, depth_map, acc_map=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
+                        #calculate smoothness loss 
+                        smooth_loss=inverse_depth_smoothness_loss(depth_map, gt_rgb_tensor)
+                        # print("smooth_loss", smooth_loss)
 
                         with torch.set_grad_enabled(False):
                             depth_map=depth_map*mask
@@ -269,6 +275,8 @@ def run():
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / 10
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
                         # print("loss is ", loss)
+
+                        # loss+=smooth_loss*0.00001*phase.iter_nr
 
                         #debug the diff map 
                         diff=(((out_tensor-gt_rgb_tensor)**2))
@@ -318,7 +326,7 @@ def run():
                             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=loss, smooth_loss=smooth_loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                     #     # pbar.update(1)
 
                     #backward
