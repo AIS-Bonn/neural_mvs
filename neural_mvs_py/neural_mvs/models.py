@@ -928,13 +928,20 @@ class SirenNetworkDirect(MetaModule):
 
         #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
         nr_points=x.shape[0]
-        x=x.view(nr_points,3,1,1)
+        # x=x.view(nr_points,3,1,1)
+
+        # X comes as nr_points x 3 matrix but we want adyacen rays to be next to each other. So we put the nr of the ray in the batch
+        # x=x.contiguous()
+        # x=x.view(71,107,30,3)
+        # x=x.view(1,-1,71,107,30)
+        x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
 
 
         # print ("running siren")
         x=self.net(x, params=get_subdict(params, 'net'))
         # print("finished siren")
 
+        x=x.permute(2,3,0,1).contiguous() #from 30,3,71,107 to  71,107,30,3
         x=x.view(nr_points,-1,1,1)
        
         return x
@@ -1164,43 +1171,47 @@ class Net(torch.nn.Module):
         TIME_END("sample")
 
         # "Flatten" the query points.
-        flattened_query_points = query_points.reshape((-1, 3))
+        print("query points is ", query_points.shape)
+        # flattened_query_points = query_points.reshape((-1, 3))
         # print("flattened_query_points is ", flattened_query_points.shape)
 
         # TIME_START("pos_encode")
         # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=10, log_sampling=True)
         # TIME_END("pos_encode")
 
-        batches = get_minibatches(flattened_query_points, chunksize=chunksize)
-        predictions = []
-        nr_batches=0
-        TIME_START("siren_batches")
-        for batch in batches:
-            # print("batch is ", batch.shape)
-            nr_batches+=1
-            # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
-            # batch=batch-0.4
-            # batch=((batch+1.92)/2.43)*2.0-1.0
-            # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
-            # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
-            predictions.append( self.siren_net(batch.to("cuda") )-3.0 )
-            # predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
-            # predictions.append( self.nerf_net(batch.to("cuda") ) )
-            # if not Scene.does_mesh_with_name_exist("rays"):
-            # if not novel:
-            #     rays_mesh=Mesh()
-            #     rays_mesh.V=batch.numpy()
-            #     rays_mesh.m_vis.m_show_points=True
-            #     Scene.show(rays_mesh, "rays_mesh")
-            # if novel:
-            #     rays_mesh=Mesh()
-            #     rays_mesh.V=batch.numpy()
-            #     rays_mesh.m_vis.m_show_points=True
-            #     Scene.show(rays_mesh, "rays_mesh_novel")
-            # print(" nr batch ", nr_batches, " / ", len(batches))
-        # print("got nr_batches ", nr_batches)
-        TIME_END("siren_batches")
-        radiance_field_flattened = torch.cat(predictions, dim=0)
+        # batches = get_minibatches(flattened_query_points, chunksize=chunksize)
+        # predictions = []
+        # nr_batches=0
+        # TIME_START("siren_batches")
+        # for batch in batches:
+        #     # print("batch is ", batch.shape)
+        #     nr_batches+=1
+        #     # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
+        #     # batch=batch-0.4
+        #     # batch=((batch+1.92)/2.43)*2.0-1.0
+        #     # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
+        #     # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
+        #     predictions.append( self.siren_net(batch.to("cuda") )-3.0 )
+        #     # predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
+        #     # predictions.append( self.nerf_net(batch.to("cuda") ) )
+        #     # if not Scene.does_mesh_with_name_exist("rays"):
+        #     # if not novel:
+        #     #     rays_mesh=Mesh()
+        #     #     rays_mesh.V=batch.numpy()
+        #     #     rays_mesh.m_vis.m_show_points=True
+        #     #     Scene.show(rays_mesh, "rays_mesh")
+        #     # if novel:
+        #     #     rays_mesh=Mesh()
+        #     #     rays_mesh.V=batch.numpy()
+        #     #     rays_mesh.m_vis.m_show_points=True
+        #     #     Scene.show(rays_mesh, "rays_mesh_novel")
+        # print(" nr batch ", nr_batches, " / ", len(batches))
+        # # print("got nr_batches ", nr_batches)
+        # TIME_END("siren_batches")
+        # radiance_field_flattened = torch.cat(predictions, dim=0)
+
+        radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
+        # radiance_field_flattened=radiance_field_flattened.view(-1,4)
 
 
         # "Unflatten" to obtain the radiance field.
