@@ -4,6 +4,7 @@ import math
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 
 # import torchsearchsorted
 
@@ -64,7 +65,7 @@ def cumprod_exclusive(tensor: torch.Tensor) -> torch.Tensor:
 
 
 def get_ray_bundle(
-    height: int, width: int, fx: float, fy: float, cx: float, cy: float,  tform_cam2world: torch.Tensor
+    height: int, width: int, fx: float, fy: float, cx: float, cy: float,  tform_cam2world: torch.Tensor, novel=False
 ):
     r"""Compute the bundle of rays passing through all pixels of an image (one ray per pixel).
     Args:
@@ -92,17 +93,29 @@ def get_ray_bundle(
             height, dtype=tform_cam2world.dtype, device=tform_cam2world.device
         ),
     )
-    directions = torch.stack(
-        [
-            (ii - cx) / fx,
-            -(jj - cy) / fy,
-            torch.ones_like(ii),
-        ],
-        dim=-1,
-    )
+    if novel:
+        directions = torch.stack(
+            [
+                (ii - cx) / fx,
+                -(jj - cy) / fy,
+                -torch.ones_like(ii),
+            ],
+            dim=-1,
+        )
+    else: 
+        directions = torch.stack(
+            [
+                (ii - cx) / fx,
+                -(jj - cy) / fy,
+                torch.ones_like(ii),
+            ],
+            dim=-1,
+        )
     ray_directions = torch.sum(
         directions[..., None, :] * tform_cam2world[:3, :3], dim=-1
     )
+    #ray directions have to be normalized 
+    ray_directions=F.normalize(ray_directions, p=2, dim=2)
     ray_origins = tform_cam2world[:3, -1].expand(ray_directions.shape)
     return ray_origins, ray_directions
 
@@ -323,12 +336,13 @@ def compute_query_points_from_rays(
     Returns:
         query_points (torch.Tensor): Query points along each ray
           (shape: :math:`(width, height, num_samples, 3)`).
-        depth_values (torch.Tensor): Sampled depth values along each ray
-          (shape: :math:`(num_samples)`).
+        depth_values (torch.Tensor): Sampled depth values along each ray. This is the euclidean distance between the query point and the sensor origin
+          (shape: :math:`(num_samples)`) or :math:`(width, height, 3)`) in the case you use randomize=True.
     """
     # TESTED
     # shape: (num_samples)
     depth_values = torch.linspace(near_thresh, far_thresh, num_samples).to(ray_origins)
+    # print("depth_values after linspace is ", depth_values.shape)
     if randomize is True:
         # ray_origins: (width, height, 3)
         # noise_shape = (width, height, num_samples)
@@ -388,3 +402,105 @@ def render_volume_density(
     acc_map = weights.sum(-1)
 
     return rgb_map, depth_map, acc_map
+
+
+#trying to make my own renderer based on nerfplusplus because the nerf default one creates lots of splodges of color in empty space 
+#based on https://github.com/Kai-46/nerfplusplus/blob/b24b9047ade68166c1a9792554e2aef60dd137cc/ddp_model.py
+def render_volume_density_nerfplusplus(
+    radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor
+) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+    r"""Differentiably renders a radiance field, given the origin of each ray in the
+    "bundle", and the sampled depth values along them.
+    Args:
+    radiance_field (torch.Tensor): A "field" where, at each query location (X, Y, Z),
+      we have an emitted (RGB) color and a volume density (denoted :math:`\sigma` in
+      the paper) (shape: :math:`(width, height, num_samples, 4)`).
+    ray_origins (torch.Tensor): Origin of each ray in the "bundle" as returned by the
+      `get_ray_bundle()` method (shape: :math:`(width, height, 3)`).
+    depth_values (torch.Tensor): Sampled depth values along each ray
+      (shape: :math:`(num_samples)`).
+    Returns:
+    rgb_map (torch.Tensor): Rendered RGB image (shape: :math:`(width, height, 3)`).
+    depth_map (torch.Tensor): Rendered depth image (shape: :math:`(width, height)`).
+    acc_map (torch.Tensor): # TODO: Double-check (I think this is the accumulated
+      transmittance map).
+    """
+    # TESTED
+    # sigma_a = torch.abs(radiance_field[..., 3])
+    sigma_a = torch.sigmoid(radiance_field[..., 3])
+    rgb = torch.sigmoid(radiance_field[..., :3])
+
+    # fg_dists = fg_z_vals[..., 1:] - fg_z_vals[..., :-1]
+
+    # # alpha blending
+    # fg_dists = fg_z_vals[..., 1:] - fg_z_vals[..., :-1]
+    # # account for view directions
+    # fg_dists = ray_d_norm * torch.cat((fg_dists, fg_z_max.unsqueeze(-1) - fg_z_vals[..., -1:]), dim=-1)  # [..., N_samples]
+    # fg_alpha = 1. - torch.exp(-fg_raw['sigma'] * fg_dists)  # [..., N_samples]
+    # T = torch.cumprod(1. - fg_alpha + TINY_NUMBER, dim=-1)   # [..., N_samples]
+    # bg_lambda = T[..., -1]
+    # T = torch.cat((torch.ones_like(T[..., 0:1]), T[..., :-1]), dim=-1)  # [..., N_samples]
+    # fg_weights = fg_alpha * T     # [..., N_samples]
+    # fg_rgb_map = torch.sum(fg_weights.unsqueeze(-1) * fg_raw['rgb'], dim=-2)  # [..., 3]
+    # fg_depth_map = torch.sum(fg_weights * fg_z_vals, dim=-1) # [...,]
+    # print("depth_values has shape", depth_values.shape)
+    
+    # one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device)
+    # # print("depth values when concating has shape ", depth_values[..., :1].shape)
+    # # print("last depth values is ", depth_values[..., :1])
+
+    # # print("dv 1 shape:", depth_values[..., 1:].shape)
+    # # print("dv :-1 shape ", depth_values[..., -1].shape)
+    # # print("dv 1:", depth_values[..., 1:])
+    # # print("dv :-1", depth_values[..., -1])
+    # # dist_calc =depth_values[..., 1:] - depth_values[..., :-1]
+    # # print("dist_calc by substraction", dist_calc)
+
+    # dists = torch.cat(
+    #     (
+    #         depth_values[..., 1:] - depth_values[..., :-1],
+    #         one_e_10.expand(depth_values[..., :1].shape),
+    #     ),
+    #     dim=-1,
+    # )
+    # # print("dist is ", dists)
+    # # alpha = 1.0 - torch.exp(-sigma_a * dists)
+    # alpha = 1.0 - sigma_a * dists
+    # # alpha=sigma_a
+    # weights = alpha * cumprod_exclusive(1.0 - alpha + 1e-10)
+
+    # rgb_map = (weights[..., None] * rgb).sum(dim=-2)
+    # # print("rgb map maximum is ", rgb_map.min(), " ", rgb_map.max() )
+    # depth_map = (weights * depth_values).sum(dim=-1)
+    # acc_map = weights.sum(-1)
+
+
+
+
+
+    #my own 
+    # print("sigma a has shape", sigma_a.shape)
+    nr_samples_per_ray=100
+    sigma_a=sigma_a* (1.0/nr_samples_per_ray)
+    sigma_cum=torch.cumsum(sigma_a, dim=2)
+    sigma_cum_above_1 = sigma_cum>1.0
+    sigma_cum[sigma_cum_above_1] = 0
+    # print("sigma_cum", sigma_cum)
+    # exit(1)
+
+    sigma_cum_total_weight=sigma_cum.sum(2, keepdim=True)
+
+    rgb_map = (sigma_cum[..., None] * rgb).sum(dim=-2)
+    depth_map = (sigma_cum * depth_values).sum(dim=-1)
+    acc_map = sigma_cum.sum(-1)
+
+    # print("rgb map maximum is ", rgb_map.min(), " ", rgb_map.max() )
+    rgb_map=rgb_map/sigma_cum_total_weight
+    depth_map=depth_map/sigma_cum_total_weight.squeeze(2)
+
+
+
+    return rgb_map, depth_map, acc_map
+
+
+
