@@ -97,7 +97,7 @@ def get_ray_bundle(
         directions = torch.stack(
             [
                 (ii - cx) / fx,
-                -(jj - cy) / fy,
+                (jj - cy) / fy,
                 -torch.ones_like(ii),
             ],
             dim=-1,
@@ -115,7 +115,7 @@ def get_ray_bundle(
         directions[..., None, :] * tform_cam2world[:3, :3], dim=-1
     )
     #ray directions have to be normalized 
-    ray_directions=F.normalize(ray_directions, p=2, dim=2)
+    # ray_directions=F.normalize(ray_directions, p=2, dim=2)
     ray_origins = tform_cam2world[:3, -1].expand(ray_directions.shape)
     return ray_origins, ray_directions
 
@@ -479,12 +479,35 @@ def render_volume_density_nerfplusplus(
 
 
     #my own 
-    # print("sigma a has shape", sigma_a.shape)
-    nr_samples_per_ray=100
-    sigma_a=sigma_a* (1.0/nr_samples_per_ray)
-    sigma_cum=torch.cumsum(sigma_a, dim=2)
-    sigma_cum_above_1 = sigma_cum>1.0
-    sigma_cum[sigma_cum_above_1] = 0
+    # nr_samples_per_ray=100
+    # sigma_a=sigma_a* (1.0/nr_samples_per_ray)
+    # sigma_cum=torch.cumsum(sigma_a, dim=2)
+    # sigma_cum_above_1 = sigma_cum>1.0
+    # sigma_cum[sigma_cum_above_1] = 0
+    # # print("sigma_cum", sigma_cum)
+    # # exit(1)
+
+    # sigma_cum_total_weight=sigma_cum.sum(2, keepdim=True)
+
+    # rgb_map = (sigma_cum[..., None] * rgb).sum(dim=-2)
+    # depth_map = (sigma_cum * depth_values).sum(dim=-1)
+    # acc_map = sigma_cum.sum(-1)
+
+    # # print("rgb map maximum is ", rgb_map.min(), " ", rgb_map.max() )
+    # rgb_map=rgb_map/sigma_cum_total_weight
+    # depth_map=depth_map/sigma_cum_total_weight.squeeze(2)
+
+
+
+
+
+    #based on  https://developer.nvidia.com/sites/all/modules/custom/gpugems/books/GPUGems/gpugems_ch39.html
+    # nr_samples_per_ray=30
+    # sigma_a=sigma_a* (1.0/nr_samples_per_ray)
+    # sigma_cum=torch.cumprod(1-sigma_a, dim=2)
+    sigma_cum=cumprod_exclusive(1-sigma_a)
+    # sigma_cum_above_1 = sigma_cum>1.0
+    # sigma_cum[sigma_cum_above_1] = 0
     # print("sigma_cum", sigma_cum)
     # exit(1)
 
@@ -495,8 +518,8 @@ def render_volume_density_nerfplusplus(
     acc_map = sigma_cum.sum(-1)
 
     # print("rgb map maximum is ", rgb_map.min(), " ", rgb_map.max() )
-    rgb_map=rgb_map/sigma_cum_total_weight
-    depth_map=depth_map/sigma_cum_total_weight.squeeze(2)
+    # rgb_map=rgb_map/sigma_cum_total_weight
+    # depth_map=depth_map/sigma_cum_total_weight.squeeze(2)
 
 
 

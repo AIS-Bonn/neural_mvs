@@ -1165,7 +1165,7 @@ class Net(torch.nn.Module):
         TIME_START("sample")
         # Sample query points along each ray
         query_points, depth_values = compute_query_points_from_rays(
-            ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
+            ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=False
         )
 
         TIME_END("sample")
@@ -1210,7 +1210,15 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
+        # if novel:
+        #     rays_mesh=Mesh()
+        #     rays_mesh.V=query_points.reshape((-1, 3)).numpy()
+        #     rays_mesh.m_vis.m_show_points=True
+        #     Scene.show(rays_mesh, "rays_mesh_novel")
+
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
+        radiance_field_flattened = self.siren_net(query_points.to("cuda") )
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened=radiance_field_flattened.view(-1,4)
 
 
@@ -1220,7 +1228,7 @@ class Net(torch.nn.Module):
 
         # Perform differentiable volume rendering to re-synthesize the RGB image.
         rgb_predicted, depth_map, acc_map = render_volume_density(
-        # rgb_predicted, depth_map, _ = render_volume_density_nerfplusplus(
+        # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
             radiance_field, ray_origins.to("cuda"), depth_values.to("cuda")
         )
 

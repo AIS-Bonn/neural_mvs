@@ -265,6 +265,8 @@ class BlockSiren(MetaModule):
                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/30 , np.sqrt(6 / num_input)/30 )
                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # print("conv any other is ", self.conv[-1].weight )
+
+        self.iter=1
         
 
     def forward(self, x, params=None):
@@ -285,6 +287,7 @@ class BlockSiren(MetaModule):
             # print("before 30x, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             if self.is_first_layer: 
                 # x_conv_scaled=30*x_conv
+                # x=x*(5+self.iter*0.01)
                 x=30*x
             # x_conv_scaled=x_conv
             # print("before activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
