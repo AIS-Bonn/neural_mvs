@@ -88,11 +88,11 @@ def run():
     loader.load_only_from_idxs( [0,2,4,6] )
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
-    loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
+    # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
     # loader_test.load_only_from_idxs( [10] )
     loader_test.set_shuffle(True)
-    loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
+    # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
@@ -198,7 +198,7 @@ def run():
 
                         #get only valid pixels
                         # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
-                        # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         # gt_frame.rgb_32f=ref_frame.rgb_32f
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
