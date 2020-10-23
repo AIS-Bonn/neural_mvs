@@ -97,7 +97,7 @@ def get_ray_bundle(
         directions = torch.stack(
             [
                 (ii - cx) / fx,
-                (jj - cy) / fy,
+                -(jj - cy) / fy,
                 -torch.ones_like(ii),
             ],
             dim=-1,
@@ -106,7 +106,7 @@ def get_ray_bundle(
         directions = torch.stack(
             [
                 (ii - cx) / fx,
-                -(jj - cy) / fy,
+                (jj - cy) / fy,
                 torch.ones_like(ii),
             ],
             dim=-1,

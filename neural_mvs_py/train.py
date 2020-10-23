@@ -228,7 +228,7 @@ def run():
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor, depth_map, acc_map=model(all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
+                            out_tensor, depth_map, acc_map, new_loss=model(all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
                             # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
                             if(phase.iter_nr%show_every==0):
                                 out_mat=tensor2mat(out_tensor)
@@ -250,7 +250,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map, acc_map=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
+                        out_tensor, depth_map, acc_map, new_loss=model(all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
@@ -258,6 +258,8 @@ def run():
                         #calculate smoothness loss 
                         smooth_loss=inverse_depth_smoothness_loss(depth_map, gt_rgb_tensor)
                         # print("smooth_loss", smooth_loss)
+
+                        
 
                         with torch.set_grad_enabled(False):
                             depth_map=depth_map*mask
@@ -277,6 +279,8 @@ def run():
                         # print("loss is ", loss)
 
                         # loss+=smooth_loss*0.00001*phase.iter_nr
+                        ##PUT also the new losses
+                        # loss+=new_loss*0.001*phase.iter_nr
 
                         #debug the diff map 
                         diff=(((out_tensor-gt_rgb_tensor)**2))
