@@ -954,8 +954,8 @@ class NerfDirect(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=4
-        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.nr_layers=6
+        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
 
         # #cnn for encoding
@@ -1220,6 +1220,7 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
+        # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
         radiance_field_flattened=radiance_field_flattened.view(-1,4)
 
 

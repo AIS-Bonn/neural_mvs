@@ -21,7 +21,7 @@ from torchmeta.modules import (MetaModule, MetaSequential)
 
 
 class Block(MetaModule):
-    def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ReLU(inplace=False), init=None, do_norm=False, is_first_layer=False ):
+    def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
@@ -93,6 +93,13 @@ class Block(MetaModule):
                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/7 , np.sqrt(6 / num_input)/7 )
                     # print("conv any other is ", self.conv[-1].weight )
+        if self.activ==torch.relu:
+            print("initializing with kaiming uniform")
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            if self.bias is not None:
+                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
         
 
     def forward(self, x, params=None):
