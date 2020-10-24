@@ -81,27 +81,27 @@ class MetaConv2d(nn.Conv2d, MetaModule):
 
 
 
-        # #if we didn't pass any new parameters into params argument then params[weight] and self.weight are actually the same tensor
-        # have_new_weights=False
-        # if params['weight'].data_ptr() != self.weight.data_ptr():
-        #     have_new_weights=True
-        # #instead of predicting the whole weights we predict delta weight of the initial ones
-        # if have_new_weights:
-        #     initial_weights=self.weight.clone().detach() # the initial weight do not get optimized
-        #     # print("initial_weights", initial_weights.shape)
-        #     # initial_weights.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
-        #     # print("initial_weights", initial_weights)
-        #     # print("self.alpha_weights", self.alpha_weights)
-        #     new_weights=initial_weights+weights * self.alpha_weights #we add the new weights with a learnable alpha that starts very low at the beggining to ensure that we mostly use the initial weights and then move more towards the new ones
-        #     weights=new_weights
-        #     #do the same for bias
-        #     if bias is not None:
-        #         initial_bias=self.bias.clone().detach() # the initial weight do not get optimized
-        #         # print("initial_bias", initial_bias)
-        #         new_bias=initial_bias+bias * self.alpha_bias
-        #         bias=new_bias
-        # # else: 
-        #     # print("we are just using old weights")
+        #if we didn't pass any new parameters into params argument then params[weight] and self.weight are actually the same tensor
+        have_new_weights=False
+        if params['weight'].data_ptr() != self.weight.data_ptr():
+            have_new_weights=True
+        #instead of predicting the whole weights we predict delta weight of the initial ones
+        if have_new_weights:
+            initial_weights=self.weight.clone().detach() # the initial weight do not get optimized
+            # print("initial_weights", initial_weights.shape)
+            # initial_weights.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
+            # print("initial_weights", initial_weights)
+            # print("self.alpha_weights", self.alpha_weights)
+            new_weights=initial_weights+weights * self.alpha_weights #we add the new weights with a learnable alpha that starts very low at the beggining to ensure that we mostly use the initial weights and then move more towards the new ones
+            weights=new_weights
+            #do the same for bias
+            if bias is not None:
+                initial_bias=self.bias.clone().detach() # the initial weight do not get optimized
+                # print("initial_bias", initial_bias)
+                new_bias=initial_bias+bias * self.alpha_bias
+                bias=new_bias
+        # else: 
+            # print("we are just using old weights")
 
         
 
