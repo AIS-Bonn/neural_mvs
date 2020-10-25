@@ -294,7 +294,7 @@ class BlockSiren(MetaModule):
             if self.is_first_layer: 
                 # x_conv_scaled=30*x_conv
                 # x=x*(5+self.iter*0.01)
-                x=60*x
+                x=30*x
             # x_conv_scaled=x_conv
             # print("before activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             x=self.activ(x)

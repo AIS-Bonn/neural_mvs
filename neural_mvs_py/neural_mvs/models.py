@@ -892,9 +892,10 @@ class SirenNetworkDirect(MetaModule):
         self.first_time=True
 
         self.nr_layers=5
-        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
+        self.out_channels_per_layer=[256, 128, 64, 32, 16]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -959,7 +960,15 @@ class SirenNetworkDirect(MetaModule):
             # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
             
             if i!=len(self.net)-1: #if it's any layer except the last one
-                x=torch.cat([x_raw_coords*2*i,x],1)
+                # positions=x_raw_coords*2**i
+                # encoding=[]
+                # for func in [torch.sin, torch.cos]:
+                #     encoding.append(func(positions))
+                # encoding.append(x_raw_coords)
+                # position_input=torch.cat(encoding, 1)
+                # position_input=x_raw_coords*self.out_channels_per_layer[i]*0.5
+                position_input=x_raw_coords
+                x=torch.cat([position_input,x],1)
             # if i!=0 and i!=len(self.net)-1:
             #     x=torch.cat([x_first_layer,x],1)
         # print("finished siren")
@@ -1317,6 +1326,7 @@ class Net(torch.nn.Module):
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
+        # flattened_query_points/=2.43
         radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda") )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
