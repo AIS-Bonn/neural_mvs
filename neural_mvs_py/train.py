@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_3z_sir"
+    experiment_name="s_3z_enc0_inc7"
 
 
 

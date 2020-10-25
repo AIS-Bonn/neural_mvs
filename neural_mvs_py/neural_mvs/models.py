@@ -914,11 +914,13 @@ class SirenNetworkDirect(MetaModule):
             self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
             if i!=self.nr_layers:
-                cur_nr_channels=self.out_channels_per_layer[i]+3
+                cur_nr_channels=self.out_channels_per_layer[i]+ in_channels
             else:
                 cur_nr_channels=self.out_channels_per_layer[i]
-            if i!=0:
-                cur_nr_channels+=self.out_channels_per_layer[0]
+            # if i!=0:
+            #     cur_nr_channels+=self.out_channels_per_layer[0]
+
+            # cur_nr_channels=self.out_channels_per_layer[i]
         # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
         self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
@@ -939,6 +941,7 @@ class SirenNetworkDirect(MetaModule):
         # x=x.contiguous()
         # x=x.view(71,107,30,3)
         # x=x.view(1,-1,71,107,30)
+        print("x is ", x.shape)
         x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
 
 
@@ -950,16 +953,87 @@ class SirenNetworkDirect(MetaModule):
 
         for i in range(len(self.net)):
             x=self.net[i](x)
-            if i==0:
-                x_first_layer=x
+            # if i==0:
+            #     x_first_layer=x
 
-            print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
+            # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
             
             if i!=len(self.net)-1: #if it's any layer except the last one
-                x=torch.cat([x_raw_coords,x],1)
-            if i!=0 and i!=len(self.net)-1:
-                x=torch.cat([x_first_layer,x],1)
+                x=torch.cat([x_raw_coords*2*i,x],1)
+            # if i!=0 and i!=len(self.net)-1:
+            #     x=torch.cat([x_first_layer,x],1)
         # print("finished siren")
+
+        x=x.permute(2,3,0,1).contiguous() #from 30,3,71,107 to  71,107,30,3
+        x=x.view(nr_points,-1,1,1)
+       
+        return x
+
+
+#this siren net receives directly the coordinates, no need to make a concat coord or whatever
+#This one does soemthin like densenet so each layers just append to a stack
+class SirenNetworkDense(MetaModule):
+    def __init__(self, in_channels, out_channels):
+        super(SirenNetworkDense, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=5
+        self.out_channels_per_layer=[128, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[100, 100, 100, 100, 100]
+        # self.out_channels_per_layer=[256, 256, 256, 256, 256]
+
+
+        cur_nr_channels=in_channels
+
+        self.net=torch.nn.ModuleList([])
+        # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
+        # cur_nr_channels=self.out_channels_per_layer[0]
+
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
+            cur_nr_channels= cur_nr_channels + self.out_channels_per_layer[i]
+        # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+
+        # self.net = MetaSequential(*self.net)
+
+
+
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
+        nr_points=x.shape[0]
+        # x=x.view(nr_points,3,1,1)
+
+        # X comes as nr_points x 3 matrix but we want adyacen rays to be next to each other. So we put the nr of the ray in the batch
+        # x=x.contiguous()
+        # x=x.view(71,107,30,3)
+        # x=x.view(1,-1,71,107,30)
+        print("x is ", x.shape)
+        x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
+
+
+        # print ("running siren")
+        # x=self.net(x, params=get_subdict(params, 'net'))
+
+        x_raw_coords=x
+        x_first_layer=None
+
+        stack=[]
+        stack.append(x)
+
+        for i in range(len(self.net)):
+
+            input = torch.cat(stack,1)
+            x=self.net[i](input)
+            stack.append(x)
+          
 
         x=x.permute(2,3,0,1).contiguous() #from 30,3,71,107 to  71,107,30,3
         x=x.view(nr_points,-1,1,1)
@@ -1039,6 +1113,7 @@ class Net(torch.nn.Module):
         self.z_size=256
         # self.z_size=2048
         self.nr_points_z=256
+        self.num_encodings=0
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -1049,8 +1124,10 @@ class Net(torch.nn.Module):
         # self.encoder=Encoder2D(self.z_size)
         self.encoder=Encoder(self.z_size)
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
-        self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
-        # self.nerf_net = NerfDirect(in_channels=3+3*10*2, out_channels=4)
+        # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
+        self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
+        # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
+        # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
         self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
 
@@ -1196,7 +1273,9 @@ class Net(torch.nn.Module):
         # print("flattened_query_points is ", flattened_query_points.shape)
 
         # TIME_START("pos_encode")
-        # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=10, log_sampling=True)
+        flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
+        flattened_query_points=flattened_query_points.view(71,107,depth_samples_per_ray,-1 )
+        # print("flatened_query_pointss is ", flatened_query_pointss.shape)
         # TIME_END("pos_encode")
 
         # batches = get_minibatches(flattened_query_points, chunksize=chunksize)
@@ -1237,7 +1316,8 @@ class Net(torch.nn.Module):
         #     Scene.show(rays_mesh, "rays_mesh_novel")
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
-        radiance_field_flattened = self.siren_net(query_points.to("cuda") )
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda") )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
