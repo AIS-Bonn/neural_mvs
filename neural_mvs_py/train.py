@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_3z_nerf_hyp"
+    experiment_name="s_3z_sir"
 
 
 
@@ -88,6 +88,7 @@ def run():
     loader.load_only_from_idxs( [0,2,4,6] )
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
+    # loader_test.load_only_from_idxs( [0,2,4,6] )
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
     # loader_test.load_only_from_idxs( [10] )
@@ -256,7 +257,7 @@ def run():
                         TIME_END("forward")
 
                         #calculate smoothness loss 
-                        smooth_loss=inverse_depth_smoothness_loss(depth_map, gt_rgb_tensor)
+                        # smooth_loss=inverse_depth_smoothness_loss(depth_map, gt_rgb_tensor)
                         # print("smooth_loss", smooth_loss)
 
                         
@@ -330,7 +331,7 @@ def run():
                             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=loss, smooth_loss=smooth_loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                     #     # pbar.update(1)
 
                     #backward
