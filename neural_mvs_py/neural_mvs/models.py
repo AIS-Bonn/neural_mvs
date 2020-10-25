@@ -892,10 +892,11 @@ class SirenNetworkDirect(MetaModule):
         self.first_time=True
 
         self.nr_layers=5
-        # self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.out_channels_per_layer=[128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
-        self.out_channels_per_layer=[256, 128, 64, 32, 16]
+        # self.out_channels_per_layer=[256, 128, 64, 32, 16]
+        # self.out_channels_per_layer=[256, 256, 256, 256, 256]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -915,7 +916,7 @@ class SirenNetworkDirect(MetaModule):
             self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
             if i!=self.nr_layers:
-                cur_nr_channels=self.out_channels_per_layer[i]+ in_channels
+                cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
             else:
                 cur_nr_channels=self.out_channels_per_layer[i]
             # if i!=0:
@@ -967,7 +968,7 @@ class SirenNetworkDirect(MetaModule):
                 # encoding.append(x_raw_coords)
                 # position_input=torch.cat(encoding, 1)
                 # position_input=x_raw_coords*self.out_channels_per_layer[i]*0.5
-                position_input=x_raw_coords
+                position_input=x_raw_coords.repeat(1,10,1,1)
                 x=torch.cat([position_input,x],1)
             # if i!=0 and i!=len(self.net)-1:
             #     x=torch.cat([x_first_layer,x],1)
