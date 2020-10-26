@@ -917,8 +917,8 @@ class SirenNetworkDirect(MetaModule):
         self.position_embedder=( MetaSequential( 
             Block(activ=torch.relu, in_channels=in_channels, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-            Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-            Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            # Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            # Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             Block(activ=None, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             ) )
         # cur_nr_channels=128+3
@@ -934,7 +934,8 @@ class SirenNetworkDirect(MetaModule):
             #     ) )
 
             # if i<self.nr_layers-4:
-            if i!=self.nr_layers:
+            # if i!=self.nr_layers:
+            if i==0:
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
                 # cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
@@ -986,7 +987,8 @@ class SirenNetworkDirect(MetaModule):
             # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
             
             # if i<len(self.net)-5: #if it's any layer except the last one
-            if i!=len(self.net)-1: #if it's any layer except the last one
+            # if i!=len(self.net)-1: #if it's any layer except the last one
+            if i == 0:
                 # print("cat", i)
                 # positions=x_raw_coords*2**i
                 # encoding=[]

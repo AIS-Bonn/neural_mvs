@@ -418,7 +418,7 @@ class BlockSiren(MetaModule):
             if self.is_first_layer: 
                 # x_conv_scaled=30*x_conv
                 # x=x*(5+self.iter*0.01)
-                x=70*x
+                x=90*x
             # x_conv_scaled=x_conv
             else: 
                 x=x*1
