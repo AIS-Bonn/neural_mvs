@@ -891,8 +891,8 @@ class SirenNetworkDirect(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=5
-        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.nr_layers=6
+        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[256, 128, 64, 32, 16]
