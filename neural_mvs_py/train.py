@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_4"
+    experiment_name="s_1"
 
 
 
@@ -119,7 +119,7 @@ def run():
     loss_fn=torch.nn.MSELoss()
 
     # show_every=39
-    show_every=1
+    show_every=10
 
 
     #prepare all images and concat them batchwise
@@ -233,7 +233,7 @@ def run():
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
                             out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
                             # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
-                            if(phase.iter_nr%show_every==0):
+                            if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
                                 Gui.show(out_mat, "novel")
                                 #show the frustum of the novel view
@@ -265,15 +265,16 @@ def run():
                         
 
                         with torch.set_grad_enabled(False):
-                            # print("depth map has shape ", depth_map.shape)
-                            # print("mask has shape ", mask.shape)
-                            depth_map=depth_map*mask
-                            # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
-                            # depth_map_nonzero=depth_map!=0.0
-                            # print("min max", depth_map.min(), " ", depth_map.max())
-                            depth_map=map_range(depth_map, 0.9, 2.1, 0.0, 1.0)
-                            depth_map_mat=tensor2mat(depth_map)
-                            Gui.show(depth_map_mat, "depth")
+                            if(phase.iter_nr%show_every==0):
+                                # print("depth map has shape ", depth_map.shape)
+                                # print("mask has shape ", mask.shape)
+                                depth_map=depth_map*mask
+                                # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
+                                # depth_map_nonzero=depth_map!=0.0
+                                # print("min max", depth_map.min(), " ", depth_map.max())
+                                depth_map=map_range(depth_map, 0.7, 1.2, 0.0, 1.0)
+                                depth_map_mat=tensor2mat(depth_map)
+                                Gui.show(depth_map_mat, "depth")
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
