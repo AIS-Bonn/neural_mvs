@@ -1087,7 +1087,7 @@ class NerfDirect(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=4
+        self.nr_layers=5
         self.out_channels_per_layer=[128, 128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
 
@@ -1153,7 +1153,9 @@ class Net(torch.nn.Module):
         # self.z_size=2048
         self.nr_points_z=256
         self.num_encodings=0
-        self.siren_out_channels=64
+        # self.siren_out_channels=64
+        # self.siren_out_channels=32
+        self.siren_out_channels=4
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -1165,8 +1167,8 @@ class Net(torch.nn.Module):
         self.encoder=Encoder(self.z_size)
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
-        self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
-        # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
+        # self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
+        self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
         self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
@@ -1185,19 +1187,19 @@ class Net(torch.nn.Module):
         )
 
 
-        #from the features of the siren we predict the rgb
-        self.rgb_pred=torch.nn.ModuleList([])
-        self.nr_rgb_pred=1
-        self.rgb_pred.append(
-            Block(activ=gelu, in_channels=self.siren_out_channels-1, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-        )
-        for i in range(self.nr_rgb_pred):
-            self.rgb_pred.append(
-                Block(activ=gelu, in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-            )
-        self.rgb_pred.append(
-            Block(activ=None, in_channels=32, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-        )
+        # #from the features of the siren we predict the rgb
+        # self.rgb_pred=torch.nn.ModuleList([])
+        # self.nr_rgb_pred=1
+        # self.rgb_pred.append(
+        #     Block(activ=gelu, in_channels=self.siren_out_channels-1, out_channels=32, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        # )
+        # for i in range(self.nr_rgb_pred):
+        #     self.rgb_pred.append(
+        #         Block(activ=gelu, in_channels=32, out_channels=32, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     )
+        # self.rgb_pred.append(
+        #     Block(activ=None, in_channels=32, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        # )
 
        
 
@@ -1289,8 +1291,8 @@ class Net(torch.nn.Module):
         cx=gt_K[0,2] ### 
         cy=gt_K[1,2] ### 
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
-        near_thresh=1.0
-        far_thresh=2.0
+        near_thresh=0.2
+        far_thresh=1.6
         # depth_samples_per_ray=100
         depth_samples_per_ray=30
         chunksize=512*512
@@ -1366,11 +1368,11 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        if novel:
-            rays_mesh=Mesh()
-            rays_mesh.V=query_points.reshape((-1, 3)).numpy()
-            rays_mesh.m_vis.m_show_points=True
-            Scene.show(rays_mesh, "rays_mesh_novel")
+        # if not novel:
+        #     rays_mesh=Mesh()
+        #     rays_mesh.V=query_points.reshape((-1, 3)).numpy()
+        #     rays_mesh.m_vis.m_show_points=True
+        #     Scene.show(rays_mesh, "rays_mesh_novel")
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
@@ -1409,8 +1411,8 @@ class Net(torch.nn.Module):
         # print("rgb_predicted out is ", rgb_predicted.shape)
         # print("guide out is ", guide.shape)
 
-        for i in range(self.nr_rgb_pred+2):
-            rgb_predicted=self.rgb_pred[i](rgb_predicted )
+        # for i in range(self.nr_rgb_pred+2):
+        #     rgb_predicted=self.rgb_pred[i](rgb_predicted )
         # print("rgb_predicted out is ", rgb_predicted.shape)
 
 

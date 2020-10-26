@@ -67,7 +67,8 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_pred"
+    experiment_name="s_1"
+
 
 
 
@@ -146,7 +147,8 @@ def run():
         
     novel_cam=Camera()
     novel_cam.set_position([0, 0.3, 0.2])
-    novel_cam.set_lookat([-0.02, 0.1, -1.3])
+    # novel_cam.set_lookat([-0.02, 0.1, -1.3]) #for the figure
+    novel_cam.set_lookat([-0.02, 0.1, -1.0]) #for vase
     novel_cam.m_fov=40
     novel_cam.m_near=0.01
     novel_cam.m_far=3
