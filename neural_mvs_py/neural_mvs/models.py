@@ -931,6 +931,7 @@ class SirenNetworkDirect(MetaModule):
             #     Block(activ=None, in_channels=self.out_channels_per_layer[i], out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             #     ) )
 
+            # if i<self.nr_layers-4:
             if i!=self.nr_layers:
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
@@ -962,7 +963,7 @@ class SirenNetworkDirect(MetaModule):
         # x=x.contiguous()
         # x=x.view(71,107,30,3)
         # x=x.view(1,-1,71,107,30)
-        print("x is ", x.shape)
+        # print("x is ", x.shape)
         x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
 
 
@@ -975,14 +976,16 @@ class SirenNetworkDirect(MetaModule):
         # x=torch.cat([position_input,x_raw_coords],1)
 
         for i in range(len(self.net)):
-            print("x si ", x.shape)
+            # print("x si ", x.shape)
             x=self.net[i](x)
             # if i==0:
             #     x_first_layer=x
 
             # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
             
+            # if i<len(self.net)-5: #if it's any layer except the last one
             if i!=len(self.net)-1: #if it's any layer except the last one
+                # print("cat", i)
                 # positions=x_raw_coords*2**i
                 # encoding=[]
                 # for func in [torch.sin, torch.cos]:
@@ -1000,7 +1003,7 @@ class SirenNetworkDirect(MetaModule):
                 # x=x+position_input
         # print("finished siren")
 
-        x=x.permute(2,3,0,1).contiguous() #from 30,3,71,107 to  71,107,30,3
+        x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,3
         x=x.view(nr_points,-1,1,1)
        
         return x
@@ -1150,6 +1153,7 @@ class Net(torch.nn.Module):
         # self.z_size=2048
         self.nr_points_z=256
         self.num_encodings=0
+        self.siren_out_channels=64
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -1161,7 +1165,7 @@ class Net(torch.nn.Module):
         self.encoder=Encoder(self.z_size)
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
-        self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
+        self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
         self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
@@ -1180,8 +1184,25 @@ class Net(torch.nn.Module):
             torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
         )
 
+
+        #from the features of the siren we predict the rgb
+        self.rgb_pred=torch.nn.ModuleList([])
+        self.nr_rgb_pred=1
+        self.rgb_pred.append(
+            Block(activ=gelu, in_channels=self.siren_out_channels-1, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        )
+        for i in range(self.nr_rgb_pred):
+            self.rgb_pred.append(
+                Block(activ=gelu, in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            )
+        self.rgb_pred.append(
+            Block(activ=None, in_channels=32, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        )
+
+       
+
       
-    def forward(self, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, novel=False):
+    def forward(self, guide, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, novel=False):
 
         # nr_imgs=x.shape[0]
 
@@ -1358,17 +1379,17 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
-        radiance_field_flattened=radiance_field_flattened.view(-1,4)
+        radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
 
 
         # "Unflatten" to obtain the radiance field.
-        unflattened_shape = list(query_points.shape[:-1]) + [4]
+        unflattened_shape = list(query_points.shape[:-1]) + [self.siren_out_channels]
         radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
 
         # Perform differentiable volume rendering to re-synthesize the RGB image.
         rgb_predicted, depth_map, acc_map = render_volume_density(
         # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
-            radiance_field, ray_origins.to("cuda"), depth_values.to("cuda")
+            radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
         )
 
         # print("rgb predicted has shpae ", rgb_predicted.shape)
@@ -1378,6 +1399,20 @@ class Net(torch.nn.Module):
         depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
         # depth_map_mat=tensor2mat(depth_map)
         TIME_END("full_siren")
+
+        # print("rgb_predicted is ", rgb_predicted.shape)
+
+
+        #when rgb predicted is actually just a bunch of features like 64 features per pixel then we regress from them the rgb
+        #GUIDE cannot be the rgb image because when we render from a novel view we don't have the gt for that one
+        # guide=rgb_predicted
+        # print("rgb_predicted out is ", rgb_predicted.shape)
+        # print("guide out is ", guide.shape)
+
+        for i in range(self.nr_rgb_pred+2):
+            rgb_predicted=self.rgb_pred[i](rgb_predicted )
+        # print("rgb_predicted out is ", rgb_predicted.shape)
+
 
 
         #NEW LOSSES

@@ -13,6 +13,8 @@ from torchmeta.modules.module import *
 from torchmeta.modules.utils import *
 from torchmeta.modules import (MetaModule, MetaSequential)
 
+from neural_mvs_py.neural_mvs.pac import *
+
 
 
 def gelu(x):
@@ -194,6 +196,127 @@ class Block(MetaModule):
         # x=gelu(x)
         # x=torch.sin(x)
         # x=torch.sigmoid(x)
+
+        return x
+
+# class BNReluConv(MetaModule):
+#     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
+#         super(BNReluConv, self).__init__()
+#         self.out_channels=out_channels
+#         self.kernel_size=kernel_size
+#         self.stride=stride
+#         self.padding=padding
+#         self.dilation=dilation
+#         self.bias=bias 
+#         self.conv= None
+#         self.norm= None
+#         # self.relu=torch.nn.ReLU(inplace=False)
+#         self.activ=activ
+#         self.with_dropout=with_dropout
+#         self.transposed=transposed
+#         # self.cc=ConcatCoord()
+#         self.init=init
+#         self.do_norm=do_norm
+#         self.is_first_layer=is_first_layer
+
+#         if with_dropout:
+#             self.drop=torch.nn.Dropout2d(0.2)
+
+       
+#         self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
+#         self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        
+
+       
+#         print("initializing with kaiming uniform")
+#         torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='tanh')
+#         if self.bias is not None:
+#             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+#             bound = 1 / math.sqrt(fan_in)
+#             torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+    
+
+#     def forward(self, x, params=None):
+#         if params is None:
+#             params = OrderedDict(self.named_parameters())
+#         # print("params is", params)
+
+#         # x=self.cc(x)
+
+#         in_channels=x.shape[1]
+
+
+#         if self.activ !=None: 
+#             # x=self.norm(x)
+#             x=self.activ(x)
+#         x = self.conv(x, params=get_subdict(params, 'conv') )
+       
+
+#         return x
+
+
+class BlockPAC(torch.nn.Module):
+    def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
+        super(BlockPAC, self).__init__()
+        self.out_channels=out_channels
+        self.kernel_size=kernel_size
+        self.stride=stride
+        self.padding=padding
+        self.dilation=dilation
+        self.bias=bias 
+        self.conv= None
+        self.norm= None
+        # self.relu=torch.nn.ReLU(inplace=False)
+        self.activ=activ
+        self.with_dropout=with_dropout
+        self.transposed=transposed
+        # self.cc=ConcatCoord()
+        self.init=init
+        self.do_norm=do_norm
+        self.is_first_layer=is_first_layer
+
+        if with_dropout:
+            self.drop=torch.nn.Dropout2d(0.2)
+
+       
+        self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
+        self.conv=PacConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=self.bias).cuda() 
+        
+
+       
+        # print("initializing with kaiming uniform")
+        # torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='tanh')
+        # if self.bias is not None:
+        #     fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+        #     bound = 1 / math.sqrt(fan_in)
+        #     torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+    
+
+    def forward(self, x, guide):
+        # if params is None:
+            # params = OrderedDict(self.named_parameters())
+        # print("params is", params)
+
+        # x=self.cc(x)
+
+        in_channels=x.shape[1]
+
+
+        x = self.conv(x, guide )
+
+        if self.activ !=None: 
+            x=self.activ(x)
+       
 
         return x
 

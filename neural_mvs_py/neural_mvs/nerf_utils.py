@@ -365,7 +365,7 @@ def compute_query_points_from_rays(
 
 
 def render_volume_density(
-    radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor
+    radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor, siren_out_channels
 ) -> (torch.Tensor, torch.Tensor, torch.Tensor):
     r"""Differentiably renders a radiance field, given the origin of each ray in the
     "bundle", and the sampled depth values along them.
@@ -383,9 +383,10 @@ def render_volume_density(
     acc_map (torch.Tensor): # TODO: Double-check (I think this is the accumulated
       transmittance map).
     """
+
     # TESTED
-    sigma_a = torch.relu(radiance_field[..., 3])
-    rgb = torch.sigmoid(radiance_field[..., :3])
+    sigma_a = torch.relu(radiance_field[..., siren_out_channels-1])
+    rgb = torch.sigmoid(radiance_field[..., :siren_out_channels-1])
     one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device)
     dists = torch.cat(
         (
