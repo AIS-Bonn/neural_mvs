@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_pose_one_1"
+    experiment_name="s_cat_tanh"
 
 
 
@@ -118,7 +118,7 @@ def run():
     loss_fn=torch.nn.MSELoss()
 
     # show_every=39
-    show_every=1
+    show_every=10
 
 
     #prepare all images and concat them batchwise
@@ -263,6 +263,8 @@ def run():
                         
 
                         with torch.set_grad_enabled(False):
+                            print("depth map has shape ", depth_map.shape)
+                            print("mask has shape ", mask.shape)
                             depth_map=depth_map*mask
                             # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                             # depth_map_nonzero=depth_map!=0.0

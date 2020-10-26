@@ -15,8 +15,8 @@ from torchmeta.modules import (MetaModule, MetaSequential)
 
 
 
-# def gelu(x):
-#     return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
+def gelu(x):
+    return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
 
 
 
@@ -95,7 +95,7 @@ class Block(MetaModule):
                     # print("conv any other is ", self.conv[-1].weight )
         if self.activ==torch.relu:
             print("initializing with kaiming uniform")
-            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='tanh')
             if self.bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
                 bound = 1 / math.sqrt(fan_in)

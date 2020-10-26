@@ -915,9 +915,11 @@ class SirenNetworkDirect(MetaModule):
 
 
         self.position_embedder=( MetaSequential( 
-            Block(activ=torch.relu, in_channels=in_channels, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            Block(activ=torch.tanh, in_channels=in_channels, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            Block(activ=torch.tanh, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             Block(activ=None, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             ) )
+        # cur_nr_channels=128+3
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
@@ -932,11 +934,12 @@ class SirenNetworkDirect(MetaModule):
             if i!=self.nr_layers:
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
-                cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
+                # cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
+                cur_nr_channels=self.out_channels_per_layer[i]+ 128 #when using a positional embedder for the raw coords
             else:
                 cur_nr_channels=self.out_channels_per_layer[i]
             # if i!=0:
-            #     cur_nr_channels+=self.out_channels_per_layer[0]
+                # cur_nr_channels+=self.out_channels_per_layer[0]
 
             # cur_nr_channels=self.out_channels_per_layer[i]
         # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
@@ -968,8 +971,11 @@ class SirenNetworkDirect(MetaModule):
 
         x_raw_coords=x
         x_first_layer=None
+        position_input=self.position_embedder(x_raw_coords)
+        # x=torch.cat([position_input,x_raw_coords],1)
 
         for i in range(len(self.net)):
+            print("x si ", x.shape)
             x=self.net[i](x)
             # if i==0:
             #     x_first_layer=x
@@ -987,10 +993,11 @@ class SirenNetworkDirect(MetaModule):
                 # position_input=x_raw_coords.repeat(1,30,1,1)
 
                 # position_input=self.position_embedders[i](x_raw_coords)
-                position_input=self.position_embedder(x_raw_coords)
+                # position_input=self.position_embedder(x_raw_coords)
                 x=torch.cat([position_input,x],1)
             # if i!=0 and i!=len(self.net)-1:
-            #     x=torch.cat([x_first_layer,x],1)
+                # x=torch.cat([x_first_layer,x],1)
+                # x=x+position_input
         # print("finished siren")
 
         x=x.permute(2,3,0,1).contiguous() #from 30,3,71,107 to  71,107,30,3
@@ -1291,7 +1298,7 @@ class Net(torch.nn.Module):
         TIME_START("sample")
         # Sample query points along each ray
         query_points, depth_values = compute_query_points_from_rays(
-            ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=False
+            ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
         )
 
         TIME_END("sample")
@@ -1303,7 +1310,7 @@ class Net(torch.nn.Module):
 
         # TIME_START("pos_encode")
         flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
-        flattened_query_points=flattened_query_points.view(71,107,depth_samples_per_ray,-1 )
+        flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
         # print("flatened_query_pointss is ", flatened_query_pointss.shape)
         # TIME_END("pos_encode")
 
@@ -1338,11 +1345,11 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        # if novel:
-        #     rays_mesh=Mesh()
-        #     rays_mesh.V=query_points.reshape((-1, 3)).numpy()
-        #     rays_mesh.m_vis.m_show_points=True
-        #     Scene.show(rays_mesh, "rays_mesh_novel")
+        if novel:
+            rays_mesh=Mesh()
+            rays_mesh.V=query_points.reshape((-1, 3)).numpy()
+            rays_mesh.m_vis.m_show_points=True
+            Scene.show(rays_mesh, "rays_mesh_novel")
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
