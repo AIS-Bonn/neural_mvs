@@ -934,8 +934,8 @@ class SirenNetworkDirect(MetaModule):
             #     ) )
 
             # if i<self.nr_layers-4:
-            # if i!=self.nr_layers:
-            if i==0:
+            if i!=self.nr_layers:
+            # if i==0:
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
                 # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
                 # cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
@@ -987,8 +987,8 @@ class SirenNetworkDirect(MetaModule):
             # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
             
             # if i<len(self.net)-5: #if it's any layer except the last one
-            # if i!=len(self.net)-1: #if it's any layer except the last one
-            if i == 0:
+            if i!=len(self.net)-1: #if it's any layer except the last one
+            # if i == 0:
                 # print("cat", i)
                 # positions=x_raw_coords*2**i
                 # encoding=[]
@@ -1295,8 +1295,12 @@ class Net(torch.nn.Module):
         cx=gt_K[0,2] ### 
         cy=gt_K[1,2] ### 
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
-        near_thresh=0.7
-        far_thresh=1.2
+        #vase
+        # near_thresh=0.7
+        # far_thresh=1.2
+        #socrates
+        near_thresh=0.9
+        far_thresh=1.7
         # depth_samples_per_ray=100
         depth_samples_per_ray=60
         # depth_samples_per_ray=30
@@ -1373,11 +1377,11 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        # if not novel:
-        #     rays_mesh=Mesh()
-        #     rays_mesh.V=query_points.reshape((-1, 3)).numpy()
-        #     rays_mesh.m_vis.m_show_points=True
-        #     Scene.show(rays_mesh, "rays_mesh_novel")
+        if not novel:
+            rays_mesh=Mesh()
+            rays_mesh.V=query_points.reshape((-1, 3)).numpy()
+            rays_mesh.m_vis.m_show_points=True
+            Scene.show(rays_mesh, "rays_mesh_novel")
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )

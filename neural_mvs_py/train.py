@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_8"
+    experiment_name="s_28"
 
 
 
@@ -148,7 +148,8 @@ def run():
     novel_cam=Camera()
     novel_cam.set_position([0, 0.3, 0.2])
     # novel_cam.set_lookat([-0.02, 0.1, -1.3]) #for the figure
-    novel_cam.set_lookat([-0.02, 0.1, -1.0]) #for vase
+    # novel_cam.set_lookat([-0.02, 0.1, -1.0]) #for vase
+    novel_cam.set_lookat([-0.02, 0.2, -1.0]) #for socrates
     novel_cam.m_fov=40
     novel_cam.m_near=0.01
     novel_cam.m_far=3
@@ -272,7 +273,7 @@ def run():
                                 # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                                 # depth_map_nonzero=depth_map!=0.0
                                 # print("min max", depth_map.min(), " ", depth_map.max())
-                                depth_map=map_range(depth_map, 0.7, 1.2, 0.0, 1.0)
+                                depth_map=map_range(depth_map, 0.9, 1.7, 0.0, 1.0)
                                 depth_map_mat=tensor2mat(depth_map)
                                 Gui.show(depth_map_mat, "depth")
 
