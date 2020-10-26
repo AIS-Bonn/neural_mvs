@@ -931,18 +931,18 @@ class SirenNetworkDirect(MetaModule):
             #     Block(activ=None, in_channels=self.out_channels_per_layer[i], out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             #     ) )
 
-            # if i<self.nr_layers-4:
-            if i!=self.nr_layers:
-                # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
-                # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
-                # cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
-                cur_nr_channels=self.out_channels_per_layer[i]+ 128 #when using a positional embedder for the raw coords
-            else:
-                cur_nr_channels=self.out_channels_per_layer[i]
+            # # if i<self.nr_layers-4:
+            # if i!=self.nr_layers:
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
+            #     cur_nr_channels=self.out_channels_per_layer[i]+ 128 #when using a positional embedder for the raw coords
+            # else:
+            #     cur_nr_channels=self.out_channels_per_layer[i]
             # if i!=0:
                 # cur_nr_channels+=self.out_channels_per_layer[0]
 
-            # cur_nr_channels=self.out_channels_per_layer[i]
+            cur_nr_channels=self.out_channels_per_layer[i]
         # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
         self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
@@ -997,10 +997,10 @@ class SirenNetworkDirect(MetaModule):
 
                 # position_input=self.position_embedders[i](x_raw_coords)
                 # position_input=self.position_embedder(x_raw_coords)
-                x=torch.cat([position_input,x],1)
+                # x=torch.cat([position_input,x],1)
             # if i!=0 and i!=len(self.net)-1:
                 # x=torch.cat([x_first_layer,x],1)
-                # x=x+position_input
+                x=x+position_input
         # print("finished siren")
 
         x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,3
@@ -1291,10 +1291,10 @@ class Net(torch.nn.Module):
         cx=gt_K[0,2] ### 
         cy=gt_K[1,2] ### 
         tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
-        near_thresh=0.2
-        far_thresh=1.6
+        near_thresh=0.7
+        far_thresh=1.2
         # depth_samples_per_ray=100
-        depth_samples_per_ray=30
+        depth_samples_per_ray=100
         chunksize=512*512
         # chunksize=1024*1024
 
