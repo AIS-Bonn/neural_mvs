@@ -578,4 +578,60 @@ class ConcatCoord(torch.nn.Module):
 
         return x_coord
 
+class LearnedPE(torch.nn.Module):
+    def __init__(self, in_channels, num_encoding_functions, logsampling ):
+        super(LearnedPE, self).__init__()
+        self.num_encoding_functions=num_encoding_functions
+        self.logsampling=logsampling
 
+        out_channels=3*self.num_encoding_functions*2
+       
+        # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
+        self.conv= torch.nn.Linear(in_channels, int(out_channels/2), bias=True).cuda()  #in the case we set the weight ourselves
+
+        with torch.no_grad():
+            num_input = in_channels
+            self.conv.weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
+            print("weight is ", self.conv.weight.shape) #60x3
+            
+            #we make the same as the positonal encoding, which is mutiplying each coordinate with this linespaced frequencies
+            lin=2.0 ** torch.linspace(
+                0.0,
+                num_encoding_functions - 1,
+                num_encoding_functions,
+                dtype=torch.float32,
+                device=torch.device("cuda"),
+            )
+            lin_size=lin.shape[0]
+            weight=torch.zeros([in_channels, num_encoding_functions*in_channels], dtype=torch.float32, device=torch.device("cuda") )
+            for i in range(in_channels):
+                weight[i:i+1,   i*lin_size:i*lin_size+lin_size ] = lin
+
+            weight=weight.t().contiguous()
+
+            #set the new weights = 
+            self.conv.weight=torch.nn.Parameter(weight)
+            # self.conv.weight.requires_grad=False
+            print("weight is", weight.shape)
+            print("weight is", weight)
+
+
+    def forward(self, x):
+        
+        x_input=x
+
+        # print("x ", x.shape)
+        x = self.conv(x)
+        # print("after conv", x.shape)
+        # x=90*x
+        x_sin=torch.sin(x)
+        x_cos=torch.cos(x)
+        x=torch.cat([x_sin, x_cos],1)
+
+        x=torch.cat([x,x_input],1)
+
+        # print("after sin")
+        # x=x.contiguous()
+          
+
+        return x

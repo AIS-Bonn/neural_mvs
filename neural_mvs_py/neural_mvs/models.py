@@ -1250,6 +1250,8 @@ class Net(torch.nn.Module):
         #     Block(activ=None, in_channels=32, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
         # )
 
+        self.leaned_pe=LearnedPE(in_channels=3, num_encoding_functions=self.num_encodings, logsampling=True)
+
        
 
       
@@ -1386,7 +1388,9 @@ class Net(torch.nn.Module):
         # print("flattened_query_points is ", flattened_query_points.shape)
 
         # TIME_START("pos_encode")
-        flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
+        # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
+        flattened_query_points=self.leaned_pe(flattened_query_points.to("cuda") )
+        # print("flattened_query_points after pe", flattened_query_points.shape)
         # flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
         # print("flatened_query_pointss is ", flatened_query_pointss.shape)
         # TIME_END("pos_encode")
