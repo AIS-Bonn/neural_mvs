@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_35"
+    experiment_name="s_1"
 
 
 
@@ -90,11 +90,11 @@ def run():
     loader.start()
     loader_test=DataLoaderVolRef(config_path)
     # loader_test.load_only_from_idxs( [0,2,4,6] )
-    loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
+    # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
     # loader_test.load_only_from_idxs( [10] )
     loader_test.set_shuffle(True)
-    loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
+    # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
     loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
@@ -111,8 +111,8 @@ def run():
         # Phase('test', loader_test, grad=False)
     ]
     #model 
-    # model=Net().to("cuda")
-    model=SirenNetwork(in_channels=2, out_channels=3).to("cuda")
+    model=Net().to("cuda")
+    # model=SirenNetwork(in_channels=2, out_channels=3).to("cuda")
     # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
     model.train()
 
@@ -219,32 +219,32 @@ def run():
                             # Gui.show(ref_frame.rgb_32f, "ref")
                             Gui.show(gt_frame.rgb_32f, "gt")
 
-                        # # #try another view
-                        # with torch.set_grad_enabled(False):
-                        #     if initial_render_frame==None:
-                        #         initial_render_frame=gt_frame.tf_cam_world
-                        #         novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
-                        #     render_tf=initial_render_frame
-                        #     novel_cam.orbit_y(10)
-                        #     render_tf=novel_cam.view_matrix_affine()
-                        #     render_K=novel_cam.intrinsics(100, 70)
-                        #     # print("novel cam translation is ", render_tf.translation())
-                        #     # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
-                        #     # exit(1)
-                        #     # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                        #     out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
-                        #     # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
-                        #     if(phase.iter_nr%1==0):
-                        #         out_mat=tensor2mat(out_tensor)
-                        #         Gui.show(out_mat, "novel")
-                        #         #show the frustum of the novel view
-                        #         # frame=Frame()
-                        #         # frame.K=gt_frame.K
-                        #         # frame.width=gt_frame.width
-                        #         # frame.height=gt_frame.height
-                        #         # frame.tf_cam_world=render_tf
-                        #         frustum=novel_cam.create_frustum_mesh(0.1, [100,70])
-                        #         Scene.show(frustum, "frustum_novel")
+                        # #try another view
+                        with torch.set_grad_enabled(False):
+                            if initial_render_frame==None:
+                                initial_render_frame=gt_frame.tf_cam_world
+                                novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
+                            render_tf=initial_render_frame
+                            novel_cam.orbit_y(10)
+                            render_tf=novel_cam.view_matrix_affine()
+                            render_K=novel_cam.intrinsics(100, 70)
+                            # print("novel cam translation is ", render_tf.translation())
+                            # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
+                            # exit(1)
+                            # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
+                            out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
+                            # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
+                            if(phase.iter_nr%1==0):
+                                out_mat=tensor2mat(out_tensor)
+                                Gui.show(out_mat, "novel")
+                                #show the frustum of the novel view
+                                # frame=Frame()
+                                # frame.K=gt_frame.K
+                                # frame.width=gt_frame.width
+                                # frame.height=gt_frame.height
+                                # frame.tf_cam_world=render_tf
+                                frustum=novel_cam.create_frustum_mesh(0.1, [100,70])
+                                Scene.show(frustum, "frustum_novel")
 
 
 
@@ -254,8 +254,8 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        # out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
-                        out_tensor=model(gt_rgb_tensor)
+                        out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
+                        # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
 
@@ -265,17 +265,17 @@ def run():
 
                         
 
-                        # with torch.set_grad_enabled(False):
-                        #     if(phase.iter_nr%show_every==0):
-                        #         # print("depth map has shape ", depth_map.shape)
-                        #         # print("mask has shape ", mask.shape)
-                        #         depth_map=depth_map*mask
-                        #         # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
-                        #         # depth_map_nonzero=depth_map!=0.0
-                        #         # print("min max", depth_map.min(), " ", depth_map.max())
-                        #         depth_map=map_range(depth_map, 0.9, 1.7, 0.0, 1.0)
-                        #         depth_map_mat=tensor2mat(depth_map)
-                        #         Gui.show(depth_map_mat, "depth")
+                        with torch.set_grad_enabled(False):
+                            if(phase.iter_nr%show_every==0):
+                                # print("depth map has shape ", depth_map.shape)
+                                # print("mask has shape ", mask.shape)
+                                depth_map=depth_map*mask
+                                # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
+                                # depth_map_nonzero=depth_map!=0.0
+                                # print("min max", depth_map.min(), " ", depth_map.max())
+                                depth_map=map_range(depth_map, 0.9, 1.7, 0.0, 1.0)
+                                depth_map_mat=tensor2mat(depth_map)
+                                Gui.show(depth_map_mat, "depth")
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())

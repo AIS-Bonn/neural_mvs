@@ -1201,7 +1201,7 @@ class Net(torch.nn.Module):
         self.z_size=256
         # self.z_size=2048
         self.nr_points_z=256
-        self.num_encodings=0
+        self.num_encodings=10
         # self.siren_out_channels=64
         # self.siren_out_channels=32
         self.siren_out_channels=4
@@ -1216,11 +1216,11 @@ class Net(torch.nn.Module):
         self.encoder=Encoder(self.z_size)
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
-        self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
+        # self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
-        # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
-        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
-        # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
+        self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
+        # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
 
 
         self.z_to_z3d = torch.nn.Sequential(
@@ -1387,7 +1387,7 @@ class Net(torch.nn.Module):
 
         # TIME_START("pos_encode")
         flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
-        flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
+        # flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
         # print("flatened_query_pointss is ", flatened_query_pointss.shape)
         # TIME_END("pos_encode")
 
@@ -1431,9 +1431,9 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda") )
+        # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda") )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
-        # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
+        radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
         radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
 
