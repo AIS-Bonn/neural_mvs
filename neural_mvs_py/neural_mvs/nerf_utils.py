@@ -398,9 +398,16 @@ def render_volume_density(
     alpha = 1.0 - torch.exp(-sigma_a * dists)
     weights = alpha * cumprod_exclusive(1.0 - alpha + 1e-10)
 
-    rgb_map = (weights[..., None] * rgb).sum(dim=-2)
-    depth_map = (weights * depth_values).sum(dim=-1)
+    weights_sum=weights.sum(dim=-1)
+    # weights_sum=weights_sum+0.00001
+    # print("weight_sum", weights_sum.shape)
+
+    rgb_map = (weights[..., None] * rgb).sum(dim=-2)  
+    depth_map = (weights * depth_values).sum(dim=-1) / weights_sum #normalize so that we get actual depth
     acc_map = weights.sum(-1)
+
+    # print("rgb map ", rgb_map.shape)
+    # print("depth_map map ", depth_map.shape)
 
     return rgb_map, depth_map, acc_map
 
