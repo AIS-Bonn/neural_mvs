@@ -396,6 +396,7 @@ class BlockSiren(MetaModule):
                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/30 , np.sqrt(6 / num_input)/30 )
                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # print("conv any other is ", self.conv[-1].weight )
+                # self.conv[-1].bias.zero_()
 
         self.iter=1
 
@@ -418,7 +419,7 @@ class BlockSiren(MetaModule):
             if self.is_first_layer: 
                 # x_conv_scaled=30*x_conv
                 # x=x*(5+self.iter*0.01)
-                x=90*x
+                x=30*x
             # x_conv_scaled=x_conv
             else: 
                 x=x*1
@@ -433,6 +434,19 @@ class BlockSiren(MetaModule):
             # x=x_sine + x_relu
             # x=x_sine
             # print("after activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+
+
+            # # if self.is_first_layer:
+            # #check the layer
+            # print("x.shape ", x.shape)
+            # nr_layers=x.shape[1]
+            # for i in range(10):
+            #     layer=x[:,i:i+1, :, :]
+            #     layer=(layer+1.0)*0.5
+            #     layer_mat=tensor2mat(layer)
+            #     Gui.show(layer_mat, "layer_"+str(i))
+
+
         elif self.activ is not None:
             x=self.activ(x)
         # elif self.activ is None:

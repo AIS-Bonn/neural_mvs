@@ -812,7 +812,8 @@ class SirenNetwork(MetaModule):
         self.first_time=True
 
         self.nr_layers=4
-        self.out_channels_per_layer=[128, 128, 128, 128, 128]
+        self.out_channels_per_layer=[128, 128, 128, 128, 16]
+        # self.out_channels_per_layer=[20, 20, 20, 20, 20]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -823,7 +824,7 @@ class SirenNetwork(MetaModule):
 
         cur_nr_channels=in_channels
 
-        self.net=[]
+        self.net=torch.nn.ModuleList([])
         # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
         # cur_nr_channels=self.out_channels_per_layer[0]
 
@@ -835,9 +836,9 @@ class SirenNetwork(MetaModule):
             cur_nr_channels=self.out_channels_per_layer[i]  #when we do NOT add a relu
         self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
-        self.net = MetaSequential(*self.net)
+        # self.net = MetaSequential(*self.net)
 
-
+        self.pca=PCA()
 
     def forward(self, x, params=None):
         if params is None:
@@ -875,7 +876,51 @@ class SirenNetwork(MetaModule):
      
 
         # print ("running siren")
-        x=self.net(x, params=get_subdict(params, 'net'))
+        # x=self.net(x, params=get_subdict(params, 'net'))
+        for i in range(len(self.net)):
+            
+            #if we are at the last layer, we get the features and pca them
+            if i==len(self.net)-1:
+                orig=x
+                print("last layer", x.shape)
+                nr_channels=x.shape[1]
+                height=x.shape[2]
+                weight=x.shape[3]
+                x=x.permute(0,2,3,1).contiguous() #from N,C,H,W to N,H,W,C
+                x=x.view(-1,nr_channels)
+                c=self.pca.forward(x)
+                c=c.view(height,width,3)
+                c=c.unsqueeze(0).permute(0,3,1,2).contiguous() #from N,H,W,C to N,C,H,W
+                print("c is ", c.shape)
+                c_mat=tensor2mat(c)
+                Gui.show(c_mat, "c_mat")
+                #switch back 
+                x=orig
+
+                #just show the first pixel and the last pixel
+                first=x[:,:,0:1,0:1]
+                last=x[:,:,84:85,56:57]
+                # print("first", first)
+                # print("last", last)
+                print("first and last feature is ", first.shape)
+                two=torch.cat([first,last],2)
+                diff=(first-last).norm()
+                print("diff", diff)
+                # print("the two feature of the pixels side by side is ", two)
+
+            x=self.net[i](x, None)
+
+            if i==len(self.net)-1:
+                #now we got the color
+                #just show the first pixel and the last pixel
+                first=x[:,:,0:1,0:1]
+                last=x[:,:,84:85,56:57]
+                print("first", first)
+                print("last", last)
+                diff=(first-last).norm()
+                print("diff", diff)
+
+            # x=self.net[i](x, None)
         # print("finished siren")
         # exit(1)
 
@@ -1446,6 +1491,30 @@ class Net(torch.nn.Module):
         return x
 
 
+
+class PCA(Function):
+    # @staticmethod
+    def forward(ctx, sv): #sv corresponds to the slices values, it has dimensions nr_positions x val_full_dim
+
+        # http://agnesmustar.com/2017/11/01/principal-component-analysis-pca-implemented-pytorch/
+
+
+        X=sv.detach().cpu()#we switch to cpu because svd for gpu needs magma: No CUDA implementation of 'gesdd'. Install MAGMA and rebuild cutorch (http://icl.cs.utk.edu/magma/) at /opt/pytorch/aten/src/THC/generic/THCTensorMathMagma.cu:191
+        k=3
+        print("x is ", X.shape)
+        X_mean = torch.mean(X,0)
+        print("x_mean is ", X_mean.shape)
+        X = X - X_mean.expand_as(X)
+
+        U,S,V = torch.svd(torch.t(X)) 
+        C = torch.mm(X,U[:,:k])
+        print("C has shape ", C.shape)
+        print("C min and max is ", C.min(), " ", C.max() )
+        C-=C.min()
+        C/=C.max()
+        print("after normalization C min and max is ", C.min(), " ", C.max() )
+
+        return C
 
 #https://github.com/pytorch/pytorch/issues/2001
 def summary(self,file=sys.stderr):
