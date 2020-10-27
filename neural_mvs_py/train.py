@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_8"
+    experiment_name="s_10"
 
 
 
@@ -178,10 +178,11 @@ def run():
                     gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     # #debug
-                    cloud=gt_depth_frame.depth2world_xyz_mesh()
-                    frustum=gt_depth_frame.create_frustum_mesh(0.1)
-                    Scene.show(cloud, "cloud")
-                    Scene.show(frustum, "frustum")
+                    if(phase.iter_nr%show_every==0):
+                        cloud=gt_depth_frame.depth2world_xyz_mesh()
+                        frustum=gt_depth_frame.create_frustum_mesh(0.1)
+                        Scene.show(cloud, "cloud")
+                        Scene.show(frustum, "frustum")
 
 
                     # #show frustums 
@@ -273,9 +274,29 @@ def run():
                                 # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                                 # depth_map_nonzero=depth_map!=0.0
                                 # print("min max", depth_map.min(), " ", depth_map.max())
-                                depth_map=map_range(depth_map, 0.9, 1.7, 0.0, 1.0)
-                                depth_map_mat=tensor2mat(depth_map)
+                                depth_map_ranged=map_range(depth_map, 0.9, 1.7, 0.0, 1.0)
+                                depth_map_mat=tensor2mat(depth_map_ranged)
                                 Gui.show(depth_map_mat, "depth")
+                                #gt depth
+                                depth_gt=mat2tensor(gt_depth_frame.depth, False)
+                                depth_gt=depth_gt.repeat(1,3,1,1)
+                                depth_gt=map_range(depth_gt, 0.9, 1.7, 0.0, 1.0)
+                                depth_gt_mat=tensor2mat(depth_gt)
+                                Gui.show(depth_gt_mat, "depth_gt")
+
+                        #render the depth map
+                        if(phase.iter_nr%show_every==0):
+                            depth_map_1_ch=depth_map[:,0:1, :, :].contiguous().clone()
+                            depth_map_1_ch=depth_map_1_ch*mask[:,0:1, :, :]
+                            depth_mat_cv=tensor2mat(depth_map_1_ch)
+                            gt_depth_frame.depth=depth_mat_cv
+                            # print("what")
+                            cloud_pred=gt_depth_frame.depth2world_xyz_mesh()
+                            # print("what2")
+                            cloud_pred.m_vis.m_point_color=[0.0, 1.0, 0.0]
+                            Scene.show(cloud_pred, "cloud_pred")
+
+                       
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())

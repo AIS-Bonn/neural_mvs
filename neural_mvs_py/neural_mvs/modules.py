@@ -50,6 +50,8 @@ class Block(MetaModule):
         if with_dropout:
             self.drop=torch.nn.Dropout2d(0.2)
 
+        self.relu=torch.nn.ReLU(inplace=True)
+
         # self.conv=None
 
         # self.norm = torch.nn.BatchNorm2d(in_channels, momentum=0.01).cuda()
@@ -191,7 +193,8 @@ class Block(MetaModule):
             x=self.activ(x)
             # print("after activ, x has mean and std " , x.mean() , " std ", x.std() )
         elif self.activ is not None:
-            x=self.activ(x)
+            # x=self.activ(x)
+            x=self.relu(x)
             # print("after activ, x has mean and std " , x.mean() , " std ", x.std() )
         # x=gelu(x)
         # x=torch.sin(x)
@@ -619,6 +622,8 @@ class LearnedPE(torch.nn.Module):
     def forward(self, x):
         
         x_input=x
+
+        # print("self.conv.weight", self.conv.weight)
 
         # print("x ", x.shape)
         x = self.conv(x)

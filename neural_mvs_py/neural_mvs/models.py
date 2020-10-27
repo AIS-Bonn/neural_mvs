@@ -1426,11 +1426,11 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        if not novel:
-            rays_mesh=Mesh()
-            rays_mesh.V=query_points.reshape((-1, 3)).numpy()
-            rays_mesh.m_vis.m_show_points=True
-            Scene.show(rays_mesh, "rays_mesh_novel")
+        # if not novel:
+        #     rays_mesh=Mesh()
+        #     rays_mesh.V=query_points.reshape((-1, 3)).numpy()
+        #     rays_mesh.m_vis.m_show_points=True
+        #     Scene.show(rays_mesh, "rays_mesh_novel")
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
