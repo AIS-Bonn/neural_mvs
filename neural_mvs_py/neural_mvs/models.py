@@ -1004,7 +1004,7 @@ class SirenNetworkDirect(MetaModule):
 
 
         #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
-        nr_points=x.shape[0]
+        # nr_points=x.shape[0]
         # x=x.view(nr_points,3,1,1)
 
         # X comes as nr_points x 3 matrix but we want adyacen rays to be next to each other. So we put the nr of the ray in the batch
@@ -1013,6 +1013,7 @@ class SirenNetworkDirect(MetaModule):
         # x=x.view(1,-1,71,107,30)
         # print("x is ", x.shape)
         x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
+        # print("x is ", x.shape)
 
 
         # print ("running siren")
@@ -1053,7 +1054,7 @@ class SirenNetworkDirect(MetaModule):
         # print("finished siren")
 
         x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,3
-        x=x.view(nr_points,-1,1,1)
+        # x=x.view(nr_points,-1,1,1)
        
         return x
 
@@ -1216,6 +1217,7 @@ class Net(torch.nn.Module):
         self.encoder=Encoder(self.z_size)
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
+        self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=3)
         # self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
@@ -1341,7 +1343,7 @@ class Net(torch.nn.Module):
         fy=gt_K[1,1] ### 
         cx=gt_K[0,2] ### 
         cy=gt_K[1,2] ### 
-        tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() )
+        tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() ).to("cuda")
         #vase
         # near_thresh=0.7
         # far_thresh=1.2
@@ -1474,6 +1476,74 @@ class Net(torch.nn.Module):
         # print("rgb_predicted out is ", rgb_predicted.shape)
 
 
+        #predict rgb by unprojecting the depth and then usign a siren in 3D
+        # mask=guide>0.0
+        # depth_map=depth_map*mask
+        #unproject the depth map
+        x, y = meshgrid_xy(
+        torch.arange(
+            width, dtype=torch.float32, device=torch.device("cuda")
+        ),
+        torch.arange(
+            height, dtype=torch.float32, device=torch.device("cuda")
+        ),
+        )
+        # print("x is shape ", x.shape)
+        directions = torch.stack(
+            [
+                (x - cx) / fx,
+                (y - cy) / fy,
+                torch.ones_like(x),
+            ],
+            dim=-1,
+        )
+        # print("direction is ", directions.shape)
+        # print("depth map", depth_map.shape)
+        depth_map=depth_map.permute(0,2,3,1).contiguous().squeeze(0) #from N,C,H,W to H,W,C
+        # print("depth map", depth_map.shape)
+        points_3d=directions*depth_map
+        # print("points3d before transforming", points_3d.shape)
+        #trasnform frm cam2workd 
+        points_3d=points_3d.view(-1,3)
+        # print("points3d linear", points_3d.shape)
+        # R =torch.from_numpy( gt_tf_cam_world.inverse().linear() ).to("cuda")
+        print("points3d just before transforming has min max ", points_3d.min().item(), points_3d.max().item())
+        R=tform_cam2world[:3, :3].to("cuda")
+        # t =torch.from_numpy( gt_tf_cam_world.inverse().translation() ).to("cuda")
+        t= tform_cam2world[:3, -1].to("cuda")
+        # print("R ", R.shape)
+        # print("t ", t.shape)
+        # print("R is ", R)
+        points_3d=torch.matmul(R, points_3d.transpose(0,1) ).transpose(0,1)
+        # print("points3d after rot", points_3d.shape)
+        points_3d=points_3d+t.unsqueeze(0)
+        # points_3d=torch.sum(
+        #     points_3d[..., None, :] * tform_cam2world[:3, :3], dim=-1
+        # )
+        # points_3d = tform_cam2world[:3, -1].expand(points_3d.shape)
+        points_3d=points_3d.view(height, width,3)
+        # print("points3d ", points_3d.shape)
+        points_3d=points_3d.unsqueeze(2)
+        # print("points3d when entering siren ", points_3d.shape)
+        #DEBUG the points
+        cloud=Mesh()
+        cloud.V=points_3d.detach().view(-1,3).cpu().numpy()
+        cloud.m_vis.m_show_points=True
+        Scene.show(cloud, "cloud_debug")
+
+        print("points3d just before siren has min max ", points_3d.min().item(), points_3d.max().item())
+        rgb_siren=self.siren_net( points_3d )
+        # print("rgb siren ", rgb_siren.shape)
+        rgb_siren=rgb_siren.permute(2,3,0,1)
+        # print("rgb siren ", rgb_siren.shape)
+        depth_map=depth_map.permute(2,0,1).unsqueeze(0) #from to H,W,C to N,C,H,W
+        # rgb_predicted
+        # print("rgb_predicted ", rgb_predicted.shape)
+        # rgb_predicted=rgb_siren
+
+        
+
+
 
         #NEW LOSSES
         new_loss=0
@@ -1485,7 +1555,7 @@ class Net(torch.nn.Module):
 
 
 
-        return rgb_predicted, depth_map, acc_map, new_loss
+        return rgb_predicted, rgb_siren, depth_map, acc_map, new_loss
 
 
 

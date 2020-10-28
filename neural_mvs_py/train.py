@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_13"
+    experiment_name="s_17"
 
 
 
@@ -119,7 +119,7 @@ def run():
     loss_fn=torch.nn.MSELoss()
 
     # show_every=39
-    show_every=10
+    show_every=1
 
 
     #prepare all images and concat them batchwise
@@ -227,17 +227,19 @@ def run():
                                 novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
                             render_tf=initial_render_frame
                             novel_cam.orbit_y(10)
-                            render_tf=novel_cam.view_matrix_affine()
+                            render_tf=novel_cam.view_matrix_affine().to_float()
                             render_K=novel_cam.intrinsics(100, 70)
                             # print("novel cam translation is ", render_tf.translation())
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
+                            out_tensor, rgb_siren, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
                             # out_tensor=model(ref_rgb_tensor, render_tf, render_tf )
                             if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
                                 Gui.show(out_mat, "novel")
+                                rgb_siren_mat=tensor2mat(rgb_siren)
+                                Gui.show(rgb_siren_mat, "novel_siren")
                                 #show the frustum of the novel view
                                 # frame=Frame()
                                 # frame.K=gt_frame.K
@@ -255,7 +257,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
+                        out_tensor, rgb_siren, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
@@ -301,10 +303,11 @@ def run():
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
                         loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        loss+=((rgb_siren-gt_rgb_tensor)**2).mean()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / loader_test.nr_samples()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / 10
                         # loss=loss_fn(out_tensor, gt_rgb_tensor)
-                        # print("loss is ", loss)
+                        print("loss is ", loss.item())
 
                         # loss+=smooth_loss*0.00001*phase.iter_nr
                         ##PUT also the new losses
@@ -322,6 +325,8 @@ def run():
                             # out_mat=tensor2mat(out_tensor*mask)
                             out_mat=tensor2mat(out_tensor)
                             Gui.show(out_mat, "output")
+                            rgb_siren_mat=tensor2mat(rgb_siren)
+                            Gui.show(rgb_siren_mat, "output_siren")
             
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                         if first_time:

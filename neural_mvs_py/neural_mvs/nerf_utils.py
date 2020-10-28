@@ -399,7 +399,7 @@ def render_volume_density(
     weights = alpha * cumprod_exclusive(1.0 - alpha + 1e-10)
 
     weights_sum=weights.sum(dim=-1)
-    # weights_sum=weights_sum+0.00001
+    weights_sum=weights_sum+0.00001
     # print("weight_sum", weights_sum.shape)
 
     rgb_map = (weights[..., None] * rgb).sum(dim=-2)  
