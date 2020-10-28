@@ -385,8 +385,10 @@ def render_volume_density(
     """
 
     # TESTED
-    sigma_a = torch.relu(radiance_field[..., siren_out_channels-1])
-    rgb = torch.sigmoid(radiance_field[..., :siren_out_channels-1])
+    # sigma_a = torch.relu(radiance_field[..., siren_out_channels-1])
+    # rgb = torch.sigmoid(radiance_field[..., :siren_out_channels-1])
+    sigma_a = radiance_field[..., siren_out_channels-1]
+    rgb = radiance_field[..., :siren_out_channels-1]
     one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device)
     dists = torch.cat(
         (

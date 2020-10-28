@@ -1215,8 +1215,14 @@ class SirenNetworkDirectPE(MetaModule):
                 # x=x+position_input
         # print("finished siren")
 
-        x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,3
+        x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
         # x=x.view(nr_points,-1,1,1)
+
+        rgb = torch.sigmoid( x[:,:,:, 0:3] )
+        sigma_a = torch.relu( x[:,:,:, 3:4] )
+
+        x=torch.cat([rgb,sigma_a],3)
+        
        
         return x
 
