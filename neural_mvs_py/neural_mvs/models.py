@@ -722,7 +722,7 @@ class Encoder(torch.nn.Module):
 
         self.start_nr_channels=32
         # self.start_nr_channels=4
-        self.nr_downsampling_stages=6
+        self.nr_downsampling_stages=5
         self.nr_blocks_down_stage=[2,2,2,2,2,2,2]
         self.nr_channels_after_coarsening_per_layer=[64,64,128,128,256,256,512,512,512,1024,1024]
         # self.nr_upsampling_stages=3
@@ -784,6 +784,7 @@ class Encoder(torch.nn.Module):
         #encode 
         # TIME_START("down_path")
         for i in range(self.nr_downsampling_stages):
+            # print("downsampling stage ", i)
             # print("DOWNSAPLE ", i, " with x of shape ", x.shape)
             #resnet blocks
             for j in range(self.nr_blocks_down_stage[i]):
@@ -795,7 +796,7 @@ class Encoder(torch.nn.Module):
             x = self.coarsens_list[i] ( x )
         # TIME_END("down_path")
         z=x
-        print("z after encoding has shape ", z.shape)
+        # print("z after encoding has shape ", z.shape)
 
 
 
@@ -1067,14 +1068,14 @@ class SirenNetworkDirectPE(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=6
-        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        self.nr_layers=4
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[256, 128, 64, 32, 16]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[256, 64, 64, 64, 64, 64]
-        # self.out_channels_per_layer=[256, 32, 32, 32, 32, 32]
+        self.out_channels_per_layer=[256, 32, 32, 32, 32, 32]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -1089,7 +1090,7 @@ class SirenNetworkDirectPE(MetaModule):
         # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
         # cur_nr_channels=self.out_channels_per_layer[0]
     
-        self.position_embedders=torch.nn.ModuleList([])
+        # self.position_embedders=torch.nn.ModuleList([])
 
         num_encodings=10
         self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
@@ -1138,7 +1139,10 @@ class SirenNetworkDirectPE(MetaModule):
 
         # self.net = MetaSequential(*self.net)
 
-        self.pred_sigma_and_feat=MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  )
+        self.pred_sigma_and_feat=MetaSequential(
+            # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            )
         num_encoding_directions=4
         self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
         dirs_channels=3+ 3*num_encoding_directions*2
@@ -1165,14 +1169,14 @@ class SirenNetworkDirectPE(MetaModule):
 
         #from 71,107,30,3  to Nx3
         x=x.view(-1,3)
-        x=self.learned_pe(x)
+        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
         x=x.view(height, width, nr_points, -1 )
 
         #also make the direcitons into image 
         ray_directions=ray_directions.view(-1,3)
         # print("ray_directions is ", ray_directions.shape )
         ray_directions=F.normalize(ray_directions, p=2, dim=1)
-        ray_directions=self.learned_pe_dirs(ray_directions)
+        ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
         ray_directions=ray_directions.view(height, width, -1)
         ray_directions=ray_directions.permute(2,0,1).unsqueeze(0)
         # print("ray_directions is ", ray_directions.shape )
@@ -1203,7 +1207,9 @@ class SirenNetworkDirectPE(MetaModule):
 
         for i in range(len(self.net)):
             # print("x si ", x.shape)
-            x=self.net[i](x)
+            # print("params is ", params)
+            # x=self.net[i](x, params=get_subdict(params, 'net['+str(i)+"]"  )  )
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
             # if i==0:
             #     x_first_layer=x
 
@@ -1235,7 +1241,7 @@ class SirenNetworkDirectPE(MetaModule):
         # print("finished siren")
 
         #predict the sigma and a feature vector for the rest of things
-        sigma_and_feat=self.pred_sigma_and_feat(x)
+        sigma_and_feat=self.pred_sigma_and_feat(x,  params=get_subdict(params, 'pred_sigma_and_feat'))
         #get the feature vector for the rest of things and concat it with the direction
         sigma_a=torch.relu( sigma_and_feat[:,0:1, :, :] ) #first channel is the sigma
         feat=torch.relu( sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ] )
@@ -1244,7 +1250,7 @@ class SirenNetworkDirectPE(MetaModule):
         ray_directions=ray_directions.repeat(feat.shape[0],1,1,1) #repeat as many times as samples that you have in a ray
         feat_and_dirs=torch.cat([feat, ray_directions], 1)
         #predict rgb
-        rgb=torch.sigmoid( self.pred_rgb(feat_and_dirs) )
+        rgb=torch.sigmoid( self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) )
         #concat 
         # print("rgb is", rgb.shape)
         # print("sigma_a is", sigma_a.shape)
@@ -1401,8 +1407,8 @@ class Net(torch.nn.Module):
         self.first_time=True
 
         #params
-        # self.z_size=512
-        self.z_size=256
+        self.z_size=512
+        # self.z_size=256
         # self.z_size=2048
         self.nr_points_z=256
         self.num_encodings=10
@@ -1456,85 +1462,86 @@ class Net(torch.nn.Module):
         #     Block(activ=None, in_channels=32, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
         # )
 
-        self.leaned_pe=LearnedPE(in_channels=3, num_encoding_functions=self.num_encodings, logsampling=True)
+        # self.leaned_pe=LearnedPE(in_channels=3, num_encoding_functions=self.num_encodings, logsampling=True)
 
        
 
       
     def forward(self, guide, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, novel=False):
 
-        # nr_imgs=x.shape[0]
+        nr_imgs=x.shape[0]
 
-        # # print("encoding")
-        # TIME_START("encoding")
-        # z=self.encoder(x)
-        # TIME_END("encoding")
-        # # print("encoder outputs z", z.shape)
+        # print("encoding")
+        TIME_START("encoding")
+        z=self.encoder(x)
+        TIME_END("encoding")
+        # print("encoder outputs z", z.shape)
 
-        # TIME_START("rotate")
-        # #make z into a nr_imgs x z_size
-        # z=z.view(nr_imgs, self.z_size)
+        TIME_START("rotate")
+        #make z into a nr_imgs x z_size
+        z=z.view(nr_imgs, self.z_size)
 
-        # #make z into a 3D thing
-        # z3d=self.z_to_z3d(z)
-        # z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
-        # # z3d=self.sigmoid(z3d)
-        # # print("after making 3d z is ", z.shape)
+        #make z into a 3D thing
+        z3d=self.z_to_z3d(z)
+        z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
+        # z3d=self.sigmoid(z3d)
+        # print("after making 3d z is ", z.shape)
 
-        # #rotate everything into the same world frame
-        # R_world_cam_all_list=[]
-        # t_world_cam_all_list=[]
-        # for i in range(nr_imgs):
-        #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
-        #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
-        #     t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
-        #     R_world_cam_all_list.append(R.unsqueeze(0))
-        #     t_world_cam_all_list.append(t.view(1,1,3) )
-        # R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
-        # t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
-        # # print("R_world_cam_all is ", R_world_cam_all.shape)
-        # # print("before rotatin z3d is", z3d)
+        #rotate everything into the same world frame
+        R_world_cam_all_list=[]
+        t_world_cam_all_list=[]
+        for i in range(nr_imgs):
+            tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+            R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+            t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
+            R_world_cam_all_list.append(R.unsqueeze(0))
+            t_world_cam_all_list.append(t.view(1,1,3) )
+        R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
+        # print("R_world_cam_all is ", R_world_cam_all.shape)
+        # print("before rotatin z3d is", z3d)
         # z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all #### I think the rotation is wrong so the z3d has to be transposed and not the Rotaiton
-        # # print("aftering rotatin z3d is", z3d)
-        # # print("after multiplying z3d is ", z3d.shape)
+        z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
+        # print("aftering rotatin z3d is", z3d)
+        # print("after multiplying z3d is ", z3d.shape)
 
 
 
-        # #get also an apperence vector and append it
-        # zapp=self.z_to_zapp(z)
-        # zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
-        # # print("zapp has size ", zapp.shape)
-        # # print("z3d has size ", z3d.shape)
-        # z=torch.cat([zapp, z3d], 2)
-        # # DO NOT use the zapp
-        # # z=z3d
+        #get also an apperence vector and append it
+        zapp=self.z_to_zapp(z)
+        zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
+        # print("zapp has size ", zapp.shape)
+        # print("z3d has size ", z3d.shape)
+        z=torch.cat([zapp, z3d], 2)
+        # DO NOT use the zapp
+        # z=z3d
 
-        # #aggregate all the z from every camera now expressed in world coords, into one z vector
-        # # z3d=z3d.mean(0)
-        # # z=z.mean(0)
-        # z,_=z.max(0)
-        # # print("after agregating z3d is ", z3d.shape)
-        # TIME_END("rotate")
+        #aggregate all the z from every camera now expressed in world coords, into one z vector
+        # z3d=z3d.mean(0)
+        # z=z.mean(0)
+        z,_=z.max(0)
+        # print("after agregating z3d is ", z3d.shape)
+        TIME_END("rotate")
 
-        # #reduce it so that the hypernetwork makes smaller weights for siren
-        # # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+        #reduce it so that the hypernetwork makes smaller weights for siren
+        # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
 
-        # # print("z has shape ", z.shape)
-        # # z=z.reshape(1,self.z_size)
-        # z=z.reshape(1,-1)
-        # # print("encoder has size", z.shape )
-        # # print("running hypernet")
-        # TIME_START("hyper")
-        # siren_params=self.hyper_net(z)
-        # TIME_END("hyper")
-        # # print("finished hypernet")
-        # # print("computer params of siren")
-        # # print("sirenparams", siren_params)
-        # # print("x shape is ", x.shape)
-        # # x.unsqueeze_(0)
-        # # x=self.siren_net(x, params=siren_params)
-        # # x=self.siren_net(x, params=None)
+        # print("z has shape ", z.shape)
+        # z=z.reshape(1,self.z_size)
+        z=z.reshape(1,-1)
+        # print("encoder has size", z.shape )
+        # print("running hypernet")
+        TIME_START("hyper")
+        siren_params=self.hyper_net(z)
+        TIME_END("hyper")
+        # print("finished hypernet")
+        # print("computer params of siren")
+        # print("sirenparams", siren_params)
+        # print("x shape is ", x.shape)
+        # x.unsqueeze_(0)
+        # x=self.siren_net(x, params=siren_params)
+        # x=self.siren_net(x, params=None)
 
 
         TIME_START("full_siren")
@@ -1641,7 +1648,8 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions )
+        # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions )
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 

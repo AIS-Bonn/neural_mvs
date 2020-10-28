@@ -9,6 +9,7 @@ from neural_mvs_py.neural_mvs.funcs import *
 
 
 from torchmeta.modules.conv import MetaConv2d
+from torchmeta.modules.linear import MetaLinear
 from torchmeta.modules.module import *
 from torchmeta.modules.utils import *
 from torchmeta.modules import (MetaModule, MetaSequential)
@@ -588,7 +589,7 @@ class ConcatCoord(torch.nn.Module):
 
         return x_coord
 
-class LearnedPE(torch.nn.Module):
+class LearnedPE(MetaModule):
     def __init__(self, in_channels, num_encoding_functions, logsampling ):
         super(LearnedPE, self).__init__()
         self.num_encoding_functions=num_encoding_functions
@@ -597,7 +598,7 @@ class LearnedPE(torch.nn.Module):
         out_channels=3*self.num_encoding_functions*2
        
         # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
-        self.conv= torch.nn.Linear(in_channels, int(out_channels/2), bias=True).cuda()  #in the case we set the weight ourselves
+        self.conv= MetaLinear(in_channels, int(out_channels/2), bias=True).cuda()  #in the case we set the weight ourselves
 
         with torch.no_grad():
             num_input = in_channels
@@ -626,7 +627,9 @@ class LearnedPE(torch.nn.Module):
             print("weight is", weight)
 
 
-    def forward(self, x):
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
 
         if len(x.shape)!=2:
             print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
@@ -637,7 +640,7 @@ class LearnedPE(torch.nn.Module):
         # print("self.conv.weight", self.conv.weight)
 
         # print("x ", x.shape)
-        x = self.conv(x)
+        x = self.conv(x, params=get_subdict(params, 'conv'))
         # print("after conv", x.shape)
         # x=90*x
         x_sin=torch.sin(x)
