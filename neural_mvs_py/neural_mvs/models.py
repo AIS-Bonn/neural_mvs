@@ -1093,7 +1093,7 @@ class SirenNetworkDirectPE(MetaModule):
 
         num_encodings=10
         self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
-        cur_nr_channels=in_channels + 3*num_encodings*2
+        cur_nr_channels=in_channels + in_channels*num_encodings*2
         learned_pe_channels=cur_nr_channels
         self.skip_pe_point=2
 
@@ -1139,7 +1139,9 @@ class SirenNetworkDirectPE(MetaModule):
         # self.net = MetaSequential(*self.net)
 
         self.pred_sigma_and_feat=MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  )
-        dirs_channels=3
+        num_encoding_directions=4
+        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        dirs_channels=3+ 3*num_encoding_directions*2
         cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
             BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
@@ -1170,7 +1172,8 @@ class SirenNetworkDirectPE(MetaModule):
         ray_directions=ray_directions.view(-1,3)
         # print("ray_directions is ", ray_directions.shape )
         ray_directions=F.normalize(ray_directions, p=2, dim=1)
-        ray_directions=ray_directions.view(height, width, 3)
+        ray_directions=self.learned_pe_dirs(ray_directions)
+        ray_directions=ray_directions.view(height, width, -1)
         ray_directions=ray_directions.permute(2,0,1).unsqueeze(0)
         # print("ray_directions is ", ray_directions.shape )
 
