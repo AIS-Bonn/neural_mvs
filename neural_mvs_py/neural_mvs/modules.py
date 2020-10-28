@@ -400,6 +400,13 @@ class BlockSiren(MetaModule):
                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # print("conv any other is ", self.conv[-1].weight )
                 # self.conv[-1].bias.zero_()
+        if self.activ==torch.relu:
+            print("initializing with kaiming uniform")
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            if self.bias is not None:
+                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
 
         self.iter=1
 

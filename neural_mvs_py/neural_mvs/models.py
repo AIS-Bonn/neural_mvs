@@ -1144,7 +1144,7 @@ class SirenNetworkDirectPE(MetaModule):
         dirs_channels=3+ 3*num_encoding_directions*2
         cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
-            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()    
             )
 
@@ -1238,7 +1238,7 @@ class SirenNetworkDirectPE(MetaModule):
         sigma_and_feat=self.pred_sigma_and_feat(x)
         #get the feature vector for the rest of things and concat it with the direction
         sigma_a=torch.relu( sigma_and_feat[:,0:1, :, :] ) #first channel is the sigma
-        feat=sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ]
+        feat=torch.relu( sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ] )
         # print("sigma and feat is ", sigma_and_feat.shape)
         # print(" feat is ", feat.shape)
         ray_directions=ray_directions.repeat(feat.shape[0],1,1,1) #repeat as many times as samples that you have in a ray
