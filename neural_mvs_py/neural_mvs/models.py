@@ -1073,6 +1073,8 @@ class SirenNetworkDirectPE(MetaModule):
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[256, 128, 64, 32, 16]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
+        # self.out_channels_per_layer=[256, 64, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[256, 32, 32, 32, 32, 32]
 
         # #cnn for encoding
         # self.layers=torch.nn.ModuleList([])
@@ -1092,6 +1094,8 @@ class SirenNetworkDirectPE(MetaModule):
         num_encodings=10
         self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
         cur_nr_channels=in_channels + 3*num_encodings*2
+        learned_pe_channels=cur_nr_channels
+        self.skip_pe_point=2
 
         # self.position_embedder=( MetaSequential( 
         #     Block(activ=torch.relu, in_channels=in_channels, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
@@ -1124,7 +1128,11 @@ class SirenNetworkDirectPE(MetaModule):
             # if i!=0:
                 # cur_nr_channels+=self.out_channels_per_layer[0]
 
-            cur_nr_channels=self.out_channels_per_layer[i]
+            #at some point concat back the learned pe
+            if i==self.skip_pe_point:
+                cur_nr_channels=self.out_channels_per_layer[i]+learned_pe_channels
+            else:
+                cur_nr_channels=self.out_channels_per_layer[i]
         # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
         self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
@@ -1163,6 +1171,8 @@ class SirenNetworkDirectPE(MetaModule):
         x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
         # print("x is ", x.shape)
 
+        learned_pe_out=x
+
 
         # print ("running siren")
         # x=self.net(x, params=get_subdict(params, 'net'))
@@ -1177,6 +1187,10 @@ class SirenNetworkDirectPE(MetaModule):
             x=self.net[i](x)
             # if i==0:
             #     x_first_layer=x
+
+            if i==self.skip_pe_point:
+                x=torch.cat([learned_pe_out,x],1)
+
 
             # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
             
