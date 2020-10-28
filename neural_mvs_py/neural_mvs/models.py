@@ -1134,13 +1134,21 @@ class SirenNetworkDirectPE(MetaModule):
             else:
                 cur_nr_channels=self.out_channels_per_layer[i]
         # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
-        self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        # self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
 
         # self.net = MetaSequential(*self.net)
 
+        self.pred_sigma_and_feat=MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  )
+        dirs_channels=3
+        cur_nr_channels=cur_nr_channels+dirs_channels
+        self.pred_rgb=MetaSequential( 
+            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()    
+            )
 
 
-    def forward(self, x, params=None):
+
+    def forward(self, x, ray_directions, params=None):
         if params is None:
             params = OrderedDict(self.named_parameters())
 
@@ -1157,6 +1165,14 @@ class SirenNetworkDirectPE(MetaModule):
         x=x.view(-1,3)
         x=self.learned_pe(x)
         x=x.view(height, width, nr_points, -1 )
+
+        #also make the direcitons into image 
+        ray_directions=ray_directions.view(-1,3)
+        # print("ray_directions is ", ray_directions.shape )
+        ray_directions=F.normalize(ray_directions, p=2, dim=1)
+        ray_directions=ray_directions.view(height, width, 3)
+        ray_directions=ray_directions.permute(2,0,1).unsqueeze(0)
+        # print("ray_directions is ", ray_directions.shape )
 
 
         #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
@@ -1215,13 +1231,29 @@ class SirenNetworkDirectPE(MetaModule):
                 # x=x+position_input
         # print("finished siren")
 
+        #predict the sigma and a feature vector for the rest of things
+        sigma_and_feat=self.pred_sigma_and_feat(x)
+        #get the feature vector for the rest of things and concat it with the direction
+        sigma_a=torch.relu( sigma_and_feat[:,0:1, :, :] ) #first channel is the sigma
+        feat=sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ]
+        # print("sigma and feat is ", sigma_and_feat.shape)
+        # print(" feat is ", feat.shape)
+        ray_directions=ray_directions.repeat(feat.shape[0],1,1,1) #repeat as many times as samples that you have in a ray
+        feat_and_dirs=torch.cat([feat, ray_directions], 1)
+        #predict rgb
+        rgb=torch.sigmoid( self.pred_rgb(feat_and_dirs) )
+        #concat 
+        # print("rgb is", rgb.shape)
+        # print("sigma_a is", sigma_a.shape)
+        x=torch.cat([rgb, sigma_a],1)
+
         x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
         # x=x.view(nr_points,-1,1,1)
 
-        rgb = torch.sigmoid( x[:,:,:, 0:3] )
-        sigma_a = torch.relu( x[:,:,:, 3:4] )
+        # rgb = torch.sigmoid( x[:,:,:, 0:3] )
+        # sigma_a = torch.relu( x[:,:,:, 3:4] )
 
-        x=torch.cat([rgb,sigma_a],3)
+        # x=torch.cat([rgb,sigma_a],3)
         
        
         return x
@@ -1606,7 +1638,7 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda") )
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
