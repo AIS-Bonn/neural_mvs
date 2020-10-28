@@ -422,7 +422,7 @@ class BlockSiren(MetaModule):
             if self.is_first_layer: 
                 # x_conv_scaled=30*x_conv
                 # x=x*(5+self.iter*0.01)
-                x=90*x
+                x=1*x
             # x_conv_scaled=x_conv
             else: 
                 x=x*1
@@ -620,6 +620,10 @@ class LearnedPE(torch.nn.Module):
 
 
     def forward(self, x):
+
+        if len(x.shape)!=2:
+            print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
+            exit(1)
         
         x_input=x
 
