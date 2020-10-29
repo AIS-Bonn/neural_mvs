@@ -67,7 +67,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_hyp12"
+    experiment_name="s_hyp17"
 
 
 
@@ -92,6 +92,7 @@ def run():
     # loader_test.load_only_from_idxs( [0,2,4,6] )
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
+    # loader_test.load_only_from_idxs( [8,10,12,14,16,18,20,22,24,26,28] )
     # loader_test.load_only_from_idxs( [10] )
     loader_test.set_shuffle(True)
     # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
@@ -263,7 +264,7 @@ def run():
                         TIME_END("forward")
 
                         #calculate smoothness loss 
-                        # smooth_loss=inverse_depth_smoothness_loss(depth_map, gt_rgb_tensor)
+                        # smooth_loss=inverse_depth_smoothness_loss(depth_map*mask, gt_rgb_tensor)
                         # print("smooth_loss", smooth_loss)
 
                         
@@ -310,6 +311,7 @@ def run():
                         # print("loss is ", loss.item())
 
                         # loss+=smooth_loss*0.00001*phase.iter_nr
+                        # loss+=smooth_loss*0.01
                         ##PUT also the new losses
                         # loss+=new_loss*0.001*phase.iter_nr
 
