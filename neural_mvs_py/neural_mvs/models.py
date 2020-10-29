@@ -1467,7 +1467,7 @@ class Net(torch.nn.Module):
        
 
       
-    def forward(self, guide, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, novel=False):
+    def forward(self, guide, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, novel=False):
 
         nr_imgs=x.shape[0]
 
@@ -1559,10 +1559,11 @@ class Net(torch.nn.Module):
         # near_thresh=0.7
         # far_thresh=1.2
         #socrates
-        near_thresh=0.9
-        far_thresh=1.7
+        near_thresh=depth_min
+        far_thresh=depth_max
         # depth_samples_per_ray=100
-        depth_samples_per_ray=60
+        # depth_samples_per_ray=60
+        depth_samples_per_ray=20
         # depth_samples_per_ray=30
         chunksize=512*512
         # chunksize=1024*1024
@@ -1639,11 +1640,11 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        # if not novel:
-        #     rays_mesh=Mesh()
-        #     rays_mesh.V=query_points.reshape((-1, 3)).numpy()
-        #     rays_mesh.m_vis.m_show_points=True
-        #     Scene.show(rays_mesh, "rays_mesh_novel")
+        if novel:
+            rays_mesh=Mesh()
+            rays_mesh.V=query_points.reshape((-1, 3)).cpu().numpy()
+            rays_mesh.m_vis.m_show_points=True
+            Scene.show(rays_mesh, "rays_mesh_novel")
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )

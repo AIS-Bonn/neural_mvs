@@ -97,7 +97,7 @@ def get_ray_bundle(
         directions = torch.stack(
             [
                 (ii - cx) / fx,
-                -(jj - cy) / fy,
+                (jj - cy) / fy,
                 -torch.ones_like(ii),
             ],
             dim=-1,
@@ -405,6 +405,7 @@ def render_volume_density(
     # print("weight_sum", weights_sum.shape)
 
     rgb_map = (weights[..., None] * rgb).sum(dim=-2)  
+    # depth_map = (weights * depth_values).sum(dim=-1) 
     depth_map = (weights * depth_values).sum(dim=-1) / weights_sum #normalize so that we get actual depth
     acc_map = weights.sum(-1)
 

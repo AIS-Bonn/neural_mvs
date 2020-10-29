@@ -82,21 +82,21 @@ def run():
 
     #create loaders
     # loader=TinyLoader.create(config_file)
-    loader=DataLoaderVolRef(config_path)
+    loader=DataLoaderShapeNetImg(config_path)
     # loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
-    loader.set_shuffle(False)
-    loader.set_overfit(False)
-    loader.load_only_from_idxs( [0,2,4,6] )
-    loader.start()
-    loader_test=DataLoaderVolRef(config_path)
+    # loader.set_shuffle(False)
+    # loader.set_overfit(False)
+    # loader.load_only_from_idxs( [0,2,4,6] )
+    # loader.start()
+    loader_test=DataLoaderShapeNetImg(config_path)
     # loader_test.load_only_from_idxs( [0,2,4,6] )
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
     # loader_test.load_only_from_idxs( [8,10,12,14,16,18,20,22,24,26,28] )
     # loader_test.load_only_from_idxs( [10] )
-    loader_test.set_shuffle(True)
+    # loader_test.set_shuffle(True)
     # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
-    loader_test.start()
+    # loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
     # for i in range(loader.nr_frames()):
@@ -127,34 +127,32 @@ def run():
     all_imgs_list=[]
     all_imgs_poses_cam_world_list=[]
     all_imgs_Ks_list=[]
-    while True:
-        for i in range(loader.nr_samples()):
-            if loader.has_data():
-                ref_frame=loader.get_color_frame()
-                depth_frame=loader.get_depth_frame()
-                # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
-                ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
-                all_imgs_list.append(ref_rgb_tensor)
-                all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
-                all_imgs_Ks_list.append(ref_frame.K)
-                print("appending")
-        if loader.is_finished():
-            loader.reset()
-            break
+    #load some images for encoding
+    for i in range(4):
+        ref_frame=loader.get_random_frame()
+        ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+        all_imgs_list.append(ref_rgb_tensor)
+        all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
+        all_imgs_Ks_list.append(ref_frame.K)
     all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
     print("all imgs have shape ", all_imgs.shape)
 
     initial_render_frame=None
         
     novel_cam=Camera()
-    novel_cam.set_position([0, 0.3, 0.2])
+    novel_cam.set_position([0, 0.1, 0.1])
     # novel_cam.set_lookat([-0.02, 0.1, -1.3]) #for the figure
     # novel_cam.set_lookat([-0.02, 0.1, -1.0]) #for vase
-    novel_cam.set_lookat([-0.02, 0.2, -1.0]) #for socrates
+    # novel_cam.set_lookat([-0.02, 0.2, -1.0]) #for socrates
+    novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
     novel_cam.m_fov=40
     novel_cam.m_near=0.01
     novel_cam.m_far=3
 
+    # depth_min=0.4
+    # depth_max=1.2
+    depth_min=0.4
+    depth_max=1.2
 
 
     while True:
@@ -170,19 +168,20 @@ def run():
             for i in range(loader_test.nr_samples()):
 
                 # if phase.loader.has_data() and loader_test.has_data():
-                if loader_test.has_data():
+                # if loader_test.has_data():
+                if loader_test.finished_reading_scene():
 
                     # torch.manual_seed(0)
 
 
-                    gt_frame=loader_test.get_color_frame() #load from the gt loader
-                    gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
+                    gt_frame=loader_test.get_random_frame() #load from the gt loader
+                    # gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     # #debug
                     if(phase.iter_nr%show_every==0):
-                        cloud=gt_depth_frame.depth2world_xyz_mesh()
-                        frustum=gt_depth_frame.create_frustum_mesh(0.1)
-                        Scene.show(cloud, "cloud")
+                        # cloud=gt_depth_frame.depth2world_xyz_mesh()
+                        frustum=gt_frame.create_frustum_mesh(0.1)
+                        # Scene.show(cloud, "cloud")
                         Scene.show(frustum, "frustum")
 
 
@@ -204,12 +203,13 @@ def run():
 
                         #get only valid pixels
                         # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
-                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         # gt_frame.rgb_32f=ref_frame.rgb_32f
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
-                        mask=gt_rgb_tensor>0.0
+                        # mask=gt_rgb_tensor>0.0
+                        mask=mat2tensor(gt_frame.mask, False).to("cuda")
                         # ref_rgb_tensor=ref_rgb_tensor.contiguous()
 
                         #EXPERIMENT make the gt tensor just black and white  SO we predict just black for background and white for the objects
@@ -229,12 +229,12 @@ def run():
                             render_tf=initial_render_frame
                             novel_cam.orbit_y(10)
                             render_tf=novel_cam.view_matrix_affine().to_float()
-                            render_K=novel_cam.intrinsics(100, 70)
+                            # render_K=novel_cam.intrinsics(100, 70)
                             # print("novel cam translation is ", render_tf.translation())
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor,  depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, novel=True )
+                            out_tensor,  depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, novel=True )
                             # out_tensor=model(ref_rgb_tensor, renrgb_siren,der_tf, render_tf )
                             if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
@@ -258,7 +258,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K )
+                        out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
@@ -276,28 +276,28 @@ def run():
                                 depth_map=depth_map*mask
                                 # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                                 # depth_map_nonzero=depth_map!=0.0
-                                # print("min max", depth_map.min(), " ", depth_map.max())
-                                depth_map_ranged=map_range(depth_map, 0.9, 1.7, 0.0, 1.0)
+                                # print("min max", depth_map.min(), " ", depth_map.max(), " mean ", depth_map.mean() )
+                                depth_map_ranged=map_range(depth_map, depth_min, depth_max, 0.0, 1.0)
                                 depth_map_mat=tensor2mat(depth_map_ranged)
                                 Gui.show(depth_map_mat, "depth")
-                                #gt depth
-                                depth_gt=mat2tensor(gt_depth_frame.depth, False)
-                                depth_gt=depth_gt.repeat(1,3,1,1)
-                                depth_gt=map_range(depth_gt, 0.9, 1.7, 0.0, 1.0)
-                                depth_gt_mat=tensor2mat(depth_gt)
-                                Gui.show(depth_gt_mat, "depth_gt")
+                                # #gt depth
+                                # depth_gt=mat2tensor(gt_depth_frame.depth, False)
+                                # depth_gt=depth_gt.repeat(1,3,1,1)
+                                # depth_gt=map_range(depth_gt, 0.9, 1.7, 0.0, 1.0)
+                                # depth_gt_mat=tensor2mat(depth_gt)
+                                # Gui.show(depth_gt_mat, "depth_gt")
 
-                        #render the depth map
-                        if(phase.iter_nr%show_every==0):
-                            depth_map_1_ch=depth_map[:,0:1, :, :].contiguous().clone()
-                            depth_map_1_ch=depth_map_1_ch*mask[:,0:1, :, :]
-                            depth_mat_cv=tensor2mat(depth_map_1_ch)
-                            gt_depth_frame.depth=depth_mat_cv
-                            # print("what")
-                            cloud_pred=gt_depth_frame.depth2world_xyz_mesh()
-                            # print("what2")
-                            cloud_pred.m_vis.m_point_color=[0.0, 1.0, 0.0]
-                            Scene.show(cloud_pred, "cloud_pred")
+                        # #render the depth map
+                        # if(phase.iter_nr%show_every==0):
+                        #     depth_map_1_ch=depth_map[:,0:1, :, :].contiguous().clone()
+                        #     depth_map_1_ch=depth_map_1_ch*mask[:,0:1, :, :]
+                        #     depth_mat_cv=tensor2mat(depth_map_1_ch)
+                        #     gt_depth_frame.depth=depth_mat_cv
+                        #     # print("what")
+                        #     cloud_pred=gt_depth_frame.depth2world_xyz_mesh()
+                        #     # print("what2")
+                        #     cloud_pred.m_vis.m_point_color=[0.0, 1.0, 0.0]
+                        #     Scene.show(cloud_pred, "cloud_pred")
 
                        
 
