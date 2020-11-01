@@ -56,7 +56,7 @@ class FramePY():
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         self.rgb_tensor=self.rgb_tensor*self.mask_tensor
-        self.rgb_32f=frame.rgb_32f
+        self.rgb_32f=tensor2mat(self.rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
         self.K=frame.K
@@ -90,7 +90,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_4"
+    experiment_name="s_8"
 
 
 
@@ -256,6 +256,7 @@ def run():
                     # gt_frame=loader_test.get_next_frame() #load from the gt loader
                     # gt_frame=loader_test.get_color_frame() #fro shapenet vol ref
                     # gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
+                    # i=0
                     gt_frame=frames_for_training[i]
                     gt_rgb_tensor=frames_for_training[i].rgb_tensor
                     mask=frames_for_training[i].mask_tensor
@@ -329,7 +330,7 @@ def run():
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor,  depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, novel=True )
+                            out_tensor,  depth_map, acc_map, new_loss=model(gt_frame, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, novel=True )
                             # out_tensor=model(ref_rgb_tensor, renrgb_siren,der_tf, render_tf )
                             if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
@@ -353,7 +354,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map, acc_map, new_loss=model(gt_rgb_tensor, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max )
+                        out_tensor, depth_map, acc_map, new_loss=model(gt_frame, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")

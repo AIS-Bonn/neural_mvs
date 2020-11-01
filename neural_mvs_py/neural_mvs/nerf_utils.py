@@ -364,6 +364,103 @@ def compute_query_points_from_rays(
     return query_points, depth_values
 
 
+#takes near and far as tensors
+def compute_query_points_from_rays2(
+    ray_origins: torch.Tensor,
+    ray_directions: torch.Tensor,
+    near_thresh: torch.Tensor,
+    far_thresh: torch.Tensor,
+    num_samples: int,
+    randomize: Optional[bool] = True,
+) -> (torch.Tensor, torch.Tensor):
+    r"""Compute query 3D points given the "bundle" of rays. The near_thresh and far_thresh
+    variables indicate the bounds within which 3D points are to be sampled.
+    Args:
+        ray_origins (torch.Tensor): Origin of each ray in the "bundle" as returned by the
+          `get_ray_bundle()` method (shape: :math:`(width, height, 3)`).
+        ray_directions (torch.Tensor): Direction of each ray in the "bundle" as returned by the
+          `get_ray_bundle()` method (shape: :math:`(width, height, 3)`).
+        near_thresh (float): The 'near' extent of the bounding volume (i.e., the nearest depth
+          coordinate that is of interest/relevance).
+        far_thresh (float): The 'far' extent of the bounding volume (i.e., the farthest depth
+          coordinate that is of interest/relevance).
+        num_samples (int): Number of samples to be drawn along each ray. Samples are drawn
+          randomly, whilst trying to ensure "some form of" uniform spacing among them.
+        randomize (optional, bool): Whether or not to randomize the sampling of query points.
+          By default, this is set to `True`. If disabled (by setting to `False`), we sample
+          uniformly spaced points along each ray in the "bundle".
+    Returns:
+        query_points (torch.Tensor): Query points along each ray
+          (shape: :math:`(width, height, num_samples, 3)`).
+        depth_values (torch.Tensor): Sampled depth values along each ray. This is the euclidean distance between the query point and the sensor origin
+          (shape: :math:`(num_samples)`) or :math:`(width, height, 3)`) in the case you use randomize=True.
+    """
+    # TESTED
+    # shape: (num_samples)
+    depth_values = torch.linspace(0.0, 1.0, num_samples).to(ray_origins) #just a vector of size [num_samples]
+
+    height=ray_origins.shape[0]
+    width=ray_origins.shape[1]
+
+    depth_values_img=depth_values.view(1,1,-1).repeat(height,width,1) #make it [height,width,num_samples]
+    # print("ray_origin.shape", ray_origins.shape)
+    # print("depth_values_img has shape ", depth_values_img.shape )
+
+    noise=torch.rand([height,width,num_samples]).to(ray_origins)
+    # print("noise has shape ", noise.shape)
+    # print("near is ", near_thresh)
+
+    #the depth_values_img need to be not in range 0, 1 but in range near-far for every pixel
+    range_of_samples_img=far_thresh-near_thresh #says for each pixel what is the range of values that the sampled points will take
+    range_of_samples_img=range_of_samples_img.view(height,width,1)
+    # print("range_of_samples_img is ", range_of_samples_img.shape )
+    depth_values_img=depth_values_img*range_of_samples_img+near_thresh.view(height,width,1)
+
+
+    #get the noise instead of from [0,1] range to a range of [-sample_room,+sample_room]
+    #each sample has a certain wigglle room in the negative and positive direction before it collides with the other samples
+    wiggle_room_img=range_of_samples_img/num_samples
+    noise=noise*wiggle_room_img
+
+    #apply noiset o depth values
+    depth_values_img=depth_values_img+noise
+
+    # query_points=ray_origins + ray_directions*depth_values_img
+    query_points = (
+        ray_origins[..., None, :]
+        + ray_directions[..., None, :] * depth_values_img[..., :, None] )
+
+    return query_points, depth_values_img
+
+
+
+    # #create a tensor of depth values which has shape  witdh,height, num_samples with values linsapced between 0 and 1
+    # print("depth valus has shape ", depth_values.shape )
+
+
+    # # print("depth_values after linspace is ", depth_values.shape)
+    # if randomize is True:
+    #     # ray_origins: (width, height, 3)
+    #     # noise_shape = (width, height, num_samples)
+    #     noise_shape = list(ray_origins.shape[:-1]) + [num_samples]
+    #     # depth_values: (num_samples)
+    #     depth_values = (
+    #         depth_values
+    #         + torch.rand(noise_shape).to(ray_origins)
+    #         * (far_thresh - near_thresh)
+    #         / num_samples
+    #     )
+    # # (width, height, num_samples, 3) = (width, height, 1, 3) + (width, height, 1, 3) * (num_samples, 1)
+    # # query_points:  (width, height, num_samples, 3)
+    # query_points = (
+    #     ray_origins[..., None, :]
+    #     + ray_directions[..., None, :] * depth_values[..., :, None]
+    # )
+    # # TODO: Double-check that `depth_values` returned is of shape `(num_samples)`.
+    # return query_points, depth_values
+
+
+
 def render_volume_density(
     radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor, siren_out_channels
 ) -> (torch.Tensor, torch.Tensor, torch.Tensor):

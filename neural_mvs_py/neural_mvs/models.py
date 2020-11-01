@@ -1476,7 +1476,7 @@ class Net(torch.nn.Module):
        
 
       
-    def forward(self, guide, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, novel=False):
+    def forward(self, gt_frame, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, novel=False):
 
         nr_imgs=x.shape[0]
 
@@ -1603,8 +1603,13 @@ class Net(torch.nn.Module):
 
         TIME_START("sample")
         # Sample query points along each ray
-        query_points, depth_values = compute_query_points_from_rays(
-            ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
+        # query_points, depth_values = compute_query_points_from_rays(
+        #     ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
+        # )
+        near_thresh_tensor=gt_frame.znear_zfar[:,0,:,:]
+        far_thresh_tensor=gt_frame.znear_zfar[:,1,:,:]
+        query_points, depth_values = compute_query_points_from_rays2(
+            ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
         )
 
         TIME_END("sample")
