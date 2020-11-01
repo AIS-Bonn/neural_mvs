@@ -1660,7 +1660,7 @@ class Net(torch.nn.Module):
 
         if not novel:
             rays_mesh=Mesh()
-            rays_mesh.V=query_points.reshape((-1, 3)).cpu().numpy()
+            rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
             rays_mesh.m_vis.m_show_points=True
             Scene.show(rays_mesh, "rays_mesh_novel")
 

@@ -64,9 +64,11 @@ class FramePY():
         self.height=self.rgb_tensor.shape[2]
         self.width=self.rgb_tensor.shape[3]
         #create tensor to store the bound in z near and zfar for every pixel of this image
-        self.znear_zfar = torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))
-        self.znear_zfar[:,0,:,:]=znear
-        self.znear_zfar[:,1,:,:]=zfar
+        self.znear_zfar = torch.nn.Parameter(  torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))  )
+        with torch.no_grad():
+            self.znear_zfar[:,0,:,:]=znear
+            self.znear_zfar[:,1,:,:]=zfar
+        # self.znear_zfar.requires_grad=True
     def create_frustum_mesh(self, scale):
         frame=Frame()
         frame.K=self.K
@@ -90,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_8"
+    experiment_name="s_10"
 
 
 
@@ -457,7 +459,20 @@ def run():
 
 
 
-                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+
+                            #optimizer which contains all the znear and zfar also https://pytorch.org/docs/stable/optim.html#per-parameter-options
+                            param_znear_zfar=[]
+                            for f in frames_for_training:
+                                param_znear_zfar.append(f.znear_zfar)
+                            # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=torch.optim.AdamW ([
+                                {'params': model.parameters()},
+                                {'params': param_znear_zfar, 'lr': train_params.lr() }
+                            ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+
+
+
                             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             optimizer.zero_grad()
 
@@ -491,6 +506,9 @@ def run():
 
                         # print("fcmu grad norm", model.fc_mu.weight.grad.norm())
                         # print("first_conv norm", model.first_conv.weight.grad.norm())
+
+                        #check the grad for the znear zfar
+                        print("rma grad is ", gt_frame.znear_zfar.grad.norm() )
 
                         optimizer.step()
 
