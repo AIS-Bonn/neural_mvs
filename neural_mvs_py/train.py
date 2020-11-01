@@ -48,6 +48,13 @@ train_params=TrainParams.create(config_file)
 model_params=ModelParams.create(config_file)    
 
 
+# class Frame():
+#     def __init__(self, frame):
+#         # self.field1 = field1
+#         # self.field2 = field2
+#         # self.field3 = field3
+
+
 
 def run():
     config_path=os.path.join( os.path.dirname( os.path.realpath(__file__) ) , '../config', config_file)
@@ -59,7 +66,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_pe13"
+    experiment_name="s_2"
 
 
 
@@ -150,6 +157,32 @@ def run():
     all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
     print("all imgs have shape ", all_imgs.shape)
 
+
+
+    #preload all frames_for_encoding 
+
+
+
+
+    #preload all frames for training
+    # while True:
+    #     for i in range(loader.nr_samples()):
+    #         if loader.has_data():
+    #             ref_frame=loader.get_color_frame()
+    #             depth_frame=loader.get_depth_frame()
+    #             # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
+    #             ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+    #             all_imgs_list.append(ref_rgb_tensor)
+    #             all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
+    #             all_imgs_Ks_list.append(ref_frame.K)
+    #             print("appending")
+    #     if loader.is_finished():
+    #         loader.reset()
+    #         break
+
+
+
+
     initial_render_frame=None
         
     novel_cam=Camera()
@@ -221,18 +254,24 @@ def run():
 
                         #get only valid pixels
                         # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
-                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         # gt_frame.rgb_32f=ref_frame.rgb_32f
+
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
-                        mask=gt_rgb_tensor>0.0
+                        mask=mat2tensor(gt_frame.mask, False).to("cuda").repeat(1,3,1,1)
+                        gt_rgb_tensor=gt_rgb_tensor*mask
+                        gt_frame.rgb_32f=tensor2mat(gt_rgb_tensor)
+                        # mask=gt_rgb_tensor>0.0
                         # mask=mat2tensor(gt_frame.mask, False).to("cuda")
                         # ref_rgb_tensor=ref_rgb_tensor.contiguous()
 
                         #EXPERIMENT make the gt tensor just black and white  SO we predict just black for background and white for the objects
                         # gt_rgb_tensor=mask*1.0
                         # gt_frame.rgb_32f=tensor2mat(gt_rgb_tensor)
+
+                        Gui.show(gt_frame.mask, "mask")
 
                         if(phase.iter_nr%show_every==0):
                             # print("width and height ", ref_frame.width)
