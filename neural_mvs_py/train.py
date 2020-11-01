@@ -48,13 +48,15 @@ train_params=TrainParams.create(config_file)
 model_params=ModelParams.create(config_file)    
 
 
-class Frame():
+class FramePY():
     def __init__(self, frame, znear, zfar):
         #get mask 
         self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+        self.mask=frame.mask
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         self.rgb_tensor=self.rgb_tensor*self.mask_tensor
+        self.rgb_32f=frame.rgb_32f
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
         self.K=frame.K
@@ -65,6 +67,14 @@ class Frame():
         self.znear_zfar = torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))
         self.znear_zfar[:,0,:,:]=znear
         self.znear_zfar[:,1,:,:]=zfar
+    def create_frustum_mesh(self, scale):
+        frame=Frame()
+        frame.K=self.K
+        frame.tf_cam_world=self.tf_cam_world
+        frame.width=self.width
+        frame.height=self.height
+        cloud=frame.create_frustum_mesh(scale)
+        return cloud
 
      
 
@@ -184,10 +194,11 @@ def run():
         for i in range(loader.nr_samples()):
             if loader.has_data():
                 frame=loader.get_color_frame()
-                frame_py=Frame(frame, depth_min, depth_max) 
+                frame_py=FramePY(frame, depth_min, depth_max) 
                 frames_for_encoding.append(frame_py)
-        loader.reset()
-        break
+        if loader.is_finished():
+            loader.reset()
+            break
 
     #preload all frames for training
     frames_for_training=[]
@@ -195,10 +206,11 @@ def run():
         for i in range(loader_test.nr_samples()):
             if loader_test.has_data():
                 frame=loader_test.get_color_frame()
-                frame_py=Frame(frame, depth_min, depth_max) 
+                frame_py=FramePY(frame, depth_min, depth_max) 
                 frames_for_training.append(frame_py)
-        loader_test.reset()
-        break
+        if loader_test.is_finished():
+            loader_test.reset()
+            break
 
 
 
@@ -228,10 +240,12 @@ def run():
 
 
             # pbar = tqdm(total=phase.loader.nr_samples())
-            for i in range(loader_test.nr_samples()):
+            # for i in range(loader_test.nr_samples()):
+            for i in range( len(frames_for_training) ):
 
                 # if phase.loader.has_data() and loader_test.has_data():
-                if loader_test.has_data():
+                # if loader_test.has_data():
+                if True:
                 # if loader_test.finished_reading_scene():
                     # loader_test.start_reading_next_scene()
 
@@ -240,14 +254,17 @@ def run():
 
                     # gt_frame=loader_test.get_random_frame() #load from the gt loader
                     # gt_frame=loader_test.get_next_frame() #load from the gt loader
-                    gt_frame=loader_test.get_color_frame() #fro shapenet vol ref
-                    gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
+                    # gt_frame=loader_test.get_color_frame() #fro shapenet vol ref
+                    # gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
+                    gt_frame=frames_for_training[i]
+                    gt_rgb_tensor=frames_for_training[i].rgb_tensor
+                    mask=frames_for_training[i].mask_tensor
 
                     # #debug
                     if(phase.iter_nr%show_every==0):
-                        cloud=gt_depth_frame.depth2world_xyz_mesh()
+                        # cloud=gt_depth_frame.depth2world_xyz_mesh()
                         frustum=gt_frame.create_frustum_mesh(0.1)
-                        Scene.show(cloud, "cloud")
+                        # Scene.show(cloud, "cloud")
                         Scene.show(frustum, "frustum")
 
 
@@ -274,10 +291,10 @@ def run():
 
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
-                        gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
-                        mask=mat2tensor(gt_frame.mask, False).to("cuda").repeat(1,3,1,1)
-                        gt_rgb_tensor=gt_rgb_tensor*mask
-                        gt_frame.rgb_32f=tensor2mat(gt_rgb_tensor)
+                        # gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
+                        # mask=mat2tensor(gt_frame.mask, False).to("cuda").repeat(1,3,1,1)
+                        # gt_rgb_tensor=gt_rgb_tensor*mask
+                        # gt_frame.rgb_32f=tensor2mat(gt_rgb_tensor)
                         # mask=gt_rgb_tensor>0.0
                         # mask=mat2tensor(gt_frame.mask, False).to("cuda")
                         # ref_rgb_tensor=ref_rgb_tensor.contiguous()
@@ -286,7 +303,7 @@ def run():
                         # gt_rgb_tensor=mask*1.0
                         # gt_frame.rgb_32f=tensor2mat(gt_rgb_tensor)
 
-                        Gui.show(gt_frame.mask, "mask")
+                        # Gui.show(gt_frame.mask, "mask")
 
                         if(phase.iter_nr%show_every==0):
                             # print("width and height ", ref_frame.width)
@@ -486,7 +503,8 @@ def run():
 
             # finished all the images 
             # pbar.close()
-            if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
+            # if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
+            if is_training: #we reduce the learning rate when the test iou plateus
                 # optimizer.step() # DO it only once after getting gradients for all images
                 # optimizer.zero_grad()
                 # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
@@ -494,7 +512,9 @@ def run():
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
-                loader_test.reset()
+                # loader_test.reset()
+                random.shuffle(frames_for_encoding)
+                random.shuffle(frames_for_training)
                 # time.sleep(0.1) #give the loaders a bit of time to load
 
 
