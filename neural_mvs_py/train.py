@@ -59,7 +59,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s"
+    experiment_name="s_3"
 
 
 
@@ -75,14 +75,16 @@ def run():
     #create loaders
     # loader=TinyLoader.create(config_file)
     # loader=DataLoaderShapeNetImg(config_path)
-    loader=DataLoaderNerf(config_path)
+    # loader=DataLoaderNerf(config_path)
+    loader=DataLoaderVolRef(config_path)
     # loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
-    # loader.set_shuffle(False)
-    # loader.set_overfit(False)
-    # loader.load_only_from_idxs( [0,2,4,6] )
+    loader.set_shuffle(False)
+    loader.set_overfit(False)
+    loader.load_only_from_idxs( [0,2,4,6] )
     loader.start()
     # loader_test=DataLoaderShapeNetImg(config_path)
-    loader_test=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
+    loader_test=DataLoaderVolRef(config_path)
     # loader_test.load_only_from_idxs( [0,2,4,6] )
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
@@ -122,12 +124,28 @@ def run():
     all_imgs_poses_cam_world_list=[]
     all_imgs_Ks_list=[]
     #load some images for encoding
-    for i in range(4):
-        ref_frame=loader.get_random_frame()
-        ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
-        all_imgs_list.append(ref_rgb_tensor)
-        all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
-        all_imgs_Ks_list.append(ref_frame.K)
+    #for nerf and shapentimg
+    # for i in range(4):
+    #     ref_frame=loader.get_random_frame()
+    #     ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+    #     all_imgs_list.append(ref_rgb_tensor)
+    #     all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
+    #     all_imgs_Ks_list.append(ref_frame.K)
+    #for volref 
+    while True:
+        for i in range(loader.nr_samples()):
+            if loader.has_data():
+                ref_frame=loader.get_color_frame()
+                depth_frame=loader.get_depth_frame()
+                # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
+                ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+                all_imgs_list.append(ref_rgb_tensor)
+                all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
+                all_imgs_Ks_list.append(ref_frame.K)
+                print("appending")
+        if loader.is_finished():
+            loader.reset()
+            break
     all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
     print("all imgs have shape ", all_imgs.shape)
 
@@ -138,15 +156,17 @@ def run():
     # novel_cam.set_lookat([-0.02, 0.1, -1.3]) #for the figure
     # novel_cam.set_lookat([-0.02, 0.1, -1.0]) #for vase
     # novel_cam.set_lookat([-0.02, 0.2, -1.0]) #for socrates
-    novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
+    # novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
     novel_cam.m_fov=40
     novel_cam.m_near=0.01
     novel_cam.m_far=3
 
-    # depth_min=0.4
-    # depth_max=1.2
-    depth_min=2.5
-    depth_max=4.5
+    #for vase
+    depth_min=0.4
+    depth_max=1.2
+    #for nerf
+    # depth_min=2.0
+    # depth_max=5.0
 
 
     while True:
@@ -170,14 +190,15 @@ def run():
 
 
                     # gt_frame=loader_test.get_random_frame() #load from the gt loader
-                    gt_frame=loader_test.get_next_frame() #load from the gt loader
-                    # gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
+                    # gt_frame=loader_test.get_next_frame() #load from the gt loader
+                    gt_frame=loader_test.get_color_frame() #fro shapenet vol ref
+                    gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     # #debug
                     if(phase.iter_nr%show_every==0):
-                        # cloud=gt_depth_frame.depth2world_xyz_mesh()
+                        cloud=gt_depth_frame.depth2world_xyz_mesh()
                         frustum=gt_frame.create_frustum_mesh(0.1)
-                        # Scene.show(cloud, "cloud")
+                        Scene.show(cloud, "cloud")
                         Scene.show(frustum, "frustum")
 
 
@@ -199,13 +220,13 @@ def run():
 
                         #get only valid pixels
                         # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(ref_depth_frame) 
-                        # gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
+                        gt_frame.rgb_32f=gt_frame.rgb_with_valid_depth(gt_depth_frame) 
                         # gt_frame.rgb_32f=ref_frame.rgb_32f
 
                         # ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
                         gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
-                        # mask=gt_rgb_tensor>0.0
-                        mask=mat2tensor(gt_frame.mask, False).to("cuda")
+                        mask=gt_rgb_tensor>0.0
+                        # mask=mat2tensor(gt_frame.mask, False).to("cuda")
                         # ref_rgb_tensor=ref_rgb_tensor.contiguous()
 
                         #EXPERIMENT make the gt tensor just black and white  SO we predict just black for background and white for the objects
@@ -223,7 +244,8 @@ def run():
                                 initial_render_frame=gt_frame.tf_cam_world
                                 # novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
                                 novel_cam.transform_model_matrix( gt_frame.tf_cam_world.inverse() )
-                                novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
+                                # novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
+                                novel_cam.set_lookat([-0.02, 0.1, -0.9]) #for vase
                             # print("novel cam tf is ", novel_cam.view_matrix_affine().to_float().matrix() )
                             render_tf=initial_render_frame
                             novel_cam.orbit_y(10)
