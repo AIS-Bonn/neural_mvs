@@ -48,14 +48,6 @@ train_params=TrainParams.create(config_file)
 model_params=ModelParams.create(config_file)    
 
 
-def map_range( input_val, input_start, input_end,  output_start,  output_end):
-    # input_clamped=torch.clamp(input_val, input_start, input_end)
-    # input_clamped=max(input_start, min(input_end, input_val))
-    input_clamped=torch.clamp(input_val, input_start, input_end)
-    return output_start + ((output_end - output_start) / (input_end - input_start)) * (input_clamped - input_start)
-
-
-
 
 def run():
     config_path=os.path.join( os.path.dirname( os.path.realpath(__file__) ) , '../config', config_file)
@@ -67,7 +59,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_hyp17"
+    experiment_name="s"
 
 
 
@@ -82,13 +74,15 @@ def run():
 
     #create loaders
     # loader=TinyLoader.create(config_file)
-    loader=DataLoaderShapeNetImg(config_path)
+    # loader=DataLoaderShapeNetImg(config_path)
+    loader=DataLoaderNerf(config_path)
     # loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
     # loader.set_shuffle(False)
     # loader.set_overfit(False)
     # loader.load_only_from_idxs( [0,2,4,6] )
-    # loader.start()
-    loader_test=DataLoaderShapeNetImg(config_path)
+    loader.start()
+    # loader_test=DataLoaderShapeNetImg(config_path)
+    loader_test=DataLoaderNerf(config_path)
     # loader_test.load_only_from_idxs( [0,2,4,6] )
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
@@ -96,7 +90,7 @@ def run():
     # loader_test.load_only_from_idxs( [10] )
     # loader_test.set_shuffle(True)
     # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
-    # loader_test.start()
+    loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
     # for i in range(loader.nr_frames()):
@@ -140,7 +134,7 @@ def run():
     initial_render_frame=None
         
     novel_cam=Camera()
-    novel_cam.set_position([0, 0.1, 0.1])
+    novel_cam.set_position([0, 0.0001, 0.0001])
     # novel_cam.set_lookat([-0.02, 0.1, -1.3]) #for the figure
     # novel_cam.set_lookat([-0.02, 0.1, -1.0]) #for vase
     # novel_cam.set_lookat([-0.02, 0.2, -1.0]) #for socrates
@@ -151,8 +145,8 @@ def run():
 
     # depth_min=0.4
     # depth_max=1.2
-    depth_min=0.4
-    depth_max=1.2
+    depth_min=2.5
+    depth_max=4.5
 
 
     while True:
@@ -168,13 +162,15 @@ def run():
             for i in range(loader_test.nr_samples()):
 
                 # if phase.loader.has_data() and loader_test.has_data():
-                # if loader_test.has_data():
-                if loader_test.finished_reading_scene():
+                if loader_test.has_data():
+                # if loader_test.finished_reading_scene():
+                    # loader_test.start_reading_next_scene()
 
                     # torch.manual_seed(0)
 
 
-                    gt_frame=loader_test.get_random_frame() #load from the gt loader
+                    # gt_frame=loader_test.get_random_frame() #load from the gt loader
+                    gt_frame=loader_test.get_next_frame() #load from the gt loader
                     # gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
 
                     # #debug
@@ -225,10 +221,15 @@ def run():
                         with torch.set_grad_enabled(False):
                             if initial_render_frame==None:
                                 initial_render_frame=gt_frame.tf_cam_world
-                                novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
+                                # novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
+                                novel_cam.transform_model_matrix( gt_frame.tf_cam_world.inverse() )
+                                novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
+                            # print("novel cam tf is ", novel_cam.view_matrix_affine().to_float().matrix() )
                             render_tf=initial_render_frame
                             novel_cam.orbit_y(10)
                             render_tf=novel_cam.view_matrix_affine().to_float()
+                            # print("render tf is ", render_tf.matrix())
+
                             # render_K=novel_cam.intrinsics(100, 70)
                             # print("novel cam translation is ", render_tf.translation())
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())

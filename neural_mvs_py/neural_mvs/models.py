@@ -1563,7 +1563,8 @@ class Net(torch.nn.Module):
         far_thresh=depth_max
         # depth_samples_per_ray=100
         # depth_samples_per_ray=60
-        depth_samples_per_ray=20
+        # depth_samples_per_ray=20
+        depth_samples_per_ray=40
         # depth_samples_per_ray=30
         chunksize=512*512
         # chunksize=1024*1024
