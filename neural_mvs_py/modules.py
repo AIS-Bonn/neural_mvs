@@ -9,14 +9,6 @@ import torch.nn.functional as F
 
 
 
-def map_range( input_val, input_start, input_end,  output_start,  output_end):
-    # input_clamped=torch.clamp(input_val, input_start, input_end)
-    # input_clamped=max(input_start, min(input_end, input_val))
-    input_clamped=torch.clamp(input_val, input_start, input_end)
-    return output_start + ((output_end - output_start) / (input_end - input_start)) * (input_clamped - input_start)
-
-
-
 class BatchLinear(nn.Linear, MetaModule):
     '''A linear meta-layer that can deal with batched weight matrices and biases, as for instance output by a
     hypernetwork.'''

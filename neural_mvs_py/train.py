@@ -92,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_10"
+    experiment_name="s_20"
 
 
 
@@ -413,6 +413,13 @@ def run():
                         ##PUT also the new losses
                         # loss+=new_loss*0.001*phase.iter_nr
 
+                        #make a loss to bring znear anzfar close 
+                        znear=gt_frame.znear_zfar[:,0,:,:]
+                        zfar=gt_frame.znear_zfar[:,1,:,:]
+                        ray_shortness_loss=((zfar-znear)**2).mean()
+                        # loss+=ray_shortness_loss*0.01
+
+
                         #debug the diff map 
                         diff=(((out_tensor-gt_rgb_tensor)**2))
                         diff_mat=tensor2mat(diff)
@@ -508,7 +515,7 @@ def run():
                         # print("first_conv norm", model.first_conv.weight.grad.norm())
 
                         #check the grad for the znear zfar
-                        print("rma grad is ", gt_frame.znear_zfar.grad.norm() )
+                        # print("rma grad is ", gt_frame.znear_zfar.grad.norm() )
 
                         optimizer.step()
 

@@ -1608,6 +1608,11 @@ class Net(torch.nn.Module):
         # )
         near_thresh_tensor=gt_frame.znear_zfar[:,0,:,:]
         far_thresh_tensor=gt_frame.znear_zfar[:,1,:,:]
+        if novel:
+            near_thresh_tensor=near_thresh_tensor.clone().detach()
+            far_thresh_tensor=far_thresh_tensor.clone().detach()
+            near_thresh_tensor.fill_(depth_min)
+            far_thresh_tensor.fill_(depth_max)
         query_points, depth_values = compute_query_points_from_rays2(
             ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
         )
@@ -1667,11 +1672,40 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions )
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions ) #radiance field has shape height,width, nr_samples,4
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
+
+        # print("radiance field has shape ", radiance_field_flattened.shape)
+        # sigma=radiance_field_flattened[:,:,:,0:3]
+        # weight down the sigma if the
+        #weight downt he radiance field if it's far away from the mean between znear and zfar
+        mean_ray_img=(far_thresh_tensor-near_thresh_tensor)*0.5
+        range_of_samples_img=far_thresh_tensor-near_thresh_tensor #says for each pixel what is the range of values that the sampled points will take
+        #get the difference between each depth value for every sample, and the mean depth along the ray
+        #that difference will be a positive or a negative number and we abs it, it will be zero for the value in the middle and large for all the values going further or closer
+        #we want to map that range from [0,range] to [1,0] smoothly so that the gradient can be smoothly computer
+        sigma_normal=range_of_samples_img.view(height,width,1) # from 1, c, height ,wifdht to  height,width,1,c
+        mean_ray_img=mean_ray_img.view(height,width,1) 
+        print("depth_values is ", depth_values.shape)# height,width,nr_samples
+        #pass through a a guass func  https://en.wikipedia.org/wiki/Gaussian_function
+        x_u=(depth_values-mean_ray_img)**2
+        sigma2=sigma_normal**2
+        # scale=1.0/(sigma_normal * torch.sqrt(2.0*3.141592) ) 
+        scale=1.0/(sigma_normal * 2.50662827463 ) 
+        parenthesis=-0.5*x_u/sigma2
+        # gauss_val=scale*torch.exp(parenthesis) #height,width, nr_samplles
+        #attemp2 
+        gauss_val=map_range(x_u, 0, 0.5, 1.0, 0.0) #height,width, nr_samplles
+        print("gaus vall has shape ", gauss_val.shape)
+        print("gaus vall min max ", gauss_val.min(), " max ", gauss_val.max() )
+        if not novel:
+            radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
+
+
+
         radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
 
 

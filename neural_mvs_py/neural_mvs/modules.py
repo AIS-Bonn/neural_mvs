@@ -22,6 +22,14 @@ def gelu(x):
     return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
 
 
+def map_range( input_val, input_start, input_end,  output_start,  output_end):
+    # input_clamped=torch.clamp(input_val, input_start, input_end)
+    # input_clamped=max(input_start, min(input_end, input_val))
+    input_clamped=torch.clamp(input_val, input_start, input_end)
+    return output_start + ((output_end - output_start) / (input_end - input_start)) * (input_clamped - input_start)
+
+
+
 
 class Block(MetaModule):
     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
