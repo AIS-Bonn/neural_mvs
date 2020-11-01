@@ -1095,6 +1095,9 @@ class SirenNetworkDirectPE(MetaModule):
         num_encodings=10
         self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
         cur_nr_channels=in_channels + in_channels*num_encodings*2
+        #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=128, std=5)
+        # cur_nr_channels=128+in_channels
         learned_pe_channels=cur_nr_channels
         self.skip_pe_point=2
 
@@ -1146,6 +1149,9 @@ class SirenNetworkDirectPE(MetaModule):
         num_encoding_directions=4
         self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
         dirs_channels=3+ 3*num_encoding_directions*2
+        # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+        # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
+        # dirs_channels=64
         cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
             BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
@@ -1561,6 +1567,9 @@ class Net(torch.nn.Module):
         #socrates
         near_thresh=depth_min
         far_thresh=depth_max
+        # if novel:
+            # near_thresh=near_thresh+0.1
+            # far_thresh=far_thresh-0.1
         # depth_samples_per_ray=100
         # depth_samples_per_ray=60
         depth_samples_per_ray=20

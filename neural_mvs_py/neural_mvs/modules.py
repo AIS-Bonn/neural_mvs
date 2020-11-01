@@ -654,3 +654,32 @@ class LearnedPE(MetaModule):
           
 
         return x
+
+#the lerned gaussian pe as in the work of Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains
+#should work better than just a PE on each axis.
+class LearnedPEGaussian(MetaModule):
+    def __init__(self, in_channels, out_channels, std ):
+        super(LearnedPEGaussian, self).__init__()
+
+        
+
+        # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
+        # self.conv= MetaLinear(in_channels, out_channels bias=True).cuda()  #in the case we set the weight ourselves
+        self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
+        torch.nn.init.normal_(self.b, 0.0, std)
+
+
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+        if len(x.shape)!=2:
+            print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
+            exit(1)
+
+        mat=2.0*3.141592*self.b
+        x_proj = torch.matmul(x, mat)
+        # print("x is ", x.shape)
+        # print("xproj is ", x_proj.shape)
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
+
