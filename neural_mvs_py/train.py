@@ -48,11 +48,25 @@ train_params=TrainParams.create(config_file)
 model_params=ModelParams.create(config_file)    
 
 
-# class Frame():
-#     def __init__(self, frame):
-#         # self.field1 = field1
-#         # self.field2 = field2
-#         # self.field3 = field3
+class Frame():
+    def __init__(self, frame, znear, zfar):
+        #get mask 
+        self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+        #get rgb with mask applied 
+        self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
+        self.rgb_tensor=self.rgb_tensor*self.mask_tensor
+        #get tf and K
+        self.tf_cam_world=frame.tf_cam_world
+        self.K=frame.K
+        #weight and hegiht
+        self.height=self.rgb_tensor.shape[2]
+        self.width=self.rgb_tensor.shape[3]
+        #create tensor to store the bound in z near and zfar for every pixel of this image
+        self.znear_zfar = torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))
+        self.znear_zfar[:,0,:,:]=znear
+        self.znear_zfar[:,1,:,:]=zfar
+
+     
 
 
 
@@ -66,7 +80,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_2"
+    experiment_name="s_4"
 
 
 
@@ -157,28 +171,34 @@ def run():
     all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
     print("all imgs have shape ", all_imgs.shape)
 
-
+    #for vase
+    depth_min=0.4
+    depth_max=1.2
+    #for nerf
+    # depth_min=2.0
+    # depth_max=5.0
 
     #preload all frames_for_encoding 
-
-
-
+    frames_for_encoding=[]
+    while True:
+        for i in range(loader.nr_samples()):
+            if loader.has_data():
+                frame=loader.get_color_frame()
+                frame_py=Frame(frame, depth_min, depth_max) 
+                frames_for_encoding.append(frame_py)
+        loader.reset()
+        break
 
     #preload all frames for training
-    # while True:
-    #     for i in range(loader.nr_samples()):
-    #         if loader.has_data():
-    #             ref_frame=loader.get_color_frame()
-    #             depth_frame=loader.get_depth_frame()
-    #             # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
-    #             ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
-    #             all_imgs_list.append(ref_rgb_tensor)
-    #             all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
-    #             all_imgs_Ks_list.append(ref_frame.K)
-    #             print("appending")
-    #     if loader.is_finished():
-    #         loader.reset()
-    #         break
+    frames_for_training=[]
+    while True:
+        for i in range(loader_test.nr_samples()):
+            if loader_test.has_data():
+                frame=loader_test.get_color_frame()
+                frame_py=Frame(frame, depth_min, depth_max) 
+                frames_for_training.append(frame_py)
+        loader_test.reset()
+        break
 
 
 
@@ -195,12 +215,7 @@ def run():
     novel_cam.m_near=0.01
     novel_cam.m_far=3
 
-    #for vase
-    depth_min=0.4
-    depth_max=1.2
-    #for nerf
-    # depth_min=2.0
-    # depth_max=5.0
+  
 
 
     while True:
