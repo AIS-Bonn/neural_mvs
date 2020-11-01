@@ -661,10 +661,11 @@ class LearnedPEGaussian(MetaModule):
     def __init__(self, in_channels, out_channels, std ):
         super(LearnedPEGaussian, self).__init__()
 
-        
+        # self.in_channels=in_channels
 
         # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
         # self.conv= MetaLinear(in_channels, out_channels bias=True).cuda()  #in the case we set the weight ourselves
+        # self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
         self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
         torch.nn.init.normal_(self.b, 0.0, std)
 
@@ -677,9 +678,48 @@ class LearnedPEGaussian(MetaModule):
             print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
             exit(1)
 
+        # b=self.b.repeat(self.in_channels ,1)
         mat=2.0*3.141592*self.b
         x_proj = torch.matmul(x, mat)
         # print("x is ", x.shape)
         # print("xproj is ", x_proj.shape)
         return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
+
+
+class LearnedPEGaussian2(MetaModule):
+    def __init__(self, in_channels, out_channels, std, num_encoding_functions, logsampling  ):
+        super(LearnedPEGaussian2, self).__init__()
+
+        # self.in_channels=in_channels
+
+        # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
+        # self.conv= MetaLinear(in_channels, out_channels bias=True).cuda()  #in the case we set the weight ourselves
+        # self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
+        self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
+        torch.nn.init.normal_(self.b, 0.0, std)
+
+        self.learnedpe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encoding_functions, logsampling=logsampling)
+
+
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+        if len(x.shape)!=2:
+            print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
+            exit(1)
+
+        # b=self.b.repeat(self.in_channels ,1)
+        mat=2.0*3.141592*self.b
+        x_proj = torch.matmul(x, mat)
+        # print("x is ", x.shape)
+        # print("xproj is ", x_proj.shape)
+        gx=torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
+
+        pex=self.learnedpe(x)
+
+        x=torch.cat([gx,pex],1)
+
+        return x
+
 

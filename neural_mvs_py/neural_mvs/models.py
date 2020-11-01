@@ -1092,12 +1092,15 @@ class SirenNetworkDirectPE(MetaModule):
     
         # self.position_embedders=torch.nn.ModuleList([])
 
-        num_encodings=10
+        num_encodings=11
         self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
         cur_nr_channels=in_channels + in_channels*num_encodings*2
         #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
-        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=128, std=5)
-        # cur_nr_channels=128+in_channels
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        # cur_nr_channels=256+in_channels
+        #combined PE  and gaussian
+        # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
         learned_pe_channels=cur_nr_channels
         self.skip_pe_point=2
 
