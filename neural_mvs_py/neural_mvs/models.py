@@ -1473,6 +1473,7 @@ class Net(torch.nn.Module):
 
         # self.leaned_pe=LearnedPE(in_channels=3, num_encoding_functions=self.num_encodings, logsampling=True)
 
+        self.iter=0
        
 
       
@@ -1663,11 +1664,14 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        if not novel:
+        if not novel and self.iter%100==0:
             rays_mesh=Mesh()
             rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
             rays_mesh.m_vis.m_show_points=True
             Scene.show(rays_mesh, "rays_mesh_novel")
+        if not novel:
+            self.iter+=1
+        # print("self, iter is ",self.iter, )
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
@@ -1692,6 +1696,7 @@ class Net(torch.nn.Module):
         print("depth_values is ", depth_values.shape)# height,width,nr_samples
         #pass through a a guass func  https://en.wikipedia.org/wiki/Gaussian_function
         x_u=(depth_values-mean_ray_img)**2
+        print("x_u has min max", x_u.min()," ", x_u.max())
         sigma2=sigma_normal**2
         # scale=1.0/(sigma_normal * torch.sqrt(2.0*3.141592) ) 
         scale=1.0/(sigma_normal * 2.50662827463 ) 
@@ -1702,7 +1707,19 @@ class Net(torch.nn.Module):
         print("gaus vall has shape ", gauss_val.shape)
         print("gaus vall min max ", gauss_val.min(), " max ", gauss_val.max() )
         if not novel:
-            radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
+            # radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
+            sigma= radiance_field_flattened[:,:,:, 3:4].clone()
+            print("sigma min max is ", sigma.min(), sigma.max())
+
+            # radiance_field_flattened[:,:,:, 3:4]=sigma*gauss_val.view(height,width,depth_samples_per_ray,1)
+        # else:
+            # sigma= radiance_field_flattened[:,:,:, 3:4].clone()
+            # sigma=sigma*0.1
+            # radiance_field_flattened[:,:,:, 3:4]=sigma
+            # rgb= radiance_field_flattened[:,:,:, 0:3].clone()
+            # radiance_field_flattened[:,:,:, 0:3] = rgb*0.2
+        
+            
 
 
 

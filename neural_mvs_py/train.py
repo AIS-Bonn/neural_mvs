@@ -92,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_20"
+    experiment_name="s_27"
 
 
 
@@ -475,7 +475,7 @@ def run():
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=torch.optim.AdamW ([
                                 {'params': model.parameters()},
-                                {'params': param_znear_zfar, 'lr': train_params.lr() }
+                                # {'params': param_znear_zfar, 'lr': train_params.lr() }
                             ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
 

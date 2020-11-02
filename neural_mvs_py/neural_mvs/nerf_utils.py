@@ -515,7 +515,7 @@ def render_volume_density(
 #trying to make my own renderer based on nerfplusplus because the nerf default one creates lots of splodges of color in empty space 
 #based on https://github.com/Kai-46/nerfplusplus/blob/b24b9047ade68166c1a9792554e2aef60dd137cc/ddp_model.py
 def render_volume_density_nerfplusplus(
-    radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor
+    radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor, siren_out_channels
 ) -> (torch.Tensor, torch.Tensor, torch.Tensor):
     r"""Differentiably renders a radiance field, given the origin of each ray in the
     "bundle", and the sampled depth values along them.
@@ -535,8 +535,10 @@ def render_volume_density_nerfplusplus(
     """
     # TESTED
     # sigma_a = torch.abs(radiance_field[..., 3])
-    sigma_a = torch.sigmoid(radiance_field[..., 3])
-    rgb = torch.sigmoid(radiance_field[..., :3])
+    # sigma_a = torch.sigmoid(radiance_field[..., 3])
+    # rgb = torch.sigmoid(radiance_field[..., :3])
+    sigma_a = radiance_field[..., siren_out_channels-1]
+    rgb = radiance_field[..., :siren_out_channels-1]
 
     # fg_dists = fg_z_vals[..., 1:] - fg_z_vals[..., :-1]
 
@@ -614,8 +616,8 @@ def render_volume_density_nerfplusplus(
     # sigma_a=sigma_a* (1.0/nr_samples_per_ray)
     # sigma_cum=torch.cumprod(1-sigma_a, dim=2)
     sigma_cum=cumprod_exclusive(1-sigma_a)
-    # sigma_cum_above_1 = sigma_cum>1.0
-    # sigma_cum[sigma_cum_above_1] = 0
+    sigma_cum_above_1 = sigma_cum>1.0
+    sigma_cum[sigma_cum_above_1] = 0
     # print("sigma_cum", sigma_cum)
     # exit(1)
 
