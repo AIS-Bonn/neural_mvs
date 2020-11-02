@@ -55,7 +55,7 @@ class FramePY():
         self.mask=frame.mask
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
-        self.rgb_tensor=self.rgb_tensor*self.mask_tensor
+        # self.rgb_tensor=self.rgb_tensor*self.mask_tensor
         self.rgb_32f=tensor2mat(self.rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
@@ -92,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_35"
+    experiment_name="s_10"
 
     use_ray_compression=False
 
@@ -271,7 +271,7 @@ def run():
                     #preload all frames_for_encoding 
                     frames_for_encoding=[]
                     all_imgs_poses_cam_world_list=[]
-                    for i in range(4):
+                    for i in range(6):
                         frame=loader_test.get_random_frame()
                         frame_py=FramePY(frame, depth_min, depth_max) 
                         frames_for_encoding.append(frame_py)
@@ -283,7 +283,9 @@ def run():
                     mask=mat2tensor(gt_frame.mask, False).to("cuda")
 
                     #start reading new scene
-                    loader_test.start_reading_next_scene()
+                    if(phase.iter_nr%1==0):
+                        loader_test.start_reading_next_scene()
+
 
                   
 
@@ -577,8 +579,8 @@ def run():
 
             # finished all the images 
             # pbar.close()
-            # if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
-            if is_training: #we reduce the learning rate when the test iou plateus
+            if is_training and loader_test.is_finished(): #we reduce the learning rate when the test iou plateus
+            # if is_training: #we reduce the learning rate when the test iou plateus
                 # optimizer.step() # DO it only once after getting gradients for all images
                 # optimizer.zero_grad()
                 # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
@@ -586,7 +588,7 @@ def run():
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
-                # loader_test.reset()
+                loader_test.reset()
                 # random.shuffle(frames_for_encoding)
                 # random.shuffle(frames_for_training)
                 # time.sleep(0.1) #give the loaders a bit of time to load

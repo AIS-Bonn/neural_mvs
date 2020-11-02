@@ -720,9 +720,9 @@ class Encoder(torch.nn.Module):
 
 
 
-        self.start_nr_channels=32
+        self.start_nr_channels=64
         # self.start_nr_channels=4
-        self.nr_downsampling_stages=5
+        self.nr_downsampling_stages=4
         self.nr_blocks_down_stage=[2,2,2,2,2,2,2]
         self.nr_channels_after_coarsening_per_layer=[64,64,128,128,256,256,512,512,512,1024,1024]
         # self.nr_upsampling_stages=3
@@ -1416,8 +1416,8 @@ class Net(torch.nn.Module):
         self.first_time=True
 
         #params
-        # self.z_size=512
-        self.z_size=256
+        self.z_size=512
+        # self.z_size=256
         # self.z_size=2048
         self.nr_points_z=256
         self.num_encodings=10
@@ -1518,7 +1518,8 @@ class Net(torch.nn.Module):
         # print("R_world_cam_all is ", R_world_cam_all.shape)
         # print("before rotatin z3d is", z3d)
         # z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all #### I think the rotation is wrong so the z3d has to be transposed and not the Rotaiton
-        z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
+        # z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
+        z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2) 
         # print("aftering rotatin z3d is", z3d)
         # print("after multiplying z3d is ", z3d.shape)
 

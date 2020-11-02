@@ -597,7 +597,8 @@ def init_weights_trunc_normal(m):
 def init_weights_normal(m):
     if type(m) == BatchLinear or type(m) == nn.Linear:
         if hasattr(m, 'weight'):
-            nn.init.kaiming_normal_(m.weight, a=0.0, nonlinearity='relu', mode='fan_in')
+            # nn.init.kaiming_normal_(m.weight, a=0.0, nonlinearity='relu', mode='fan_in')
+            nn.init.kaiming_normal_(m.weight, a=math.sqrt(5), nonlinearity='relu', mode='fan_out')
 
 
 def init_weights_selu(m):
