@@ -1416,8 +1416,8 @@ class Net(torch.nn.Module):
         self.first_time=True
 
         #params
-        self.z_size=512
-        # self.z_size=256
+        # self.z_size=512
+        self.z_size=256
         # self.z_size=2048
         self.nr_points_z=256
         self.num_encodings=10
@@ -1477,81 +1477,88 @@ class Net(torch.nn.Module):
        
 
       
-    def forward(self, gt_frame, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, use_ray_compression, novel=False):
+    def forward(self, gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, use_ray_compression, novel=False):
 
-        # nr_imgs=x.shape[0]
-
-        # # print("encoding")
-        # TIME_START("encoding")
-        # z=self.encoder(x)
-        # TIME_END("encoding")
-        # # print("encoder outputs z", z.shape)
-
-        # TIME_START("rotate")
-        # #make z into a nr_imgs x z_size
-        # z=z.view(nr_imgs, self.z_size)
-
-        # #make z into a 3D thing
-        # z3d=self.z_to_z3d(z)
-        # z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
-        # # z3d=self.sigmoid(z3d)
-        # # print("after making 3d z is ", z.shape)
-
-        # #rotate everything into the same world frame
-        # R_world_cam_all_list=[]
-        # t_world_cam_all_list=[]
-        # for i in range(nr_imgs):
-        #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
-        #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
-        #     t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
-        #     R_world_cam_all_list.append(R.unsqueeze(0))
-        #     t_world_cam_all_list.append(t.view(1,1,3) )
-        # R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
-        # t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
-        # # print("R_world_cam_all is ", R_world_cam_all.shape)
-        # # print("before rotatin z3d is", z3d)
-        # # z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all #### I think the rotation is wrong so the z3d has to be transposed and not the Rotaiton
-        # z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
-        # # print("aftering rotatin z3d is", z3d)
-        # # print("after multiplying z3d is ", z3d.shape)
+        #prepare the images for encoding
+        imgs=[]
+        for i in range(len(frames_for_encoding)):
+            imgs.append(frames_for_encoding[i].rgb_tensor)
+        x=torch.cat(imgs,0).contiguous().to("cuda")
 
 
 
-        # #get also an apperence vector and append it
-        # zapp=self.z_to_zapp(z)
-        # zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
-        # # print("zapp has size ", zapp.shape)
-        # # print("z3d has size ", z3d.shape)
-        # z=torch.cat([zapp, z3d], 2)
-        # # DO NOT use the zapp
-        # # z=z3d
+        nr_imgs=x.shape[0]
+        # print("encoding")
+        TIME_START("encoding")
+        z=self.encoder(x)
+        TIME_END("encoding")
+        # print("encoder outputs z", z.shape)
 
-        # #aggregate all the z from every camera now expressed in world coords, into one z vector
-        # # z3d=z3d.mean(0)
-        # # z=z.mean(0)
-        # z,_=z.max(0)
-        # # print("after agregating z3d is ", z3d.shape)
-        # TIME_END("rotate")
+        TIME_START("rotate")
+        #make z into a nr_imgs x z_size
+        z=z.view(nr_imgs, self.z_size)
 
-        # #reduce it so that the hypernetwork makes smaller weights for siren
-        # # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+        #make z into a 3D thing
+        z3d=self.z_to_z3d(z)
+        z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
+        # z3d=self.sigmoid(z3d)
+        # print("after making 3d z is ", z.shape)
+
+        #rotate everything into the same world frame
+        R_world_cam_all_list=[]
+        t_world_cam_all_list=[]
+        for i in range(nr_imgs):
+            tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+            R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+            t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
+            R_world_cam_all_list.append(R.unsqueeze(0))
+            t_world_cam_all_list.append(t.view(1,1,3) )
+        R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
+        # print("R_world_cam_all is ", R_world_cam_all.shape)
+        # print("before rotatin z3d is", z3d)
+        # z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all #### I think the rotation is wrong so the z3d has to be transposed and not the Rotaiton
+        z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
+        # print("aftering rotatin z3d is", z3d)
+        # print("after multiplying z3d is ", z3d.shape)
 
 
-        # # print("z has shape ", z.shape)
-        # # z=z.reshape(1,self.z_size)
-        # z=z.reshape(1,-1)
-        # # print("encoder has size", z.shape )
-        # # print("running hypernet")
-        # TIME_START("hyper")
-        # siren_params=self.hyper_net(z)
-        # TIME_END("hyper")
-        # # print("finished hypernet")
-        # # print("computer params of siren")
-        # # print("sirenparams", siren_params)
-        # # print("x shape is ", x.shape)
-        # # x.unsqueeze_(0)
-        # # x=self.siren_net(x, params=siren_params)
-        # # x=self.siren_net(x, params=None)
+
+        #get also an apperence vector and append it
+        zapp=self.z_to_zapp(z)
+        zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
+        # print("zapp has size ", zapp.shape)
+        # print("z3d has size ", z3d.shape)
+        z=torch.cat([zapp, z3d], 2)
+        # DO NOT use the zapp
+        # z=z3d
+
+        #aggregate all the z from every camera now expressed in world coords, into one z vector
+        # z3d=z3d.mean(0)
+        # z=z.mean(0)
+        z,_=z.max(0)
+        # print("after agregating z3d is ", z3d.shape)
+        TIME_END("rotate")
+
+        #reduce it so that the hypernetwork makes smaller weights for siren
+        # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+
+
+        # print("z has shape ", z.shape)
+        # z=z.reshape(1,self.z_size)
+        z=z.reshape(1,-1)
+        # print("encoder has size", z.shape )
+        # print("running hypernet")
+        TIME_START("hyper")
+        siren_params=self.hyper_net(z)
+        TIME_END("hyper")
+        # print("finished hypernet")
+        # print("computer params of siren")
+        # print("sirenparams", siren_params)
+        # print("x shape is ", x.shape)
+        # x.unsqueeze_(0)
+        # x=self.siren_net(x, params=siren_params)
+        # x=self.siren_net(x, params=None)
 
 
         TIME_START("full_siren")
@@ -1607,13 +1614,20 @@ class Net(torch.nn.Module):
         # query_points, depth_values = compute_query_points_from_rays(
         #     ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
         # )
-        near_thresh_tensor=gt_frame.znear_zfar[:,0,:,:]
-        far_thresh_tensor=gt_frame.znear_zfar[:,1,:,:]
-        if novel:
-            near_thresh_tensor=near_thresh_tensor.clone().detach()
-            far_thresh_tensor=far_thresh_tensor.clone().detach()
-            near_thresh_tensor.fill_(depth_min)
-            far_thresh_tensor.fill_(depth_max)
+        # near_thresh_tensor=gt_frame.znear_zfar[:,0,:,:]
+        # far_thresh_tensor=gt_frame.znear_zfar[:,1,:,:]
+        # if novel:
+        #     near_thresh_tensor=near_thresh_tensor.clone().detach()
+        #     far_thresh_tensor=far_thresh_tensor.clone().detach()
+        #     near_thresh_tensor.fill_(depth_min)
+        #     far_thresh_tensor.fill_(depth_max)
+
+        #just set the two tensors to the min and max 
+        near_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        far_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        near_thresh_tensor.fill_(depth_min)
+        far_thresh_tensor.fill_(depth_max)
+
         query_points, depth_values = compute_query_points_from_rays2(
             ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
         )
@@ -1669,8 +1683,8 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions ) #radiance field has shape height,width, nr_samples,4
-        # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
+        # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 

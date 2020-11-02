@@ -110,17 +110,17 @@ def run():
 
     #create loaders
     # loader=TinyLoader.create(config_file)
-    # loader=DataLoaderShapeNetImg(config_path)
+    loader=DataLoaderShapeNetImg(config_path)
     # loader=DataLoaderNerf(config_path)
-    loader=DataLoaderVolRef(config_path)
+    # loader=DataLoaderVolRef(config_path)
     # loader.load_only_from_idxs( [0,1,2,3,4,5,6,7] )
-    loader.set_shuffle(False)
-    loader.set_overfit(False)
-    loader.load_only_from_idxs( [0,2,4,6] )
-    loader.start()
-    # loader_test=DataLoaderShapeNetImg(config_path)
+    # loader.set_shuffle(False)
+    # loader.set_overfit(False)
+    # loader.load_only_from_idxs( [0,2,4,6] )
+    # loader.start()
+    loader_test=DataLoaderShapeNetImg(config_path)
     # loader_test=DataLoaderNerf(config_path)
-    loader_test=DataLoaderVolRef(config_path)
+    # loader_test=DataLoaderVolRef(config_path)
     # loader_test.load_only_from_idxs( [0,2,4,6] )
     # loader_test.load_only_from_idxs( [9,10,11,12,13,14,15,16] ) #one full row at the same height
     # loader_test.load_only_from_idxs( [10,12,14,16] )
@@ -128,7 +128,7 @@ def run():
     # loader_test.load_only_from_idxs( [10] )
     # loader_test.set_shuffle(True)
     # loader_test.set_overfit(True) #so we don't reload the image after every reset but we just keep on training on it
-    loader_test.start()
+    # loader_test.start()
     #load all the images on cuda already so it's faster
     # imgs=[]
     # for i in range(loader.nr_frames()):
@@ -156,9 +156,9 @@ def run():
 
 
     #prepare all images and concat them batchwise
-    all_imgs_list=[]
-    all_imgs_poses_cam_world_list=[]
-    all_imgs_Ks_list=[]
+    # all_imgs_list=[]
+    # all_imgs_poses_cam_world_list=[]
+    # all_imgs_Ks_list=[]
     #load some images for encoding
     #for nerf and shapentimg
     # for i in range(4):
@@ -192,29 +192,29 @@ def run():
     # depth_min=2.0
     # depth_max=5.0
 
-    #preload all frames_for_encoding 
-    frames_for_encoding=[]
-    while True:
-        for i in range(loader.nr_samples()):
-            if loader.has_data():
-                frame=loader.get_color_frame()
-                frame_py=FramePY(frame, depth_min, depth_max) 
-                frames_for_encoding.append(frame_py)
-        if loader.is_finished():
-            loader.reset()
-            break
+    # #preload all frames_for_encoding 
+    # frames_for_encoding=[]
+    # while True:
+    #     for i in range(loader.nr_samples()):
+    #         if loader.has_data():
+    #             frame=loader.get_color_frame()
+    #             frame_py=FramePY(frame, depth_min, depth_max) 
+    #             frames_for_encoding.append(frame_py)
+    #     if loader.is_finished():
+    #         loader.reset()
+    #         break
 
-    #preload all frames for training
-    frames_for_training=[]
-    while True:
-        for i in range(loader_test.nr_samples()):
-            if loader_test.has_data():
-                frame=loader_test.get_color_frame()
-                frame_py=FramePY(frame, depth_min, depth_max) 
-                frames_for_training.append(frame_py)
-        if loader_test.is_finished():
-            loader_test.reset()
-            break
+    # #preload all frames for training
+    # frames_for_training=[]
+    # while True:
+    #     for i in range(loader_test.nr_samples()):
+    #         if loader_test.has_data():
+    #             frame=loader_test.get_color_frame()
+    #             frame_py=FramePY(frame, depth_min, depth_max) 
+    #             frames_for_training.append(frame_py)
+    #     if loader_test.is_finished():
+    #         loader_test.reset()
+    #         break
 
 
 
@@ -245,11 +245,12 @@ def run():
 
             # pbar = tqdm(total=phase.loader.nr_samples())
             # for i in range(loader_test.nr_samples()):
-            for i in range( len(frames_for_training) ):
+            # for i in range( len(frames_for_training) ):
+            if loader_test.finished_reading_scene():
 
                 # if phase.loader.has_data() and loader_test.has_data():
                 # if loader_test.has_data():
-                if True:
+                if True: #Shapenet IMg always had ata at this point 
                 # if loader_test.finished_reading_scene():
                     # loader_test.start_reading_next_scene()
 
@@ -261,9 +262,31 @@ def run():
                     # gt_frame=loader_test.get_color_frame() #fro shapenet vol ref
                     # gt_depth_frame=loader_test.get_depth_frame() #load from the gt loader
                     # i=0
-                    gt_frame=frames_for_training[i]
-                    gt_rgb_tensor=frames_for_training[i].rgb_tensor
-                    mask=frames_for_training[i].mask_tensor
+
+                    # gt_frame=frames_for_training[i]
+                    # gt_rgb_tensor=frames_for_training[i].rgb_tensor
+                    # mask=frames_for_training[i].mask_tensor
+
+                                    
+                    #preload all frames_for_encoding 
+                    frames_for_encoding=[]
+                    all_imgs_poses_cam_world_list=[]
+                    for i in range(4):
+                        frame=loader_test.get_random_frame()
+                        frame_py=FramePY(frame, depth_min, depth_max) 
+                        frames_for_encoding.append(frame_py)
+                        all_imgs_poses_cam_world_list.append(frame.tf_cam_world)
+
+                    #load a random frame for gt 
+                    gt_frame=loader_test.get_random_frame()
+                    gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
+                    mask=mat2tensor(gt_frame.mask, False).to("cuda")
+
+                    #start reading new scene
+                    loader_test.start_reading_next_scene()
+
+                  
+
 
                     # #debug
                     if(phase.iter_nr%show_every==0):
@@ -271,6 +294,9 @@ def run():
                         frustum=gt_frame.create_frustum_mesh(0.1)
                         # Scene.show(cloud, "cloud")
                         Scene.show(frustum, "frustum")
+                        #show the first frame of the ones used for encoding
+                        Gui.show(frames_for_encoding[0].rgb_32f, "rgb_for_enc")
+
 
 
                     # #show frustums 
@@ -321,8 +347,8 @@ def run():
                                 initial_render_frame=gt_frame.tf_cam_world
                                 # novel_cam.set_position(gt_frame.tf_cam_world.inverse().translation())
                                 novel_cam.transform_model_matrix( gt_frame.tf_cam_world.inverse() )
-                                # novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
-                                novel_cam.set_lookat([-0.02, 0.1, -0.9]) #for vase
+                                novel_cam.set_lookat([0.0, 0.0, 0.0]) #for car
+                                # novel_cam.set_lookat([-0.02, 0.1, -0.9]) #for vase
                             # print("novel cam tf is ", novel_cam.view_matrix_affine().to_float().matrix() )
                             render_tf=initial_render_frame
                             novel_cam.orbit_y(10)
@@ -387,15 +413,15 @@ def run():
                                 # depth_gt_mat=tensor2mat(depth_gt)
                                 # Gui.show(depth_gt_mat, "depth_gt")
 
-                            #show the znear zfar
-                            if(phase.iter_nr%show_every==0):
-                                znear=gt_frame.znear_zfar[:,0:1,:,:].repeat(1,3,1,1)
-                                zfar=gt_frame.znear_zfar[:,1:2,:,:].repeat(1,3,1,1)
-                                # print("znear has hsape", znear.shape)
-                                znear_ranged=map_range(znear, depth_min, depth_max, 0.0, 1.0)
-                                zfar_ranged=map_range(zfar, depth_min, depth_max, 0.0, 1.0)
-                                Gui.show(tensor2mat(znear_ranged), "znear_ranged")
-                                Gui.show(tensor2mat(zfar_ranged), "zfar_ranged")
+                            # #show the znear zfar
+                            # if(phase.iter_nr%show_every==0):
+                            #     znear=gt_frame.znear_zfar[:,0:1,:,:].repeat(1,3,1,1)
+                            #     zfar=gt_frame.znear_zfar[:,1:2,:,:].repeat(1,3,1,1)
+                            #     # print("znear has hsape", znear.shape)
+                            #     znear_ranged=map_range(znear, depth_min, depth_max, 0.0, 1.0)
+                            #     zfar_ranged=map_range(zfar, depth_min, depth_max, 0.0, 1.0)
+                            #     Gui.show(tensor2mat(znear_ranged), "znear_ranged")
+                            #     Gui.show(tensor2mat(zfar_ranged), "zfar_ranged")
 
 
                         # #render the depth map
@@ -427,10 +453,10 @@ def run():
                         # loss+=new_loss*0.001*phase.iter_nr
 
                         #make a loss to bring znear anzfar close 
-                        znear=gt_frame.znear_zfar[:,0,:,:]
-                        zfar=gt_frame.znear_zfar[:,1,:,:]
-                        ray_shortness_loss=((zfar-znear)**2).mean()
                         if use_ray_compression:
+                            znear=gt_frame.znear_zfar[:,0,:,:]
+                            zfar=gt_frame.znear_zfar[:,1,:,:]
+                            ray_shortness_loss=((zfar-znear)**2).mean()
                             loss+=ray_shortness_loss*0.01
 
 
@@ -483,9 +509,10 @@ def run():
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
                             #optimizer which contains all the znear and zfar also https://pytorch.org/docs/stable/optim.html#per-parameter-options
-                            param_znear_zfar=[]
-                            for f in frames_for_training:
-                                param_znear_zfar.append(f.znear_zfar)
+                            if use_ray_compression:
+                                param_znear_zfar=[]
+                                for f in frames_for_training:
+                                    param_znear_zfar.append(f.znear_zfar)
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
                             if use_ray_compression:
@@ -560,8 +587,8 @@ def run():
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
                 # loader_test.reset()
-                random.shuffle(frames_for_encoding)
-                random.shuffle(frames_for_training)
+                # random.shuffle(frames_for_encoding)
+                # random.shuffle(frames_for_training)
                 # time.sleep(0.1) #give the loaders a bit of time to load
 
 
