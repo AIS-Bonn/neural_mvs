@@ -92,7 +92,9 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_27"
+    experiment_name="s_35"
+
+    use_ray_compression=False
 
 
 
@@ -166,22 +168,22 @@ def run():
     #     all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
     #     all_imgs_Ks_list.append(ref_frame.K)
     #for volref 
-    while True:
-        for i in range(loader.nr_samples()):
-            if loader.has_data():
-                ref_frame=loader.get_color_frame()
-                depth_frame=loader.get_depth_frame()
-                # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
-                ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
-                all_imgs_list.append(ref_rgb_tensor)
-                all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
-                all_imgs_Ks_list.append(ref_frame.K)
-                print("appending")
-        if loader.is_finished():
-            loader.reset()
-            break
-    all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
-    print("all imgs have shape ", all_imgs.shape)
+    # while True:
+    #     for i in range(loader.nr_samples()):
+    #         if loader.has_data():
+    #             ref_frame=loader.get_color_frame()
+    #             depth_frame=loader.get_depth_frame()
+    #             # ref_frame.rgb_32f=ref_frame.rgb_with_valid_depth(depth_frame) 
+    #             ref_rgb_tensor=mat2tensor(ref_frame.rgb_32f, False).to("cuda")
+    #             all_imgs_list.append(ref_rgb_tensor)
+    #             all_imgs_poses_cam_world_list.append(ref_frame.tf_cam_world)
+    #             all_imgs_Ks_list.append(ref_frame.K)
+    #             print("appending")
+    #     if loader.is_finished():
+    #         loader.reset()
+    #         break
+    # all_imgs=torch.cat(all_imgs_list,0).contiguous().to("cuda")
+    # print("all imgs have shape ", all_imgs.shape)
 
     #for vase
     depth_min=0.4
@@ -332,7 +334,7 @@ def run():
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor,  depth_map, acc_map, new_loss=model(gt_frame, all_imgs, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, novel=True )
+                            out_tensor,  depth_map, acc_map, new_loss=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, use_ray_compression, novel=True )
                             # out_tensor=model(ref_rgb_tensor, renrgb_siren,der_tf, render_tf )
                             if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
@@ -356,7 +358,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map, acc_map, new_loss=model(gt_frame, all_imgs, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max )
+                        out_tensor, depth_map, acc_map, new_loss=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max, use_ray_compression )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
@@ -384,6 +386,17 @@ def run():
                                 # depth_gt=map_range(depth_gt, 0.9, 1.7, 0.0, 1.0)
                                 # depth_gt_mat=tensor2mat(depth_gt)
                                 # Gui.show(depth_gt_mat, "depth_gt")
+
+                            #show the znear zfar
+                            if(phase.iter_nr%show_every==0):
+                                znear=gt_frame.znear_zfar[:,0:1,:,:].repeat(1,3,1,1)
+                                zfar=gt_frame.znear_zfar[:,1:2,:,:].repeat(1,3,1,1)
+                                # print("znear has hsape", znear.shape)
+                                znear_ranged=map_range(znear, depth_min, depth_max, 0.0, 1.0)
+                                zfar_ranged=map_range(zfar, depth_min, depth_max, 0.0, 1.0)
+                                Gui.show(tensor2mat(znear_ranged), "znear_ranged")
+                                Gui.show(tensor2mat(zfar_ranged), "zfar_ranged")
+
 
                         # #render the depth map
                         # if(phase.iter_nr%show_every==0):
@@ -417,7 +430,8 @@ def run():
                         znear=gt_frame.znear_zfar[:,0,:,:]
                         zfar=gt_frame.znear_zfar[:,1,:,:]
                         ray_shortness_loss=((zfar-znear)**2).mean()
-                        # loss+=ray_shortness_loss*0.01
+                        if use_ray_compression:
+                            loss+=ray_shortness_loss*0.01
 
 
                         #debug the diff map 
@@ -473,10 +487,17 @@ def run():
                             for f in frames_for_training:
                                 param_znear_zfar.append(f.znear_zfar)
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=torch.optim.AdamW ([
-                                {'params': model.parameters()},
-                                # {'params': param_znear_zfar, 'lr': train_params.lr() }
-                            ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+
+                            if use_ray_compression:
+                                optimizer=torch.optim.AdamW ([
+                                    {'params': model.parameters()},
+                                    {'params': param_znear_zfar, 'lr': train_params.lr() }
+                                ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            else:
+                                optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+
+
+
 
 
 

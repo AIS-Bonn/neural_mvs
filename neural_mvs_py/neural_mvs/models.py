@@ -1477,9 +1477,9 @@ class Net(torch.nn.Module):
        
 
       
-    def forward(self, gt_frame, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, novel=False):
+    def forward(self, gt_frame, x, all_imgs_poses_cam_world_list, gt_tf_cam_world, gt_K, depth_min, depth_max, use_ray_compression, novel=False):
 
-        nr_imgs=x.shape[0]
+        # nr_imgs=x.shape[0]
 
         # # print("encoding")
         # TIME_START("encoding")
@@ -1558,8 +1558,8 @@ class Net(torch.nn.Module):
         #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
         #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
         # print("x has shape", x.shape)
-        height=x.shape[2]
-        width=x.shape[3]
+        height=gt_frame.height
+        width=gt_frame.width
         fx=gt_K[0,0] ### 
         fy=gt_K[1,1] ### 
         cx=gt_K[0,2] ### 
@@ -1664,13 +1664,6 @@ class Net(torch.nn.Module):
         # TIME_END("siren_batches")
         # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        if not novel and self.iter%100==0:
-            rays_mesh=Mesh()
-            rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
-            rays_mesh.m_vis.m_show_points=True
-            Scene.show(rays_mesh, "rays_mesh_novel")
-        if not novel:
-            self.iter+=1
         # print("self, iter is ",self.iter, )
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
@@ -1681,6 +1674,19 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
+
+        #debug
+        if not novel and self.iter%100==0:
+            rays_mesh=Mesh()
+            rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
+            rays_mesh.m_vis.m_show_points=True
+            #color based on sigma 
+            sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+            rays_mesh.C=sigma_a.cpu().numpy()
+            Scene.show(rays_mesh, "rays_mesh_novel")
+        if not novel:
+            self.iter+=1
+
 
         # print("radiance field has shape ", radiance_field_flattened.shape)
         # sigma=radiance_field_flattened[:,:,:,0:3]
@@ -1693,10 +1699,10 @@ class Net(torch.nn.Module):
         #we want to map that range from [0,range] to [1,0] smoothly so that the gradient can be smoothly computer
         sigma_normal=range_of_samples_img.view(height,width,1) # from 1, c, height ,wifdht to  height,width,1,c
         mean_ray_img=mean_ray_img.view(height,width,1) 
-        print("depth_values is ", depth_values.shape)# height,width,nr_samples
+        # print("depth_values is ", depth_values.shape)# height,width,nr_samples
         #pass through a a guass func  https://en.wikipedia.org/wiki/Gaussian_function
         x_u=(depth_values-mean_ray_img)**2
-        print("x_u has min max", x_u.min()," ", x_u.max())
+        # print("x_u has min max", x_u.min()," ", x_u.max())
         sigma2=sigma_normal**2
         # scale=1.0/(sigma_normal * torch.sqrt(2.0*3.141592) ) 
         scale=1.0/(sigma_normal * 2.50662827463 ) 
@@ -1704,14 +1710,17 @@ class Net(torch.nn.Module):
         # gauss_val=scale*torch.exp(parenthesis) #height,width, nr_samplles
         #attemp2 
         gauss_val=map_range(x_u, 0, 0.5, 1.0, 0.0) #height,width, nr_samplles
-        print("gaus vall has shape ", gauss_val.shape)
-        print("gaus vall min max ", gauss_val.min(), " max ", gauss_val.max() )
+        # print("gaus vall has shape ", gauss_val.shape)
+        # print("gaus vall min max ", gauss_val.min(), " max ", gauss_val.max() )
         if not novel:
-            # radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
-            sigma= radiance_field_flattened[:,:,:, 3:4].clone()
-            print("sigma min max is ", sigma.min(), sigma.max())
+            if use_ray_compression:
+                # radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
+                sigma= radiance_field_flattened[:,:,:, 3:4].clone()
+                # rgb= radiance_field_flattened[:,:,:, 0:3].clone()
+                # print("sigma min max is ", sigma.min(), sigma.max())
+                # radiance_field_flattened[:,:,:, 3:4]=sigma*gauss_val.view(height,width,depth_samples_per_ray,1)
+                # radiance_field_flattened[:,:,:, 0:3]=rgb*gauss_val.view(height,width,depth_samples_per_ray,1)
 
-            # radiance_field_flattened[:,:,:, 3:4]=sigma*gauss_val.view(height,width,depth_samples_per_ray,1)
         # else:
             # sigma= radiance_field_flattened[:,:,:, 3:4].clone()
             # sigma=sigma*0.1
@@ -1733,6 +1742,7 @@ class Net(torch.nn.Module):
         # Perform differentiable volume rendering to re-synthesize the RGB image.
         rgb_predicted, depth_map, acc_map = render_volume_density(
         # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
+        # rgb_predicted, depth_map, acc_map = render_volume_density2(
             radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
         )
 

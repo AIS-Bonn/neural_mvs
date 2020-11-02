@@ -494,14 +494,15 @@ def render_volume_density(
         ),
         dim=-1,
     )
-    alpha = 1.0 - torch.exp(-sigma_a * dists)
+    alpha = 1.0 - torch.exp(-sigma_a * dists) #as explained in willians: A volume density optical model. This normalizes the value between 0 and 1
+    # print("alpha has range ", alpha.min().item(), " ", alpha.max().item() )
     weights = alpha * cumprod_exclusive(1.0 - alpha + 1e-10)
 
     weights_sum=weights.sum(dim=-1)
     weights_sum=weights_sum+0.00001
     # print("weight_sum", weights_sum.shape)
 
-    rgb_map = (weights[..., None] * rgb).sum(dim=-2)  
+    rgb_map = (weights[..., None] * rgb).sum(dim=-2)   
     # depth_map = (weights * depth_values).sum(dim=-1) 
     depth_map = (weights * depth_values).sum(dim=-1) / weights_sum #normalize so that we get actual depth
     acc_map = weights.sum(-1)
@@ -632,6 +633,59 @@ def render_volume_density_nerfplusplus(
     # depth_map=depth_map/sigma_cum_total_weight.squeeze(2)
 
 
+
+    return rgb_map, depth_map, acc_map
+
+
+#just trying out soem random stuff
+def render_volume_density2(
+    radiance_field: torch.Tensor, ray_origins: torch.Tensor, depth_values: torch.Tensor, siren_out_channels
+) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+    r"""Differentiably renders a radiance field, given the origin of each ray in the
+    "bundle", and the sampled depth values along them.
+    Args:
+    radiance_field (torch.Tensor): A "field" where, at each query location (X, Y, Z),
+      we have an emitted (RGB) color and a volume density (denoted :math:`\sigma` in
+      the paper) (shape: :math:`(width, height, num_samples, 4)`).
+    ray_origins (torch.Tensor): Origin of each ray in the "bundle" as returned by the
+      `get_ray_bundle()` method (shape: :math:`(width, height, 3)`).
+    depth_values (torch.Tensor): Sampled depth values along each ray
+      (shape: :math:`(num_samples)`).
+    Returns:
+    rgb_map (torch.Tensor): Rendered RGB image (shape: :math:`(width, height, 3)`).
+    depth_map (torch.Tensor): Rendered depth image (shape: :math:`(width, height)`).
+    acc_map (torch.Tensor): # TODO: Double-check (I think this is the accumulated
+      transmittance map).
+    """
+
+    # TESTED
+    # sigma_a = torch.relu(radiance_field[..., siren_out_channels-1])
+    # rgb = torch.sigmoid(radiance_field[..., :siren_out_channels-1])
+    sigma_a = radiance_field[..., siren_out_channels-1]
+    rgb = radiance_field[..., :siren_out_channels-1]
+    one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device)
+    dists = torch.cat(
+        (
+            depth_values[..., 1:] - depth_values[..., :-1],
+            one_e_10.expand(depth_values[..., :1].shape),
+        ),
+        dim=-1,
+    )
+    alpha = 1.0 - torch.exp(-sigma_a * dists)
+    # alpha = sigma_a * dists
+    weights = alpha * cumprod_exclusive(1.0 - alpha + 1e-10)
+
+    weights_sum=weights.sum(dim=-1)
+    weights_sum=weights_sum+0.00001
+    # print("weight_sum", weights_sum.shape)
+
+    rgb_map = (weights[..., None] * rgb).sum(dim=-2)  
+    # depth_map = (weights * depth_values).sum(dim=-1) 
+    depth_map = (weights * depth_values).sum(dim=-1) / weights_sum #normalize so that we get actual depth
+    acc_map = weights.sum(-1)
+
+    # print("rgb map ", rgb_map.shape)
+    # print("depth_map map ", depth_map.shape)
 
     return rgb_map, depth_map, acc_map
 
