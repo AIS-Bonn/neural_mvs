@@ -92,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_11pac"
+    experiment_name="s_21pac"
 
     use_ray_compression=False
 
@@ -278,7 +278,8 @@ def run():
                         all_imgs_poses_cam_world_list.append(frame.tf_cam_world)
 
                     #load a random frame for gt 
-                    gt_frame=loader_test.get_random_frame()
+                    # gt_frame=loader_test.get_random_frame()
+                    gt_frame=frames_for_encoding[0]
                     gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
                     mask=mat2tensor(gt_frame.mask, False).to("cuda")
 
