@@ -31,7 +31,7 @@ class HyperNetwork(nn.Module):
             self.names.append(name)
             self.param_shapes.append(param.size())
 
-            # print(" params size si ", param.size())
+            print("params name ", name, " params size si ", param.size())
 
             hn = modules.FCBlock(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))),
                                  num_hidden_layers=hyper_hidden_layers, hidden_features=hyper_hidden_features,
@@ -47,6 +47,80 @@ class HyperNetwork(nn.Module):
                     self.nets[-1].net[-1].apply(lambda m: hyper_weight_init(m, param.size()[-1]))
             elif 'bias' in name:
                 self.nets[-1].net[-1].apply(lambda m: hyper_bias_init(m))
+
+            param_idx+=1
+
+    def forward(self, z):
+        '''
+        Args:
+            z: Embedding. Input to hypernetwork. Could be output of "Autodecoder" (see above)
+
+        Returns:
+            params: OrderedDict. Can be directly passed as the "params" parameter of a MetaModule.
+        '''
+        params = OrderedDict()
+        # print("computing hyperparams")
+        i=0
+        for name, net, param_shape in zip(self.names, self.nets, self.param_shapes):
+            batch_param_shape = (-1,) + param_shape
+            # print("param_shape si ", param_shape, " batch_param_shape is ", batch_param_shape)
+            # params[name] = net(z).reshape(batch_param_shape)
+            params[name] = net(z).reshape(param_shape)
+            # print("param has mean and std ", params[name].mean(), params[name].std() )
+
+            # print("params for first is ",params[name] )
+
+            i+=1
+        return params
+
+
+class HyperNetworkIncremental(nn.Module):
+    def __init__(self, hyper_in_features, hyper_hidden_layers, hyper_hidden_features, hypo_module):
+        '''
+
+        Args:
+            hyper_in_features: In features of hypernetwork
+            hyper_hidden_layers: Number of hidden layers in hypernetwork
+            hyper_hidden_features: Number of hidden units in hypernetwork
+            hypo_module: MetaModule. The module whose parameters are predicted.
+        '''
+        super().__init__()
+
+        hypo_parameters = hypo_module.meta_named_parameters()
+
+        self.names = []
+        self.nets = nn.ModuleList()
+        self.param_shapes = []
+        self.predictor_or_siren_weights = None
+        param_idx=0
+        for name, param in hypo_parameters:
+            self.names.append(name)
+            self.param_shapes.append(param.size())
+
+
+            print("hypo params name ", name, " params size si ", param.size())
+
+            if "net" in name and "weight" in name and self.predictor_or_siren_weights==None: #we are predicting the weight or bias for the siren
+                channels=param.shape[0] #the output of the first parameter of the siren will be some thing like 128 or 256
+                print("weight of siren with output channels ", channels)
+                self.predictor_or_siren_weights = modules.PredictorSirenIncremental(  in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))),
+                                 num_hidden_layers=hyper_hidden_layers, hidden_features=hyper_hidden_features,
+                                 outermost_linear=True, nonlinearity='relu'  )
+
+            hn = modules.FCBlock(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))),
+                                 num_hidden_layers=hyper_hidden_layers, hidden_features=hyper_hidden_features,
+                                 outermost_linear=True, nonlinearity='relu')
+            self.nets.append(hn)
+
+            # if 'weight' in name:
+                # if param_idx==0:
+                    # print("init to first siren layer")
+                    # self.nets[-1].net[-1].apply(lambda m: hyper_weight_init_first_siren_layer(m, param.size()[-1]))
+                    # self.nets[-1].net[-1].apply(lambda m: hyper_weight_init(m, param.size()[-1]))
+                # else:
+                    # self.nets[-1].net[-1].apply(lambda m: hyper_weight_init(m, param.size()[-1]))
+            # elif 'bias' in name:
+                # self.nets[-1].net[-1].apply(lambda m: hyper_bias_init(m))
 
             param_idx+=1
 

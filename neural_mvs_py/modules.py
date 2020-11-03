@@ -117,6 +117,90 @@ class FCBlock(MetaModule):
         return activations
 
 
+#predcits the weight and biases for a certain layer of the siren by taking into account the Z and the previous layer weight and bias
+class PredictorSirenIncremental(MetaModule):
+    '''A fully connected neural network that also allows swapping out the weights when used with a hypernetwork.
+    Can be used just as a normal neural network though, as well.
+    '''
+
+    def __init__(self, in_features, out_features, num_hidden_layers, hidden_features,
+                 outermost_linear=False, nonlinearity='relu', weight_init=None):
+        super().__init__()
+
+        self.first_layer_init = None
+
+        # Dictionary that maps nonlinearity name to the respective function, initialization, and, if applicable,
+        # special first-layer initialization scheme
+        nls_and_inits = {'sine':(Sine(), sine_init, first_layer_sine_init),
+                         'relu':(nn.ReLU(inplace=True), init_weights_normal, None),
+                         'sigmoid':(nn.Sigmoid(), init_weights_xavier, None),
+                         'tanh':(nn.Tanh(), init_weights_xavier, None),
+                         'selu':(nn.SELU(inplace=True), init_weights_selu, None),
+                         'softplus':(nn.Softplus(), init_weights_normal, None),
+                         'elu':(nn.ELU(inplace=True), init_weights_elu, None)}
+
+        nl, nl_weight_init, first_layer_init = nls_and_inits[nonlinearity]
+
+        if weight_init is not None:  # Overwrite weight init if passed
+            self.weight_init = weight_init
+        else:
+            self.weight_init = nl_weight_init
+
+        self.net = []
+        self.net.append(MetaSequential(
+            BatchLinear(in_features, hidden_features), nl
+        ))
+
+        for i in range(num_hidden_layers):
+            self.net.append(MetaSequential(
+                BatchLinear(hidden_features, hidden_features), nl
+            ))
+
+        if outermost_linear:
+            self.net.append(MetaSequential(BatchLinear(hidden_features, out_features)))
+        else:
+            self.net.append(MetaSequential(
+                BatchLinear(hidden_features, out_features), nl
+            ))
+
+        self.net = MetaSequential(*self.net)
+        if self.weight_init is not None:
+            self.net.apply(self.weight_init)
+
+        if first_layer_init is not None: # Apply special initialization to first layer, if applicable.
+            self.net[0].apply(first_layer_init)
+
+    def forward(self, coords, params=None, **kwargs):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+        output = self.net(coords, params=get_subdict(params, 'net'))
+        return output
+
+    def forward_with_activations(self, coords, params=None, retain_grad=False):
+        '''Returns not only model output, but also intermediate activations.'''
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+        activations = OrderedDict()
+
+        x = coords.clone().detach().requires_grad_(True)
+        activations['input'] = x
+        for i, layer in enumerate(self.net):
+            subdict = get_subdict(params, 'net.%d' % i)
+            for j, sublayer in enumerate(layer):
+                if isinstance(sublayer, BatchLinear):
+                    x = sublayer(x, params=get_subdict(subdict, '%d' % j))
+                else:
+                    x = sublayer(x)
+
+                if retain_grad:
+                    x.retain_grad()
+                activations['_'.join((str(sublayer.__class__), "%d" % i))] = x
+        return activation
+
+
+
 class SingleBVPNet(MetaModule):
     '''A canonical representation network for a BVP.'''
 

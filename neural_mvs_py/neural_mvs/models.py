@@ -1280,6 +1280,226 @@ class SirenNetworkDirectPE(MetaModule):
 
 
 #this siren net receives directly the coordinates, no need to make a concat coord or whatever
+#Has as first layer a learned PE It's a bit of a trimmed version
+class SirenNetworkDirectPETrim(MetaModule):
+    def __init__(self, in_channels, out_channels):
+        super(SirenNetworkDirectPETrim, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=4
+        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[100, 100, 100, 100, 100]
+        # self.out_channels_per_layer=[256, 256, 256, 256, 256]
+        # self.out_channels_per_layer=[256, 128, 64, 32, 16]
+        # self.out_channels_per_layer=[256, 256, 256, 256, 256]
+        # self.out_channels_per_layer=[256, 64, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[256, 32, 32, 32, 32, 32]
+
+        # #cnn for encoding
+        # self.layers=torch.nn.ModuleList([])
+        # for i in range(self.nr_layers):
+        #     is_first_layer=i==0
+        #     self.layers.append( Block(activ=torch.sin, out_channels=self.channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() )
+        # self.rgb_regresor=Block(activ=torch.tanh, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda() 
+
+        cur_nr_channels=in_channels
+
+        self.net=torch.nn.ModuleList([])
+        # self.net.append( MetaSequential( Block(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=True).cuda() ) )
+        # cur_nr_channels=self.out_channels_per_layer[0]
+    
+        # self.position_embedders=torch.nn.ModuleList([])
+
+        num_encodings=11
+        self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
+        cur_nr_channels=in_channels + in_channels*num_encodings*2
+        #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        # cur_nr_channels=256+in_channels
+        #combined PE  and gaussian
+        # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
+        learned_pe_channels=cur_nr_channels
+        # self.skip_pe_point=2
+
+        # self.position_embedder=( MetaSequential( 
+        #     Block(activ=torch.relu, in_channels=in_channels, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     # Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     # Block(activ=torch.relu, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     Block(activ=None, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     ) )
+        # # cur_nr_channels=128+3
+
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
+
+            # self.position_embedders.append( MetaSequential( 
+            #     Block(activ=torch.sigmoid, in_channels=in_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            #     Block(activ=None, in_channels=self.out_channels_per_layer[i], out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            #     ) )
+
+            # # if i<self.nr_layers-4:
+            # if i!=self.nr_layers:
+            # # if i==0:
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*10
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ in_channels*30 #when repeating the raw coordinates a bit
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ self.out_channels_per_layer[i] #when using a positional embedder for the raw coords
+            #     # cur_nr_channels=self.out_channels_per_layer[i]+ 128+3 #when using a positional embedder for the raw coords
+            # else:
+            #     cur_nr_channels=self.out_channels_per_layer[i]
+            # if i!=0:
+                # cur_nr_channels+=self.out_channels_per_layer[0]
+
+            #at some point concat back the learned pe
+            # if i==self.skip_pe_point:
+            #     cur_nr_channels=self.out_channels_per_layer[i]+learned_pe_channels
+            # else:
+            cur_nr_channels=self.out_channels_per_layer[i]
+        # self.net.append( MetaSequential(Block(activ=torch.sigmoid, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+        self.net.append( MetaSequential(BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()  ))
+
+        # self.net = MetaSequential(*self.net)
+
+        # self.pred_sigma_and_feat=MetaSequential(
+        #     # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     )
+        # num_encoding_directions=4
+        # self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        # dirs_channels=3+ 3*num_encoding_directions*2
+        # # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+        # # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
+        # # dirs_channels=64
+        # cur_nr_channels=cur_nr_channels+dirs_channels
+        # self.pred_rgb=MetaSequential( 
+        #     BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()    
+        #     )
+
+
+
+    def forward(self, x, ray_directions, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        if len(x.shape)!=4:
+            print("SirenDirectPE forward: x should be a H,W,nr_points,3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+            exit(1)
+
+        height=x.shape[0]
+        width=x.shape[1]
+        nr_points=x.shape[2]
+
+        #from 71,107,30,3  to Nx3
+        x=x.view(-1,3)
+        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        x=x.view(height, width, nr_points, -1 )
+
+        # #also make the direcitons into image 
+        # ray_directions=ray_directions.view(-1,3)
+        # # print("ray_directions is ", ray_directions.shape )
+        # ray_directions=F.normalize(ray_directions, p=2, dim=1)
+        # ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+        # ray_directions=ray_directions.view(height, width, -1)
+        # ray_directions=ray_directions.permute(2,0,1).unsqueeze(0)
+        # # print("ray_directions is ", ray_directions.shape )
+
+
+        #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
+        # nr_points=x.shape[0]
+        # x=x.view(nr_points,3,1,1)
+
+        # X comes as nr_points x 3 matrix but we want adyacen rays to be next to each other. So we put the nr of the ray in the batch
+        # x=x.contiguous()
+        # x=x.view(71,107,30,3)
+        # x=x.view(1,-1,71,107,30)
+        # print("x is ", x.shape)
+        x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
+        # print("x is ", x.shape)
+
+        learned_pe_out=x
+
+
+        # print ("running siren")
+        # x=self.net(x, params=get_subdict(params, 'net'))
+
+        x_raw_coords=x
+        x_first_layer=None
+        # position_input=self.position_embedder(x_raw_coords)
+        # position_input=torch.cat([position_input,x_raw_coords],1)
+
+        for i in range(len(self.net)):
+            # print("x si ", x.shape)
+            # print("params is ", params)
+            # x=self.net[i](x, params=get_subdict(params, 'net['+str(i)+"]"  )  )
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+            # if i==0:
+            #     x_first_layer=x
+
+            # if i==self.skip_pe_point:
+            #     x=torch.cat([learned_pe_out,x],1)
+
+
+            # print("x has shape ", x.shape, " x_raw si ", x_raw_coords.shape)
+            
+            # if i<len(self.net)-5: #if it's any layer except the last one
+            # if i!=len(self.net)-1: #if it's any layer except the last one
+            # if i == 0:
+                # print("cat", i)
+                # positions=x_raw_coords*2**i
+                # encoding=[]
+                # for func in [torch.sin, torch.cos]:
+                #     encoding.append(func(positions))
+                # encoding.append(x_raw_coords)
+                # position_input=torch.cat(encoding, 1)
+                # position_input=x_raw_coords*self.out_channels_per_layer[i]*0.5
+                # position_input=x_raw_coords.repeat(1,30,1,1)
+
+                # position_input=self.position_embedders[i](x_raw_coords)
+                # position_input=self.position_embedder(x_raw_coords)
+                # x=torch.cat([position_input,x],1)
+            # if i!=0 and i!=len(self.net)-1:
+                # x=torch.cat([x_first_layer,x],1)
+                # x=x+position_input
+        # print("finished siren")
+
+        # #predict the sigma and a feature vector for the rest of things
+        # sigma_and_feat=self.pred_sigma_and_feat(x,  params=get_subdict(params, 'pred_sigma_and_feat'))
+        # #get the feature vector for the rest of things and concat it with the direction
+        # sigma_a=torch.relu( sigma_and_feat[:,0:1, :, :] ) #first channel is the sigma
+        # feat=torch.sin( sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ] )
+        # # print("sigma and feat is ", sigma_and_feat.shape)
+        # # print(" feat is ", feat.shape)
+        # ray_directions=ray_directions.repeat(feat.shape[0],1,1,1) #repeat as many times as samples that you have in a ray
+        # feat_and_dirs=torch.cat([feat, ray_directions], 1)
+        # #predict rgb
+        # rgb=torch.sigmoid( self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) )
+        # #concat 
+        # # print("rgb is", rgb.shape)
+        # # print("sigma_a is", sigma_a.shape)
+        # x=torch.cat([rgb, sigma_a],1)
+
+        # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+        # # x=x.view(nr_points,-1,1,1)
+
+        rgb = torch.sigmoid( x[:,0:3,:, :] )
+        sigma_a = torch.relu( x[:,3:4,:, :] )
+        x=torch.cat([rgb, sigma_a],1)
+        x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+        # # x=x.view(nr_points,-1,1,1)
+
+        # x=torch.cat([rgb,sigma_a],3)
+        
+       
+        return x
+
+
+#this siren net receives directly the coordinates, no need to make a concat coord or whatever
 #This one does soemthin like densenet so each layers just append to a stack
 class SirenNetworkDense(MetaModule):
     def __init__(self, in_channels, out_channels):
@@ -1441,10 +1661,11 @@ class Net(torch.nn.Module):
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=3)
         # self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
-        self.siren_net = SirenNetworkDirectPE(in_channels=3, out_channels=self.siren_out_channels)
+        self.siren_net = SirenNetworkDirectPETrim(in_channels=3, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
-        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        self.hyper_net = HyperNetworkIncremental(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
 
 

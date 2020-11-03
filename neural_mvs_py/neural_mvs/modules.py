@@ -380,8 +380,8 @@ class BlockSiren(MetaModule):
         # self.weight = torch.nn.Parameter(torch.Tensor(10, 10))
         # torch.nn.init.uniform_(self.sine_scale, -1, 1)
         # self.W = torch.nn.Parameter(torch.randn(3,4,5))
-        self.sine_scale = torch.nn.Parameter(torch.randn(1))
-        torch.nn.init.constant_(self.sine_scale, 30)
+        # self.sine_scale = torch.nn.Parameter(torch.randn(1))
+        # torch.nn.init.constant_(self.sine_scale, 30)
         # self.W.requires_grad = True
 
         if not self.transposed:
