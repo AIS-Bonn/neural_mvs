@@ -92,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_46"
+    experiment_name="s_51"
 
     use_ray_compression=False
 
@@ -186,8 +186,8 @@ def run():
     # print("all imgs have shape ", all_imgs.shape)
 
     #for vase
-    depth_min=0.4
-    depth_max=1.2
+    depth_min=0.5
+    depth_max=1.5
     #for nerf
     # depth_min=2.0
     # depth_max=5.0
@@ -406,7 +406,7 @@ def run():
                                 # depth_map=depth_map-1.5 #it's in range 1 to 2 meters so now we set it to range 0 to 1
                                 # depth_map_nonzero=depth_map!=0.0
                                 # print("min max", depth_map.min(), " ", depth_map.max(), " mean ", depth_map.mean() )
-                                depth_map_ranged=map_range(depth_map, depth_min, depth_max, 0.0, 1.0)
+                                depth_map_ranged=map_range(depth_map, depth_min, depth_max, 0.0, 1.0).repeat(1,3,1,1)
                                 depth_map_mat=tensor2mat(depth_map_ranged)
                                 Gui.show(depth_map_mat, "depth")
                                 # #gt depth
