@@ -211,6 +211,37 @@ class Block(MetaModule):
 
         return x
 
+
+class BlockLinear(torch.nn.Module):
+    def __init__(self, in_channels, out_channels,  bias,  activ=torch.relu ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
+        super(BlockLinear, self).__init__()
+
+        self.activ=activ 
+        self.conv=torch.nn.Linear(  in_features=in_channels, out_features=out_channels, bias=bias ) 
+       
+        if self.activ==torch.relu:
+            # print("initializing with kaiming uniform")
+            torch.nn.init.kaiming_uniform_(self.conv.weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            if bias is not None:
+                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv.weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(self.conv.bias, -bound, bound)
+        
+
+    def forward(self, x):
+       
+        x = self.conv(x )
+
+        if self.activ is not None: 
+            x=self.activ(x)
+         
+        return x
+
 class BNReluConv(MetaModule):
     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):

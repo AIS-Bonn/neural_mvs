@@ -7,6 +7,8 @@ from collections import OrderedDict
 import math
 import torch.nn.functional as F
 
+from neural_mvs.modules import *
+
 
 
 class BatchLinear(nn.Linear, MetaModule):
@@ -118,13 +120,12 @@ class FCBlock(MetaModule):
 
 
 #predcits the weight and biases for a certain layer of the siren by taking into account the Z and the previous layer weight and bias
-class PredictorSirenIncremental(MetaModule):
+class PredictorSirenIncremental(torch.nn.Module):
     '''A fully connected neural network that also allows swapping out the weights when used with a hypernetwork.
     Can be used just as a normal neural network though, as well.
     '''
 
-    def __init__(self, in_features, out_features, num_hidden_layers, hidden_features,
-                 outermost_linear=False, nonlinearity='relu', weight_init=None):
+    def __init__(self, nonlinearity='relu', weight_init=None):
         super().__init__()
 
         self.first_layer_init = None
@@ -146,58 +147,72 @@ class PredictorSirenIncremental(MetaModule):
         else:
             self.weight_init = nl_weight_init
 
-        self.net = []
-        self.net.append(MetaSequential(
-            BatchLinear(in_features, hidden_features), nl
-        ))
 
-        for i in range(num_hidden_layers):
-            self.net.append(MetaSequential(
-                BatchLinear(hidden_features, hidden_features), nl
-            ))
+        self.nr_layers=4
+        self.layers_channels=[512, 512, 256, 256] 
 
-        if outermost_linear:
-            self.net.append(MetaSequential(BatchLinear(hidden_features, out_features)))
-        else:
-            self.net.append(MetaSequential(
-                BatchLinear(hidden_features, out_features), nl
-            ))
+        cur_nr_channels=128 +1 + 1536
 
-        self.net = MetaSequential(*self.net)
-        if self.weight_init is not None:
-            self.net.apply(self.weight_init)
+        self.pred=torch.nn.ModuleList([])
+        for i in range(self.nr_layers):
+            self.pred.append(  BlockLinear(  in_channels=cur_nr_channels, out_channels=self.layers_channels[i], bias=True, activ=torch.relu ) )
+            cur_nr_channels= self.layers_channels[i]
+        self.pred.append(  BlockLinear(  in_channels=cur_nr_channels, out_channels=128 +1, bias=True, activ=None ) ) #the final channels should be equal to siren channels
 
-        if first_layer_init is not None: # Apply special initialization to first layer, if applicable.
-            self.net[0].apply(first_layer_init)
 
-    def forward(self, coords, params=None, **kwargs):
-        if params is None:
-            params = OrderedDict(self.named_parameters())
+        #hacky way to increment the columns dimension in the case the previous weight are something weird like 128 x69 instead of the typical 128x128
+        self.increment_dims=BlockLinear(  in_channels=69, out_channels=128 , bias=True, activ=None ) #the final channels should be equal to siren channels
 
-        output = self.net(coords, params=get_subdict(params, 'net'))
-        return output
 
-    def forward_with_activations(self, coords, params=None, retain_grad=False):
-        '''Returns not only model output, but also intermediate activations.'''
-        if params is None:
-            params = OrderedDict(self.named_parameters())
+    def forward(self, z, prev_weights, prev_bias, new_param_shape):
 
-        activations = OrderedDict()
+        prev_in=prev_weights.shape[1]
+        prev_out=prev_weights.shape[0]
+        new_in=new_param_shape[1]
+        new_out=new_param_shape[0]
 
-        x = coords.clone().detach().requires_grad_(True)
-        activations['input'] = x
-        for i, layer in enumerate(self.net):
-            subdict = get_subdict(params, 'net.%d' % i)
-            for j, sublayer in enumerate(layer):
-                if isinstance(sublayer, BatchLinear):
-                    x = sublayer(x, params=get_subdict(subdict, '%d' % j))
-                else:
-                    x = sublayer(x)
+        prev_weights=prev_weights.view( prev_out, prev_in )
+        prev_bias=prev_bias.view( -1, 1 )
+        if(prev_weights.shape[1]!=128):
+            prev_weights=self.increment_dims(prev_weights)
+        print("prev weight has shape ", prev_weights.shape)
+        print("prev bias has shape ", prev_bias.shape)
 
-                if retain_grad:
-                    x.retain_grad()
-                activations['_'.join((str(sublayer.__class__), "%d" % i))] = x
-        return activation
+        print_weights_and_bias=torch.cat( [prev_weights, prev_bias], 1 )
+        print("print_weights_and_bias" , print_weights_and_bias.shape )
+
+        print("z before repeting is ", z.shape)
+        z=z.view(1,-1).repeat(print_weights_and_bias.shape[0], 1) #repeat as many rows we have in the matrix
+        print("z after repeting is ", z.shape)
+
+        weight_and_z=torch.cat([print_weights_and_bias,z],1)
+        print("weight_and_z" , weight_and_z.shape )
+
+        #go through the linear that slowly predicts columns of size prev_out
+        x=weight_and_z
+        for i in range(len(self.pred)):
+            x=self.pred[i](x)
+        print("after runnign thrught the net the x is ", x.shape)
+
+        new_weights=x[0:new_out, 0:new_in].unsqueeze(2).unsqueeze(3)
+        # new_bias=x[new_out:new_out+1, :].view(-1)
+        new_bias=x[0:new_out, new_out:new_out+1].view(-1)
+
+        print("NEW weights has shape", new_weights.shape)
+        print("NEW bias has shape", new_bias.shape)
+
+        return new_weights, new_bias
+
+
+        # prev_weights_and_bias=
+
+        # if params is None:
+        #     params = OrderedDict(self.named_parameters())
+
+        # output = self.net(coords, params=get_subdict(params, 'net'))
+
+
+        # return output
 
 
 
