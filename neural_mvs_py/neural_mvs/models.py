@@ -1661,11 +1661,12 @@ class Net(torch.nn.Module):
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=3)
         # self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
-        self.siren_net = SirenNetworkDirectPETrim(in_channels=3, out_channels=self.siren_out_channels)
+        self.siren_net = SirenNetworkDirectPE(in_channels=3, out_channels=self.siren_out_channels)
+        # self.siren_net = SirenNetworkDirectPETrim(in_channels=3, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
         self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
-        # self.hyper_net = HyperNetwork(hyper_in_features=256, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetwork(hyper_in_features=512, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetworkIncremental(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
 
@@ -1687,14 +1688,16 @@ class Net(torch.nn.Module):
         )
 
 
-        # cur_nr_channels=self.nr_points_z*3*2    *6 #the z for all images
-        # channels_aggregate=[512,256,256]
+        # # cur_nr_channels=self.nr_points_z*3*2    *6 #the z for all images
+        # cur_nr_channels=self.nr_points_z*3*2   +4 #the z for all images together dist translation and distance
+        # channels_aggregate=[512,512,512]
         # self.aggregate_layers=torch.nn.ModuleList([])
-        # for i in range(2):
+        # for i in range(1):
         #     # print("cur nr channes", cur_nr_channels)
-        #     self.aggregate_layers.append( BlockLinear(  in_channels=cur_nr_channels, out_channels=channels_aggregate[i],  bias=True,  activ=torch.relu ) )
-        #     cur_nr_channels= channels_aggregate[i]
-        # self.aggregate_layers.append( BlockLinear(  in_channels=cur_nr_channels, out_channels=256,  bias=True,  activ=None) )
+        #     # self.aggregate_layers.append( BlockLinear(  in_channels=cur_nr_channels, out_channels=channels_aggregate[i],  bias=True,  activ=torch.relu ) )
+        #     self.aggregate_layers.append( BlockLinear(  in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True,  activ=torch.relu ) )
+        #     # cur_nr_channels= channels_aggregate[i]
+        # self.aggregate_layers.append( BlockLinear(  in_channels=cur_nr_channels, out_channels=512,  bias=True,  activ=None) )
 
 
 
@@ -1807,6 +1810,18 @@ class Net(torch.nn.Module):
 
         # #flatten the z and then pass it through some linear layers to get it to 256 or 512
         # z=z.view(-1)
+        # for i in range( len(self.aggregate_layers) ):
+        #     # print("z has shape ", z.shape)
+        #     z=self.aggregate_layers[i](z)
+
+
+        # #flatten the z and then pass it through some linear layers to get it to 256 or 512
+        # z=z.view(nr_imgs, -1)
+        # #concat for each image the translation and the distance
+        # t_for_all_imgs= t_world_cam_all.view(nr_imgs, -1)
+        # dist=t_for_all_imgs.norm(2, dim=1) 
+        # dist=dist.view(nr_imgs, -1)
+        # z=torch.cat([z, t_for_all_imgs, dist], 1)
         # for i in range( len(self.aggregate_layers) ):
         #     # print("z has shape ", z.shape)
         #     z=self.aggregate_layers[i](z)
