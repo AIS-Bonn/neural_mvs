@@ -1520,11 +1520,8 @@ class Net(torch.nn.Module):
         t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
         # print("R_world_cam_all is ", R_world_cam_all.shape)
         # print("before rotatin z3d is", z3d)
-        # z3d=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all #### I think the rotation is wrong so the z3d has to be transposed and not the Rotaiton
-        # z3d1=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
-        z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
-        # z3d=torch.matmul(R, z3d.transpose(1,2) ).transpose(1,2) 
-        # z3d2=torch.matmul(z3d, R_world_cam_all.transpose(1,2))  + t_world_cam_all #### I think the rotation is wrong so the z3d has to be transposed and not the Rotaiton
+        # z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
+        z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  
         # print("aftering rotatin z3d is", z3d)
         # print("after multiplying z3d is ", z3d.shape)
         # diff = (z3d1-z3d2).norm()
