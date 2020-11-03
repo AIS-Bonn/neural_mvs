@@ -708,7 +708,7 @@ class Encoder(torch.nn.Module):
         self.gelu=torch.nn.GELU()
 
         #layers
-        resnet = torchvision.models.resnet50(pretrained=True)
+        resnet = torchvision.models.resnet18(pretrained=True)
         modules=list(resnet.children())[:-1]
         self.resnet=nn.Sequential(*modules)
         for p in self.resnet.parameters():
@@ -776,9 +776,6 @@ class Encoder(torch.nn.Module):
         # z=self.resnet(x) # z has size 1x512x1x1
 
         guide=x
-
-
-
         # first conv
         x = self.concat_coord(x)
         x = self.first_conv(x)
@@ -1436,6 +1433,7 @@ class Net(torch.nn.Module):
 
         # self.encoder=Encoder2D(self.z_size)
         self.encoder=Encoder(self.z_size)
+        # self.z_size+=3 #because we add the direcitons
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=3)
@@ -1500,6 +1498,35 @@ class Net(torch.nn.Module):
         TIME_START("rotate")
         #make z into a nr_imgs x z_size
         z=z.view(nr_imgs, self.z_size)
+
+        # #concat the direction of the frame
+        # dirs=[]
+        # for i in range(nr_imgs):
+        #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+        #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+        #     t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
+        #     direction =R[:,2].view(1,3) #third column
+        #     direction/=direction.norm()
+        #     dirs.append( direction  ) 
+        #     #show the direction just to see if it's correct
+        #     if i==0:
+        #         p=t+1.0*direction.view(3)
+        #         print("p has shape ", p.shape)
+        #         dir_mesh=Mesh()
+        #         dir_mesh.V=[        #fill up the vertices of the mesh as a matrix of Nx3
+        #             t[0], t[1], t[2],
+        #             p[0], p[1], p[2]
+        #         ]
+        #         dir_mesh.E=[        #fill up the vertices of the mesh as a matrix of Nx3
+        #             0,1
+        #         ]
+        #         dir_mesh.m_vis.m_show_lines=True
+        #         Scene.show(dir_mesh, "dir_mesh" )
+        #         frustum=frames_for_encoding[i].create_frustum_mesh(0.1)
+        #         Scene.show(frustum, "frustum_dir")
+        # dirs=torch.cat(dirs,0)
+        # z=torch.cat([z,dirs],1)
+        
 
         #make z into a 3D thing
         z3d=self.z_to_z3d(z)
