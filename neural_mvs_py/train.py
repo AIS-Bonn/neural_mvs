@@ -92,7 +92,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_51"
+    experiment_name="s_53smooth"
 
     use_ray_compression=False
 
@@ -187,7 +187,7 @@ def run():
 
     #for vase
     depth_min=0.5
-    depth_max=1.5
+    depth_max=1.6
     #for nerf
     # depth_min=2.0
     # depth_max=5.0
@@ -365,7 +365,7 @@ def run():
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
                             out_tensor,  depth_map, acc_map, new_loss=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, use_ray_compression, novel=True )
                             # out_tensor=model(ref_rgb_tensor, renrgb_siren,der_tf, render_tf )
-                            if(phase.iter_nr%1==0):
+                            if(phase.iter_nr%10==0):
                                 out_mat=tensor2mat(out_tensor)
                                 Gui.show(out_mat, "novel")
                                 # rgb_siren_mat=tensor2mat(rgb_siren)
@@ -393,7 +393,7 @@ def run():
                         TIME_END("forward")
 
                         #calculate smoothness loss 
-                        # smooth_loss=inverse_depth_smoothness_loss(depth_map*mask, gt_rgb_tensor)
+                        smooth_loss=inverse_depth_smoothness_loss(depth_map*mask, gt_rgb_tensor)
                         # print("smooth_loss", smooth_loss)
 
                         
@@ -443,7 +443,7 @@ def run():
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
-                        loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        rgb_loss=((out_tensor-gt_rgb_tensor)**2).mean()
                         # loss+=((rgb_siren-gt_rgb_tensor)**2).mean()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / loader_test.nr_samples()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / 10
@@ -454,6 +454,8 @@ def run():
                         # loss+=smooth_loss*0.01
                         ##PUT also the new losses
                         # loss+=new_loss*0.001*phase.iter_nr
+
+                        loss=rgb_loss + smooth_loss*0.001
 
                         #make a loss to bring znear anzfar close 
                         if use_ray_compression:
@@ -534,7 +536,7 @@ def run():
                             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=rgb_loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                     #     # pbar.update(1)
 
                     #backward
