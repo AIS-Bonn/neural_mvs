@@ -52,6 +52,7 @@ class FCBlock(MetaModule):
         # special first-layer initialization scheme
         nls_and_inits = {'sine':(Sine(), sine_init, first_layer_sine_init),
                          'relu':(nn.ReLU(inplace=True), init_weights_normal, None),
+                         'gelu':(nn.GELU(), init_weights_normal, None),
                          'sigmoid':(nn.Sigmoid(), init_weights_xavier, None),
                          'tanh':(nn.Tanh(), init_weights_xavier, None),
                          'selu':(nn.SELU(inplace=True), init_weights_selu, None),
