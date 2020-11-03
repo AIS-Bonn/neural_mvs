@@ -756,6 +756,7 @@ class Encoder(torch.nn.Module):
             # self.coarsens_list.append( ConvGnRelu(nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False).cuda() )
             cur_nr_channels+=2 #because we concat the coords
             self.coarsens_list.append( BlockForResnet(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
+            # self.coarsens_list.append( BlockPAC(cur_nr_channels, nr_channels_after_coarsening, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False ).cuda() )
             cur_nr_channels=nr_channels_after_coarsening
             # cur_nr_channels+=2 #because we concat the coords
 
@@ -774,6 +775,8 @@ class Encoder(torch.nn.Module):
         # print("encoder x input is ", x.min(), " ", x.max())
         # z=self.resnet(x) # z has size 1x512x1x1
 
+        guide=x
+
 
 
         # first conv
@@ -789,7 +792,7 @@ class Encoder(torch.nn.Module):
             #resnet blocks
             for j in range(self.nr_blocks_down_stage[i]):
                 x = self.concat_coord(x)
-                x = self.blocks_down_per_stage_list[i][j] (x) 
+                x = self.blocks_down_per_stage_list[i][j] (x, x) 
 
             #now we do a downsample
             x = self.concat_coord(x)
