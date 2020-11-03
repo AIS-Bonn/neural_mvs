@@ -26,11 +26,13 @@ from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
 
 from neural_mvs.smooth_loss import *
+from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
 
 #debug 
 from easypbr import Gui
 from easypbr import Scene
 # from neural_mvs.modules import *
+
 
 #lnet 
 # from deps.lnets.lnets.utils.math.autodiff import *
@@ -92,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_13"
+    experiment_name="s_24"
 
     use_ray_compression=False
 
@@ -455,7 +457,9 @@ def run():
                         ##PUT also the new losses
                         # loss+=new_loss*0.001*phase.iter_nr
 
-                        loss=rgb_loss + smooth_loss*0.001
+                        ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
+                        loss=rgb_loss + smooth_loss*0.001 + ssim_loss
+                        # loss= ssim_loss
 
                         #make a loss to bring znear anzfar close 
                         if use_ray_compression:
@@ -527,6 +531,7 @@ def run():
                                 ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             else:
                                 optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
 
 

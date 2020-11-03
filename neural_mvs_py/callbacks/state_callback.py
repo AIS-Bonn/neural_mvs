@@ -16,7 +16,7 @@ class StateCallback(Callback):
         # phase.scores.accumulate_scores(pred_softmax, target, cloud.m_label_mngr.get_idx_unlabeled() )
 
     def epoch_started(self, phase, **kwargs):
-        print("loss for epoch, ", phase.epoch_nr,  " is ", phase.loss_acum_per_epoch)
+        # print("loss for epoch, ", phase.epoch_nr,  " is ", phase.loss_acum_per_epoch)
         phase.loss_acum_per_epoch=0.0
         # phase.scores.start_fresh_eval()
 
