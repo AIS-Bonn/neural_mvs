@@ -194,7 +194,8 @@ class PredictorSirenIncremental(torch.nn.Module):
             x=self.pred[i](x)
         print("after runnign thrught the net the x is ", x.shape)
 
-        new_weights=x[0:new_out, 0:new_in].unsqueeze(2).unsqueeze(3)
+        # new_weights=x[0:new_out, 0:new_in].unsqueeze(2).unsqueeze(3)
+        new_weights=x[0:new_in, 0:new_out].transpose(0,1).unsqueeze(2).unsqueeze(3)
         # new_bias=x[new_out:new_out+1, :].view(-1)
         new_bias=x[0:new_out, new_out:new_out+1].view(-1)
 
