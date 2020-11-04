@@ -108,9 +108,10 @@ class HyperNetworkPrincipledInitialization(nn.Module):
             self.nets.append(hn)
 
             if 'weight' in name:
-                    self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, param.size()[-1]))
+                in_features_main_net=param.shape[1]
+                self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
             elif 'bias' in name:
-                self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m, param.size()[-1]))
+                self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m))
 
             param_idx+=1
 
@@ -131,6 +132,9 @@ class HyperNetworkPrincipledInitialization(nn.Module):
             # print("param_shape si ", param_shape, " batch_param_shape is ", batch_param_shape)
             # params[name] = net(z).reshape(batch_param_shape)
             # print("z shape is ", z.shape)
+
+
+            print("HYPERNET: z has mean and varaicne ", z.mean().item(), " var", z.var().item(),"Std ", z.std().item() )
             params[name] = net(z).reshape(param_shape)
             # print("param has mean and std ", params[name].mean(), params[name].std() )
 
@@ -366,8 +370,10 @@ def principled_init_for_predicting_weights(m, in_features_main_net):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
         var= 1.0/(fan_in * in_features_main_net)
+        print("fan in is ", fan_in, " in_features_main_net ", in_features_main_net)
+        print("initializing weight with var ", var)
         std= np.sqrt(var)
-        bound = math.sqrt(3.0) * std /6
+        bound = math.sqrt(3.0) * std 
         with torch.no_grad():
             m.weight.uniform_(-bound, bound)
 
@@ -375,12 +381,12 @@ def principled_init_for_predicting_weights(m, in_features_main_net):
         with torch.no_grad():
             m.bias.data.fill_(0.0)
 
-def principled_init_for_predicting_bias(m, in_features_main_net):
+def principled_init_for_predicting_bias(m):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
         var= 1.0/(fan_in)
         std= np.sqrt(var)
-        bound = math.sqrt(3.0) * std /6
+        bound = math.sqrt(3.0) * std
         with torch.no_grad():
             m.weight.uniform_(-bound, bound)
 

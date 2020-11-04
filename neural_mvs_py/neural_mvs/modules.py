@@ -462,7 +462,7 @@ class BlockSiren(MetaModule):
         x_input=x
 
 
-        # print("before conv, x has mean and std " , x.mean() , " std ", x.std() )
+        print("BLOCK SIREN: before conv, x has mean " , x.mean().item() , " var ", x.var().item(), " std", x.std().item() )
         x = self.conv(x, params=get_subdict(params, 'conv') )
         # x_relu=self.conv_alt(x_input,  params=get_subdict(params, 'conv_alt') )
         # x_relu=self.leaky_relu(x_relu)
@@ -475,7 +475,7 @@ class BlockSiren(MetaModule):
             # x_conv_scaled=x_conv
             else: 
                 x=x*1
-            # print("before activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+            print("before activ, x has mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             x=self.activ(x)
             # x_relu=self.relu(x_conv)
             #each x will map into a certain period of the sine depending on their value, the network has to be aware of which sine it will activate
@@ -504,9 +504,12 @@ class BlockSiren(MetaModule):
         # elif self.activ is None:
             # x=x_conv
 
+        # if(self.activ==torch.sin):
+            # print("after activ, x has mean and std " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
         # print("x has shape ", x.shape)
 
         # x=x+x_relu
+        print("returning x with mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
 
         return x
 

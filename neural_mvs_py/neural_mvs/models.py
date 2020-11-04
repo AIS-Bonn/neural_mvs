@@ -1261,7 +1261,8 @@ class SirenNetworkDirectPE(MetaModule):
         ray_directions=ray_directions.repeat(feat.shape[0],1,1,1) #repeat as many times as samples that you have in a ray
         feat_and_dirs=torch.cat([feat, ray_directions], 1)
         #predict rgb
-        rgb=torch.sigmoid( self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) )
+        # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
+        rgb=torch.sigmoid(  self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') )  )
         #concat 
         # print("rgb is", rgb.shape)
         # print("sigma_a is", sigma_a.shape)
@@ -1840,8 +1841,8 @@ class Net(torch.nn.Module):
 
 
         #the z should have mean 0 and variance 1
-        z=torch.tanh(z)*3
-        # print("z has mean and varaicne ", z.mean(), " std", z.std() )
+        z=torch.tanh(z)*3.45
+        print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
 
         # print("z has shape ", z.shape)
         # z=z.reshape(1,self.z_size)

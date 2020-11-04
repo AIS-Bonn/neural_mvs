@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_36"
+    experiment_name="s_41"
 
     use_ray_compression=False
 
@@ -154,7 +154,7 @@ def run():
     loss_fn=torch.nn.MSELoss()
 
     # show_every=39
-    show_every=10
+    show_every=1
 
 
     #prepare all images and concat them batchwise
@@ -383,6 +383,8 @@ def run():
 
 
 
+                        # print("finishing")
+                        # exit(1)
                             
 
 
@@ -473,6 +475,7 @@ def run():
                         diff=(((out_tensor-gt_rgb_tensor)**2))
                         diff_mat=tensor2mat(diff)
                         Gui.show(diff_mat, "diff_mat")
+
 
 
 
