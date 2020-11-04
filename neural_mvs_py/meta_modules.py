@@ -9,6 +9,8 @@ import math
 
 import numpy as np
 
+from neural_mvs.modules import *
+
 
 class HyperNetwork(nn.Module):
     def __init__(self, hyper_in_features, hyper_hidden_layers, hyper_hidden_features, hypo_module):
@@ -103,16 +105,19 @@ class HyperNetworkPrincipledInitialization(nn.Module):
             # hn = modules.FCBlock(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))),
             #                      num_hidden_layers=hyper_hidden_layers, hidden_features=hyper_hidden_features,
             #                      outermost_linear=True, nonlinearity='relu')
-            hn = torch.nn.Linear(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))), bias=True)
+            hn = torch.nn.Sequential(
+                BlockLinear(in_channels=hyper_in_features, out_channels=512, bias=True, activ=torch.relu ),
+                torch.nn.Linear(in_features=512, out_features=int(torch.prod(torch.tensor(param.size()))), bias=True)
+            )
 
             self.nets.append(hn)
 
             if 'weight' in name:
                 in_features_main_net=param.shape[1]
-                self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
+                self.nets[-1][-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
             elif 'bias' in name:
                 in_features_main_net=param.shape[0]
-                self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
+                self.nets[-1][-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
                 # self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m))
 
             param_idx+=1
