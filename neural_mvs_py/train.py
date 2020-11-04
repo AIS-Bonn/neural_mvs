@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_5difflr"
+    experiment_name="s_7difflr"
 
     use_ray_compression=False
 
@@ -536,7 +536,7 @@ def run():
                             else:
                                 optimizer=torch.optim.AdamW ([
                                     # {'params': model.parameters()},
-                                    {'params': model.hyper_net.parameters(), 'lr': train_params.lr()*0.1 }
+                                    {'params': model.hyper_net.parameters(), 'lr': train_params.lr()*0.01 }
                                 ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
