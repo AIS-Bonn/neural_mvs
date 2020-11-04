@@ -137,7 +137,12 @@ class HyperNetworkPrincipledInitialization(nn.Module):
 
 
             print("HYPERNET: z has mean and varaicne ", z.mean().item(), " var", z.var().item(),"Std ", z.std().item() )
-            params[name] = net(z).reshape(param_shape)
+            weight= net(z).reshape(param_shape)
+            # if "net" in name and "weight" in name:
+                # std=weight.std()
+                # print("std is ", std)
+                # weight=weight/std*0.115
+            params[name] = weight
             # print("param has mean and std ", params[name].mean(), params[name].std() )
 
             # print("params for first is ",params[name] )

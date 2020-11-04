@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_50"
+    experiment_name="s_56"
 
     use_ray_compression=False
 
@@ -154,7 +154,7 @@ def run():
     loss_fn=torch.nn.MSELoss()
 
     # show_every=39
-    show_every=1
+    show_every=10
 
 
     #prepare all images and concat them batchwise
@@ -460,7 +460,8 @@ def run():
                         # loss+=new_loss*0.001*phase.iter_nr
 
                         ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
-                        loss=rgb_loss + smooth_loss*0.001 + ssim_loss
+                        # loss=rgb_loss + smooth_loss*0.001 + ssim_loss
+                        loss=rgb_loss
                         # loss= ssim_loss
 
                         #make a loss to bring znear anzfar close 
