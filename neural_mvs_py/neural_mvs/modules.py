@@ -415,11 +415,12 @@ class BlockSiren(MetaModule):
         # torch.nn.init.constant_(self.sine_scale, 30)
         # self.W.requires_grad = True
 
-        if not self.transposed:
-            self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        # if not self.transposed:
+        # self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias ).cuda()  )
             # self.conv_alt= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=3, stride=self.stride, padding=1, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
-        else:
-            self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        # else:
+            # self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
 
         if self.init=="zero":
                 torch.nn.init.zeros_(self.conv[-1].weight) 
@@ -455,6 +456,8 @@ class BlockSiren(MetaModule):
     def forward(self, x, params=None):
         if params is None:
             params = OrderedDict(self.named_parameters())
+        # else: 
+            # print("params is not none")
        
 
         in_channels=x.shape[1]
@@ -466,6 +469,27 @@ class BlockSiren(MetaModule):
         x = self.conv(x, params=get_subdict(params, 'conv') )
         # x_relu=self.conv_alt(x_input,  params=get_subdict(params, 'conv_alt') )
         # x_relu=self.leaky_relu(x_relu)
+
+        #page 3 at the top of principled initialization hypernetwork https://openreview.net/pdf?id=H1lma24tPB
+        var_xi=x_input.var()
+        w= get_subdict(params, 'conv')["0.weight"]
+        bias= get_subdict(params, 'conv')["0.bias"]
+        var_w=w.var()
+        var_b=bias.var()
+        # w= self.conv[-1].weight
+        dj=w.shape[1]
+        print("dj is ", dj)
+        print("w mean is", w.mean() )
+        print("w var is", w.var() )
+        print("b var is", bias.var() )
+        var_yi=x.var()
+        var_predicted= dj*var_w*var_xi + var_b
+        print("var predicted, ", var_predicted.item(), " var_yi ", var_yi.item())
+
+        # print("exiting")
+        # exit(1)
+
+
         if self.activ==torch.sin:
             # print("before 30x, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             if self.is_first_layer: 
@@ -476,6 +500,9 @@ class BlockSiren(MetaModule):
             else: 
                 x=x*1
             print("before activ, x has mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+            # mean=x.mean()
+            # std=x.std()
+            # x=(x-mean)/std
             x=self.activ(x)
             # x_relu=self.relu(x_conv)
             #each x will map into a certain period of the sine depending on their value, the network has to be aware of which sine it will activate

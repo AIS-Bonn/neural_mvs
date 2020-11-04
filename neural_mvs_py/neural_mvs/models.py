@@ -1841,7 +1841,11 @@ class Net(torch.nn.Module):
 
 
         #the z should have mean 0 and variance 1
-        z=torch.tanh(z)*3.45
+        # z=torch.tanh(z)*3.45
+        z=z*3.44
+        # var=z.std()
+        # mean=z.mean()
+        # z=(z-mean)/var
         print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
 
         # print("z has shape ", z.shape)

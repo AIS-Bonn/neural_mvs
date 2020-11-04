@@ -111,7 +111,9 @@ class HyperNetworkPrincipledInitialization(nn.Module):
                 in_features_main_net=param.shape[1]
                 self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
             elif 'bias' in name:
-                self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m))
+                in_features_main_net=param.shape[0]
+                self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
+                # self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m))
 
             param_idx+=1
 
@@ -369,7 +371,7 @@ def hyper_weight_init(m, in_features_main_net):
 def principled_init_for_predicting_weights(m, in_features_main_net):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
-        var= 1.0/(fan_in * in_features_main_net)
+        var= 1.0/(fan_in * in_features_main_net) *2
         print("fan in is ", fan_in, " in_features_main_net ", in_features_main_net)
         print("initializing weight with var ", var)
         std= np.sqrt(var)
@@ -384,6 +386,7 @@ def principled_init_for_predicting_weights(m, in_features_main_net):
 def principled_init_for_predicting_bias(m):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
+        print("initialize for bias prediction fan in is ", fan_in, )
         var= 1.0/(fan_in)
         std= np.sqrt(var)
         bound = math.sqrt(3.0) * std
