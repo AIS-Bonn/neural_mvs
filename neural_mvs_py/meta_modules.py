@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from collections import OrderedDict
 import modules
+import math
 
 import numpy as np
 
@@ -99,20 +100,17 @@ class HyperNetworkPrincipledInitialization(nn.Module):
 
             print("params name ", name, " params size si ", param.size())
 
-            hn = modules.FCBlock(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))),
-                                 num_hidden_layers=hyper_hidden_layers, hidden_features=hyper_hidden_features,
-                                 outermost_linear=True, nonlinearity='relu')
-                                #  outermost_linear=True, nonlinearity='selu')
-                                #  outermost_linear=True, nonlinearity='elu')
+            # hn = modules.FCBlock(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))),
+            #                      num_hidden_layers=hyper_hidden_layers, hidden_features=hyper_hidden_features,
+            #                      outermost_linear=True, nonlinearity='relu')
+            hn = torch.nn.Linear(in_features=hyper_in_features, out_features=int(torch.prod(torch.tensor(param.size()))), bias=True)
+
             self.nets.append(hn)
 
             if 'weight' in name:
-                if param_idx==0:
-                    self.nets[-1].net[-1].apply(lambda m: hyper_weight_init_first_siren_layer(m, param.size()[-1]))
-                else:
-                    self.nets[-1].net[-1].apply(lambda m: hyper_weight_init(m, param.size()[-1]))
+                    self.nets[-1].apply(lambda m: principled_init_for_predicting_weights(m, param.size()[-1]))
             elif 'bias' in name:
-                self.nets[-1].net[-1].apply(lambda m: hyper_bias_init(m))
+                self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m, param.size()[-1]))
 
             param_idx+=1
 
@@ -127,14 +125,19 @@ class HyperNetworkPrincipledInitialization(nn.Module):
         params = OrderedDict()
         # print("computing hyperparams")
         i=0
+        print("--------------------------------------")
         for name, net, param_shape in zip(self.names, self.nets, self.param_shapes):
-            batch_param_shape = (-1,) + param_shape
+            # batch_param_shape = (-1,) + param_shape
             # print("param_shape si ", param_shape, " batch_param_shape is ", batch_param_shape)
             # params[name] = net(z).reshape(batch_param_shape)
+            # print("z shape is ", z.shape)
             params[name] = net(z).reshape(param_shape)
             # print("param has mean and std ", params[name].mean(), params[name].std() )
 
             # print("params for first is ",params[name] )
+
+            if "weight" in name: 
+                    print(name,"params have mean and std ", params[name].mean(), " std ", params[name].std() )
 
             i+=1
         return params
@@ -357,6 +360,33 @@ def hyper_weight_init(m, in_features_main_net):
         with torch.no_grad():
             m.bias.uniform_(-1/in_features_main_net, 1/in_features_main_net)
             m.bias.data = m.bias.data / 200
+
+
+def principled_init_for_predicting_weights(m, in_features_main_net):
+    if hasattr(m, 'weight'):
+        fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
+        var= 1.0/(fan_in * in_features_main_net)
+        std= np.sqrt(var)
+        bound = math.sqrt(3.0) * std /6
+        with torch.no_grad():
+            m.weight.uniform_(-bound, bound)
+
+    if hasattr(m, 'bias'):
+        with torch.no_grad():
+            m.bias.data.fill_(0.0)
+
+def principled_init_for_predicting_bias(m, in_features_main_net):
+    if hasattr(m, 'weight'):
+        fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
+        var= 1.0/(fan_in)
+        std= np.sqrt(var)
+        bound = math.sqrt(3.0) * std /6
+        with torch.no_grad():
+            m.weight.uniform_(-bound, bound)
+
+    if hasattr(m, 'bias'):
+        with torch.no_grad():
+            m.bias.data.fill_(0.0)
 
 
 def hyper_bias_init(m):

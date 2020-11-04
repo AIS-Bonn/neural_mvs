@@ -440,6 +440,8 @@ class BlockSiren(MetaModule):
                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
                     # print("conv any other is ", self.conv[-1].weight )
                 # self.conv[-1].bias.zero_()
+                # print("siren weight init has mean and varaicne ", self.conv[-1].weight.mean(), " std", self.conv[-1].weight.std() )
+
         if self.activ==torch.relu:
             print("initializing with kaiming uniform")
             torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
@@ -689,7 +691,8 @@ class LearnedPE(MetaModule):
         # print("self.conv.weight", self.conv.weight)
 
         # print("x ", x.shape)
-        x = self.conv(x, params=get_subdict(params, 'conv'))
+        x = self.conv(x, params=get_subdict(params, 'conv'), incremental=True)
+        # print("learned pe is ", self.conv.weight)
         # print("after conv", x.shape)
         # x=90*x
         x_sin=torch.sin(x)

@@ -1665,7 +1665,8 @@ class Net(torch.nn.Module):
         # self.siren_net = SirenNetworkDirectPETrim(in_channels=3, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
-        self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=3468, hyper_hidden_layers=3, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetworkIncremental(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
@@ -1829,14 +1830,18 @@ class Net(torch.nn.Module):
 
         #aggregate all the z from every camera now expressed in world coords, into one z vector
         # z3d=z3d.mean(0)
-        # z=z.mean(0)
-        z,_=z.max(0)
+        z=z.mean(0)
+        # z,_=z.max(0)
         # print("after agregating z3d is ", z3d.shape)
         TIME_END("rotate")
 
         #reduce it so that the hypernetwork makes smaller weights for siren
         # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
 
+
+        #the z should have mean 0 and variance 1
+        z=torch.tanh(z)*3
+        # print("z has mean and varaicne ", z.mean(), " std", z.std() )
 
         # print("z has shape ", z.shape)
         # z=z.reshape(1,self.z_size)
