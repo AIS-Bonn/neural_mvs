@@ -108,6 +108,8 @@ class HyperNetworkPrincipledInitialization(nn.Module):
             hn = torch.nn.Sequential(
                 BlockLinear(in_channels=hyper_in_features, out_channels=512, bias=True, activ=torch.relu ),
                 BlockLinear(in_channels=512, out_channels=512, bias=True, activ=torch.relu ),
+                BlockLinear(in_channels=512, out_channels=512, bias=True, activ=torch.relu ),
+                BlockLinear(in_channels=512, out_channels=512, bias=True, activ=torch.relu ),
                 torch.nn.Linear(in_features=512, out_features=int(torch.prod(torch.tensor(param.size()))), bias=True)
             )
 
