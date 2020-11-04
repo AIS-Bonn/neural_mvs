@@ -376,7 +376,7 @@ def hyper_weight_init(m, in_features_main_net):
 def principled_init_for_predicting_weights(m, in_features_main_net):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
-        var= 1.0/(fan_in * in_features_main_net) *2
+        var= 1.0/(fan_in * in_features_main_net) *2 #the x2 is because we want the variance to increase from the 0.5 which we have after a sine activation to a 1.0 
         print("fan in is ", fan_in, " in_features_main_net ", in_features_main_net)
         print("initializing weight with var ", var)
         std= np.sqrt(var)

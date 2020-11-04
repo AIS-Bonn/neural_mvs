@@ -1842,7 +1842,8 @@ class Net(torch.nn.Module):
 
         #the z should have mean 0 and variance 1
         # z=torch.tanh(z)*3.45
-        z=z*3.44
+        # z=z*3.44
+        z=z*2.5
         # var=z.std()
         # mean=z.mean()
         # z=(z-mean)/var

@@ -108,7 +108,7 @@ class Block(MetaModule):
                     # print("conv any other is ", self.conv[-1].weight )
         if self.activ==torch.relu:
             print("initializing with kaiming uniform")
-            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
             if self.bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
                 bound = 1 / math.sqrt(fan_in)
@@ -226,7 +226,7 @@ class BlockLinear(torch.nn.Module):
        
         if self.activ==torch.relu:
             # print("initializing with kaiming uniform")
-            torch.nn.init.kaiming_uniform_(self.conv.weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            torch.nn.init.kaiming_uniform_(self.conv.weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
             if bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv.weight)
                 bound = 1 / math.sqrt(fan_in)
@@ -278,7 +278,7 @@ class BNReluConv(MetaModule):
 
        
         print("initializing with kaiming uniform")
-        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='tanh')
+        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='tanh')
         if self.bias is not None:
             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
             bound = 1 / math.sqrt(fan_in)
@@ -445,7 +445,7 @@ class BlockSiren(MetaModule):
 
         if self.activ==torch.relu:
             print("initializing with kaiming uniform")
-            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
             if self.bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
                 bound = 1 / math.sqrt(fan_in)
@@ -598,7 +598,7 @@ class BlockForResnet(MetaModule):
                     # print("conv any other is ", self.conv[-1].weight )
         else : # assume we have a relu
             print("initializing with kaiming uniform")
-            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_out', nonlinearity='relu')
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
             if self.bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
                 bound = 1 / math.sqrt(fan_in)

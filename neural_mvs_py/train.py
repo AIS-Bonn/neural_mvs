@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_56"
+    experiment_name="s_4difflr"
 
     use_ray_compression=False
 
@@ -367,7 +367,7 @@ def run():
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
                             out_tensor,  depth_map, acc_map, new_loss=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, use_ray_compression, novel=True )
                             # out_tensor=model(ref_rgb_tensor, renrgb_siren,der_tf, render_tf )
-                            if(phase.iter_nr%10==0):
+                            if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
                                 Gui.show(out_mat, "novel")
                                 # rgb_siren_mat=tensor2mat(rgb_siren)
@@ -534,7 +534,11 @@ def run():
                                     {'params': param_znear_zfar, 'lr': train_params.lr() }
                                 ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             else:
-                                optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                optimizer=torch.optim.AdamW ([
+                                    # {'params': model.parameters()},
+                                    {'params': model.hyper_net.parameters(), 'lr': train_params.lr()*0.1 }
+                                ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
 
