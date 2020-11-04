@@ -87,6 +87,9 @@ class FCBlock(MetaModule):
         if self.weight_init is not None:
             self.net.apply(self.weight_init)
 
+        #last layer is xavier initializer so it's mostly zero meaned as opossed to the relu intialization
+        self.net[ len(self.net)-1 ].apply(init_weights_xavier) 
+
         if first_layer_init is not None: # Apply special initialization to first layer, if applicable.
             self.net[0].apply(first_layer_init)
 
