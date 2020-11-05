@@ -43,7 +43,7 @@ class MetaConv2d(nn.Conv2d, MetaModule):
         # self.alpha_bias = torch.nn.Parameter(torch.randn(1))
         # torch.nn.init.constant_(self.alpha_bias, 0.01)
 
-    def forward(self, input, params=None, incremental=False):
+    def forward(self, input, params=None, incremental=True):
         if params is None:
             params = OrderedDict(self.named_parameters())
         bias = params.get('bias', None)

@@ -424,7 +424,7 @@ class BlockSiren(MetaModule):
 
         if self.init=="zero":
                 torch.nn.init.zeros_(self.conv[-1].weight) 
-        if self.activ==torch.sin or self.activ==None:
+        if self.activ==torch.sin:
             with torch.no_grad():
                 # print(":we are usign sin")
                 # print("in channels is ", in_channels, " and conv weight size 1 is ", self.conv.weight.size(-1) )
@@ -443,7 +443,7 @@ class BlockSiren(MetaModule):
                 # self.conv[-1].bias.zero_()
                 # print("siren weight init has mean and varaicne ", self.conv[-1].weight.mean(), " std", self.conv[-1].weight.std() )
 
-        if self.activ==torch.relu:
+        if self.activ==torch.relu or self.activ==None:
             print("initializing with kaiming uniform")
             torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
             if self.bias is not None:

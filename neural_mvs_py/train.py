@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_28noinc_slr"
+    experiment_name="s_41inc"
 
     use_ray_compression=False
 
@@ -281,11 +281,13 @@ def run():
 
                     #load a random frame for gt 
                     # gt_frame=loader_test.get_random_frame()
-                    gt_frame=frames_for_encoding[0]
+                    # gt_frame=frames_for_encoding[0]
+                    gt_frame=frames_for_encoding[ random.randint(0, len(frames_for_encoding)-1 )]
                     gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
                     mask=mat2tensor(gt_frame.mask, False).to("cuda")
 
                     #start reading new scene
+                    # if(phase.iter_nr%1==0):
                     if(phase.iter_nr%1==0):
                         loader_test.start_reading_next_scene()
 
@@ -550,7 +552,7 @@ def run():
 
                             # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=300)
-                            scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             # lambda1 = lambda epoch: 0.9999 ** phase.iter_nr
                             # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1])
                             optimizer.zero_grad()
@@ -566,7 +568,7 @@ def run():
                             # scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                         # if isinstance(scheduler, torch.optim.lr_scheduler.LambdaLR):
                             # scheduler.step()
-                        optimizer.zero_grad()
+                        # optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")
                         loss.backward()
@@ -593,11 +595,11 @@ def run():
                         #check the grad for the znear zfar
                         # print("rma grad is ", gt_frame.znear_zfar.grad.norm() )
 
-                        optimizer.step()
+                        # optimizer.step()
 
-                        # if (phase.iter_nr%10==0):
-                        #     optimizer.step() # DO it only once after getting gradients for all images
-                        #     optimizer.zero_grad()
+                        if (phase.iter_nr%10==0):
+                            optimizer.step() # DO it only once after getting gradients for all images
+                            optimizer.zero_grad()
 
 
                 if train_params.with_viewer():

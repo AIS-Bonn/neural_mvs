@@ -1117,7 +1117,7 @@ class SirenNetworkDirectPE(MetaModule):
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
-            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            self.net.append( MetaSequential( BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
 
             # self.position_embedders.append( MetaSequential( 
@@ -1159,7 +1159,7 @@ class SirenNetworkDirectPE(MetaModule):
         # dirs_channels=64
         cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
-            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()    
             )
 
@@ -1255,7 +1255,7 @@ class SirenNetworkDirectPE(MetaModule):
         sigma_and_feat=self.pred_sigma_and_feat(x,  params=get_subdict(params, 'pred_sigma_and_feat'))
         #get the feature vector for the rest of things and concat it with the direction
         sigma_a=torch.relu( sigma_and_feat[:,0:1, :, :] ) #first channel is the sigma
-        feat=torch.sin( sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ] )
+        feat=torch.relu( sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ] )
         # print("sigma and feat is ", sigma_and_feat.shape)
         # print(" feat is ", feat.shape)
         ray_directions=ray_directions.repeat(feat.shape[0],1,1,1) #repeat as many times as samples that you have in a ray
@@ -1313,11 +1313,11 @@ class SirenNetworkDirectPETrim(MetaModule):
         # self.position_embedders=torch.nn.ModuleList([])
 
         num_encodings=11
-        self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
-        cur_nr_channels=in_channels + in_channels*num_encodings*2
+        # self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels=in_channels + in_channels*num_encodings*2
         #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
-        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
-        # cur_nr_channels=256+in_channels
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        cur_nr_channels=256+in_channels
         #combined PE  and gaussian
         # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
@@ -1335,7 +1335,7 @@ class SirenNetworkDirectPETrim(MetaModule):
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
-            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
+            self.net.append( MetaSequential( BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
             # self.net.append( MetaSequential( ResnetBlock(activ=torch.sin, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False, is_first_layer=False).cuda() ) )
 
             # self.position_embedders.append( MetaSequential( 
