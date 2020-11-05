@@ -1896,7 +1896,7 @@ class Net(torch.nn.Module):
         z=self.z_with_cam_embedder(z)
         #make a permutation invariant fusing
         z=z.mean(0)
-        z=z*0.7
+        z=z*2
         print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
 
 

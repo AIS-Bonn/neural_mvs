@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_26cam"
+    experiment_name="s_28noinc_slr"
 
     use_ray_compression=False
 
@@ -535,10 +535,10 @@ def run():
                                 ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             else:
                                 # optimizer=torch.optim.AdamW ([
-                                    # {'params': model.hyper_net.parameters()},
-                                    # {'params': model.cam_embedder.parameters(), 'lr': train_params.lr()*10  },
-                                    # {'params': model.z_with_cam_embedder.parameters(), 'lr': train_params.lr()*10  },
-                                    # {'params': model.encoder.parameters(), 'lr': train_params.lr()*10 }
+                                #     {'params': model.hyper_net.parameters()},
+                                #     {'params': model.cam_embedder.parameters(), 'lr': train_params.lr()*10  },
+                                #     {'params': model.z_with_cam_embedder.parameters(), 'lr': train_params.lr()*10  },
+                                #     {'params': model.encoder.parameters(), 'lr': train_params.lr()*10 }
                                 # ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
@@ -560,10 +560,10 @@ def run():
 
                     #backward
                     if is_training:
-                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                        # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
                             # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / loader_test.nr_samples() )
-                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                            # scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                         # if isinstance(scheduler, torch.optim.lr_scheduler.LambdaLR):
                             # scheduler.step()
                         optimizer.zero_grad()
