@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_10"
+    experiment_name="s_26cam"
 
     use_ray_compression=False
 
@@ -461,7 +461,7 @@ def run():
 
                         ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
                         # loss=rgb_loss + smooth_loss*0.001 + ssim_loss
-                        loss=rgb_loss
+                        loss=rgb_loss*0.5 + ssim_loss*0.5
                         # loss= ssim_loss
 
                         #make a loss to bring znear anzfar close 
@@ -535,7 +535,10 @@ def run():
                                 ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             else:
                                 # optimizer=torch.optim.AdamW ([
-                                    # {'params': model.hyper_net.parameters(), 'lr': train_params.lr()*0.01 }
+                                    # {'params': model.hyper_net.parameters()},
+                                    # {'params': model.cam_embedder.parameters(), 'lr': train_params.lr()*10  },
+                                    # {'params': model.z_with_cam_embedder.parameters(), 'lr': train_params.lr()*10  },
+                                    # {'params': model.encoder.parameters(), 'lr': train_params.lr()*10 }
                                 # ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
@@ -545,7 +548,11 @@ def run():
 
 
 
-                            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
+                            # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
+                            # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=300)
+                            scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            # lambda1 = lambda epoch: 0.9999 ** phase.iter_nr
+                            # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1])
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
@@ -553,8 +560,12 @@ def run():
 
                     #backward
                     if is_training:
-                        # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
+                            # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / loader_test.nr_samples() )
+                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                        # if isinstance(scheduler, torch.optim.lr_scheduler.LambdaLR):
+                            # scheduler.step()
                         optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")

@@ -707,12 +707,12 @@ class Encoder(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
         self.gelu=torch.nn.GELU()
 
-        #layers
-        resnet = torchvision.models.resnet18(pretrained=True)
-        modules=list(resnet.children())[:-1]
-        self.resnet=nn.Sequential(*modules)
-        for p in self.resnet.parameters():
-            p.requires_grad = True
+        # #layers
+        # resnet = torchvision.models.resnet18(pretrained=True)
+        # modules=list(resnet.children())[:-1]
+        # self.resnet=nn.Sequential(*modules)
+        # for p in self.resnet.parameters():
+        #     p.requires_grad = True
 
 
 
@@ -1667,26 +1667,37 @@ class Net(torch.nn.Module):
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
-        self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=3468, hyper_hidden_layers=3, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetworkIncremental(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
 
 
-        self.z_to_z3d = torch.nn.Sequential(
-            # torch.nn.Linear( self.z_size , self.z_size).to("cuda"),
-            # torch.nn.ReLU(),
-            # torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
-            BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
-            BlockLinear(  in_channels=self.z_size, out_channels= self.nr_points_z*3,  bias=True,  activ=None )
-        )
+        # self.z_to_z3d = torch.nn.Sequential(
+        #     # torch.nn.Linear( self.z_size , self.z_size).to("cuda"),
+        #     # torch.nn.ReLU(),
+        #     # torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
+        #     BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+        #     BlockLinear(  in_channels=self.z_size, out_channels= self.nr_points_z*3,  bias=True,  activ=None )
+        # )
 
-        self.z_to_zapp = torch.nn.Sequential(
-            # torch.nn.Linear( self.z_size , self.z_size).to("cuda"),
-            # torch.nn.ReLU(),
-            # torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
-            BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
-            BlockLinear(  in_channels=self.z_size, out_channels= self.nr_points_z*3,  bias=True,  activ=None )
+        # self.z_to_zapp = torch.nn.Sequential(
+        #     # torch.nn.Linear( self.z_size , self.z_size).to("cuda"),
+        #     # torch.nn.ReLU(),
+        #     # torch.nn.Linear( self.z_size , self.nr_points_z*3).to("cuda")
+        #     BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+        #     BlockLinear(  in_channels=self.z_size, out_channels= self.nr_points_z*3,  bias=True,  activ=None )
+        # )
+
+        cam_params=9 + 3 + 3+ 1
+        self.cam_embedder = torch.nn.Sequential(
+            BlockLinear(  in_channels=cam_params, out_channels=64,  bias=True,  activ=torch.relu ),
+            BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=None )
+        )
+        self.z_with_cam_embedder = torch.nn.Sequential(
+            BlockLinear(  in_channels=self.z_size+64, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+            BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=None )
         )
 
 
@@ -1745,109 +1756,162 @@ class Net(torch.nn.Module):
         #make z into a nr_imgs x z_size
         z=z.view(nr_imgs, self.z_size)
 
-        # #concat the direction of the frame
-        # dirs=[]
+        # # #concat the direction of the frame
+        # # dirs=[]
+        # # for i in range(nr_imgs):
+        # #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+        # #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+        # #     t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
+        # #     direction =R[:,2].view(1,3) #third column
+        # #     direction/=direction.norm()
+        # #     dirs.append( direction  ) 
+        # #     #show the direction just to see if it's correct
+        # #     if i==0:
+        # #         p=t+1.0*direction.view(3)
+        # #         print("p has shape ", p.shape)
+        # #         dir_mesh=Mesh()
+        # #         dir_mesh.V=[        #fill up the vertices of the mesh as a matrix of Nx3
+        # #             t[0], t[1], t[2],
+        # #             p[0], p[1], p[2]
+        # #         ]
+        # #         dir_mesh.E=[        #fill up the vertices of the mesh as a matrix of Nx3
+        # #             0,1
+        # #         ]
+        # #         dir_mesh.m_vis.m_show_lines=True
+        # #         Scene.show(dir_mesh, "dir_mesh" )
+        # #         frustum=frames_for_encoding[i].create_frustum_mesh(0.1)
+        # #         Scene.show(frustum, "frustum_dir")
+        # # dirs=torch.cat(dirs,0)
+        # # z=torch.cat([z,dirs],1)
+        
+
+        # #make z into a 3D thing
+        # z3d=self.z_to_z3d(z)
+        # z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
+        # # z3d=self.sigmoid(z3d)
+        # # print("after making 3d z is ", z.shape)
+
+        # #rotate everything into the same world frame
+        # R_world_cam_all_list=[]
+        # t_world_cam_all_list=[]
         # for i in range(nr_imgs):
         #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
         #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
         #     t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
-        #     direction =R[:,2].view(1,3) #third column
-        #     direction/=direction.norm()
-        #     dirs.append( direction  ) 
-        #     #show the direction just to see if it's correct
-        #     if i==0:
-        #         p=t+1.0*direction.view(3)
-        #         print("p has shape ", p.shape)
-        #         dir_mesh=Mesh()
-        #         dir_mesh.V=[        #fill up the vertices of the mesh as a matrix of Nx3
-        #             t[0], t[1], t[2],
-        #             p[0], p[1], p[2]
-        #         ]
-        #         dir_mesh.E=[        #fill up the vertices of the mesh as a matrix of Nx3
-        #             0,1
-        #         ]
-        #         dir_mesh.m_vis.m_show_lines=True
-        #         Scene.show(dir_mesh, "dir_mesh" )
-        #         frustum=frames_for_encoding[i].create_frustum_mesh(0.1)
-        #         Scene.show(frustum, "frustum_dir")
-        # dirs=torch.cat(dirs,0)
-        # z=torch.cat([z,dirs],1)
-        
+        #     R_world_cam_all_list.append(R.unsqueeze(0))
+        #     t_world_cam_all_list.append(t.view(1,1,3) )
+        # R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        # t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
+        # # print("R_world_cam_all is ", R_world_cam_all.shape)
+        # # print("before rotatin z3d is", z3d)
+        # # z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
+        # z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  
+        # # print("aftering rotatin z3d is", z3d)
+        # # print("after multiplying z3d is ", z3d.shape)
+        # # diff = (z3d1-z3d2).norm()
+        # # print("diff is ", diff)
 
-        #make z into a 3D thing
-        z3d=self.z_to_z3d(z)
-        z3d=z3d.reshape(nr_imgs, self.nr_points_z, 3)
-        # z3d=self.sigmoid(z3d)
-        # print("after making 3d z is ", z.shape)
 
-        #rotate everything into the same world frame
+
+        # #get also an apperence vector and append it
+        # zapp=self.z_to_zapp(z)
+        # zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
+        # # print("zapp has size ", zapp.shape)
+        # # print("z3d has size ", z3d.shape)
+        # z=torch.cat([zapp, z3d], 2)
+        # # DO NOT use the zapp
+        # # z=z3d
+
+        # # #flatten the z and then pass it through some linear layers to get it to 256 or 512
+        # # z=z.view(-1)
+        # # for i in range( len(self.aggregate_layers) ):
+        # #     # print("z has shape ", z.shape)
+        # #     z=self.aggregate_layers[i](z)
+
+
+        # # #flatten the z and then pass it through some linear layers to get it to 256 or 512
+        # # z=z.view(nr_imgs, -1)
+        # # #concat for each image the translation and the distance
+        # # t_for_all_imgs= t_world_cam_all.view(nr_imgs, -1)
+        # # dist=t_for_all_imgs.norm(2, dim=1) 
+        # # dist=dist.view(nr_imgs, -1)
+        # # z=torch.cat([z, t_for_all_imgs, dist], 1)
+        # # for i in range( len(self.aggregate_layers) ):
+        # #     # print("z has shape ", z.shape)
+        # #     z=self.aggregate_layers[i](z)
+
+        # #aggregate all the z from every camera now expressed in world coords, into one z vector
+        # # z3d=z3d.mean(0)
+        # z=z.mean(0)
+        # # z,_=z.max(0)
+        # # print("after agregating z3d is ", z3d.shape)
+        # TIME_END("rotate")
+
+        # #reduce it so that the hypernetwork makes smaller weights for siren
+        # # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
+
+
+        # #the z should have mean 0 and variance 1
+        # # z=torch.tanh(z)*3.45
+        # # z=z*3.44
+        # z=z*2.5
+        # # var=z.std()
+        # # mean=z.mean()
+        # # z=(z-mean)/var
+        # print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
+
+
+
+
+
+
+
+
+        #attempt 2, have the enconder predict only a z of 512 
+        #get the camera parameters, direction, translation, and distance. Encode them in a 64 vector
+        #pass the z_and_cam through more linear layers
+        #do a z.mean to get the full scene embedding because we want to be permutation invariant to how the frames are ordered
+        #step 1 get the camera params 
+        dirs=[]
         R_world_cam_all_list=[]
         t_world_cam_all_list=[]
-        for i in range(nr_imgs):
+        for i in range( nr_imgs ):
             tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
             R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
             t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
+            direction =R[:,2].view(1,3) #third column
+            dirs.append( direction ) 
             R_world_cam_all_list.append(R.unsqueeze(0))
             t_world_cam_all_list.append(t.view(1,1,3) )
         R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
         t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
-        # print("R_world_cam_all is ", R_world_cam_all.shape)
-        # print("before rotatin z3d is", z3d)
-        # z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  + t_world_cam_all
-        z3d=torch.matmul(R_world_cam_all, z3d.transpose(1,2) ).transpose(1,2)  
-        # print("aftering rotatin z3d is", z3d)
-        # print("after multiplying z3d is ", z3d.shape)
-        # diff = (z3d1-z3d2).norm()
-        # print("diff is ", diff)
-
-
-
-        #get also an apperence vector and append it
-        zapp=self.z_to_zapp(z)
-        zapp=zapp.view(nr_imgs, self.nr_points_z, -1)
-        # print("zapp has size ", zapp.shape)
-        # print("z3d has size ", z3d.shape)
-        z=torch.cat([zapp, z3d], 2)
-        # DO NOT use the zapp
-        # z=z3d
-
-        # #flatten the z and then pass it through some linear layers to get it to 256 or 512
-        # z=z.view(-1)
-        # for i in range( len(self.aggregate_layers) ):
-        #     # print("z has shape ", z.shape)
-        #     z=self.aggregate_layers[i](z)
-
-
-        # #flatten the z and then pass it through some linear layers to get it to 256 or 512
-        # z=z.view(nr_imgs, -1)
-        # #concat for each image the translation and the distance
-        # t_for_all_imgs= t_world_cam_all.view(nr_imgs, -1)
-        # dist=t_for_all_imgs.norm(2, dim=1) 
-        # dist=dist.view(nr_imgs, -1)
-        # z=torch.cat([z, t_for_all_imgs, dist], 1)
-        # for i in range( len(self.aggregate_layers) ):
-        #     # print("z has shape ", z.shape)
-        #     z=self.aggregate_layers[i](z)
-
-        #aggregate all the z from every camera now expressed in world coords, into one z vector
-        # z3d=z3d.mean(0)
+        dirs=torch.cat(dirs,0)
+        t_for_all_imgs= t_world_cam_all.view(nr_imgs, -1)
+        dist=t_for_all_imgs.view(nr_imgs,-1).norm(2, dim=1) 
+        cam_params=torch.cat([R_world_cam_all.view(nr_imgs,-1), t_world_cam_all.view(nr_imgs,-1), dirs.view(nr_imgs,-1), dist.view(nr_imgs,-1)],1)
+        #embedd, concat with the apperence z
+        cam_params=self.cam_embedder(cam_params)
+        z=torch.cat([z,cam_params],1)
+        #embedd the z_cam
+        z=self.z_with_cam_embedder(z)
+        #make a permutation invariant fusing
         z=z.mean(0)
-        # z,_=z.max(0)
-        # print("after agregating z3d is ", z3d.shape)
-        TIME_END("rotate")
-
-        #reduce it so that the hypernetwork makes smaller weights for siren
-        # z=z/10 #IF the image is too noisy we need to reduce the range for this because the smaller, the smaller the siren weight will be
-
-
-        #the z should have mean 0 and variance 1
-        # z=torch.tanh(z)*3.45
-        # z=z*3.44
-        z=z*2.5
-        # var=z.std()
-        # mean=z.mean()
-        # z=(z-mean)/var
+        z=z*0.7
         print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         # print("z has shape ", z.shape)
         # z=z.reshape(1,self.z_size)
