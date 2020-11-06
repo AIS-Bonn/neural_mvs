@@ -1072,6 +1072,7 @@ class SirenNetworkDirectPE(MetaModule):
 
         self.nr_layers=4
         self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[256, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[100, 100, 100, 100, 100]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[256, 128, 64, 32, 16]
@@ -1095,11 +1096,11 @@ class SirenNetworkDirectPE(MetaModule):
         # self.position_embedders=torch.nn.ModuleList([])
 
         num_encodings=11
-        self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
-        cur_nr_channels=in_channels + in_channels*num_encodings*2
+        # self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels=in_channels + in_channels*num_encodings*2
         #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
-        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
-        # cur_nr_channels=256+in_channels
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        cur_nr_channels=256+in_channels
         #combined PE  and gaussian
         # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
@@ -1693,12 +1694,19 @@ class Net(torch.nn.Module):
         cam_params=9 + 3 + 3+ 1
         self.cam_embedder = torch.nn.Sequential(
             BlockLinear(  in_channels=cam_params, out_channels=64,  bias=True,  activ=torch.relu ),
+            # BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=torch.relu ),
             BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=None )
         )
         self.z_with_cam_embedder = torch.nn.Sequential(
             BlockLinear(  in_channels=self.z_size+64, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+            # BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
             BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=None )
         )
+        # self.z_scene_embedder = torch.nn.Sequential(
+        #     BlockLinear(  in_channels=self.z_size*6, out_channels=self.z_size*3,  bias=True,  activ=torch.relu ),
+        #     BlockLinear(  in_channels=self.z_size*3, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+        #     BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=None )
+        # )
 
 
         # # cur_nr_channels=self.nr_points_z*3*2    *6 #the z for all images
@@ -1896,8 +1904,11 @@ class Net(torch.nn.Module):
         z=self.z_with_cam_embedder(z)
         #make a permutation invariant fusing
         z=z.mean(0)
+        #embedd the scene 
+        # z=z.reshape(1,-1)
+        # z=self.z_scene_embedder(z)
         z=z*2
-        print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
+        # print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
 
 
 

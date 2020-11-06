@@ -136,7 +136,7 @@ class HyperNetworkPrincipledInitialization(nn.Module):
         params = OrderedDict()
         # print("computing hyperparams")
         i=0
-        print("--------------------------------------")
+        # print("--------------------------------------")
         for name, net, param_shape in zip(self.names, self.nets, self.param_shapes):
             # batch_param_shape = (-1,) + param_shape
             # print("param_shape si ", param_shape, " batch_param_shape is ", batch_param_shape)
@@ -144,7 +144,7 @@ class HyperNetworkPrincipledInitialization(nn.Module):
             # print("z shape is ", z.shape)
 
 
-            print("HYPERNET: z has mean and varaicne ", z.mean().item(), " var", z.var().item(),"Std ", z.std().item() )
+            # print("HYPERNET: z has mean and varaicne ", z.mean().item(), " var", z.var().item(),"Std ", z.std().item() )
             weight= net(z).reshape(param_shape)
             # if "net" in name and "weight" in name:
                 # std=weight.std()
@@ -155,8 +155,8 @@ class HyperNetworkPrincipledInitialization(nn.Module):
 
             # print("params for first is ",params[name] )
 
-            if "weight" in name: 
-                    print(name,"params have mean and std ", params[name].mean(), " std ", params[name].std() )
+            # if "weight" in name: 
+                    # print(name,"params have mean and std ", params[name].mean(), " std ", params[name].std() )
 
             i+=1
         return params

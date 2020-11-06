@@ -94,7 +94,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_41inc"
+    experiment_name="s_5"
 
     use_ray_compression=False
 
@@ -568,7 +568,7 @@ def run():
                             # scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                         # if isinstance(scheduler, torch.optim.lr_scheduler.LambdaLR):
                             # scheduler.step()
-                        # optimizer.zero_grad()
+                        optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")
                         loss.backward()
@@ -595,11 +595,11 @@ def run():
                         #check the grad for the znear zfar
                         # print("rma grad is ", gt_frame.znear_zfar.grad.norm() )
 
-                        # optimizer.step()
+                        optimizer.step()
 
-                        if (phase.iter_nr%10==0):
-                            optimizer.step() # DO it only once after getting gradients for all images
-                            optimizer.zero_grad()
+                        # if (phase.iter_nr%10==0):
+                        #     optimizer.step() # DO it only once after getting gradients for all images
+                        #     optimizer.zero_grad()
 
 
                 if train_params.with_viewer():

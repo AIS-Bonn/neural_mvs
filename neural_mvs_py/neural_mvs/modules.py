@@ -465,26 +465,26 @@ class BlockSiren(MetaModule):
         x_input=x
 
 
-        print("BLOCK SIREN: before conv, x has mean " , x.mean().item() , " var ", x.var().item(), " std", x.std().item() )
+        # print("BLOCK SIREN: before conv, x has mean " , x.mean().item() , " var ", x.var().item(), " std", x.std().item() )
         x = self.conv(x, params=get_subdict(params, 'conv') )
         # x_relu=self.conv_alt(x_input,  params=get_subdict(params, 'conv_alt') )
         # x_relu=self.leaky_relu(x_relu)
 
-        #page 3 at the top of principled initialization hypernetwork https://openreview.net/pdf?id=H1lma24tPB
-        var_xi=x_input.var()
-        w= get_subdict(params, 'conv')["0.weight"]
-        bias= get_subdict(params, 'conv')["0.bias"]
-        var_w=w.var()
-        var_b=bias.var()
-        # w= self.conv[-1].weight
-        dj=w.shape[1]
-        print("dj is ", dj)
-        print("w mean is", w.mean() )
-        print("w var is", w.var() )
-        print("b var is", bias.var() )
-        var_yi=x.var()
-        var_predicted= dj*var_w*var_xi + var_b
-        print("var predicted, ", var_predicted.item(), " var_yi ", var_yi.item())
+        # #page 3 at the top of principled initialization hypernetwork https://openreview.net/pdf?id=H1lma24tPB
+        # var_xi=x_input.var()
+        # w= get_subdict(params, 'conv')["0.weight"]
+        # bias= get_subdict(params, 'conv')["0.bias"]
+        # var_w=w.var()
+        # var_b=bias.var()
+        # # w= self.conv[-1].weight
+        # dj=w.shape[1]
+        # print("dj is ", dj)
+        # print("w mean is", w.mean() )
+        # print("w var is", w.var() )
+        # print("b var is", bias.var() )
+        # var_yi=x.var()
+        # var_predicted= dj*var_w*var_xi + var_b
+        # print("var predicted, ", var_predicted.item(), " var_yi ", var_yi.item())
 
         # print("exiting")
         # exit(1)
@@ -499,7 +499,7 @@ class BlockSiren(MetaModule):
             # x_conv_scaled=x_conv
             else: 
                 x=x*1
-            print("before activ, x has mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+            # print("before activ, x has mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             # mean=x.mean()
             # std=x.std()
             # x=(x-mean)/std
@@ -536,7 +536,7 @@ class BlockSiren(MetaModule):
         # print("x has shape ", x.shape)
 
         # x=x+x_relu
-        print("returning x with mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+        # print("returning x with mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
 
         return x
 
