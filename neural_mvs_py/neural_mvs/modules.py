@@ -623,11 +623,11 @@ class BlockForResnet(MetaModule):
 
 
 
-class ResnetBlock(torch.nn.Module):
+class ResnetBlock2D(torch.nn.Module):
 
     def __init__(self, out_channels, kernel_size, stride, padding, dilations, biases, with_dropout, do_norm=False, activ=torch.nn.ReLU(inplace=False), is_first_layer=False ):
     # def __init__(self, out_channels, kernel_size, stride, padding, dilations, biases, with_dropout, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ):
-        super(ResnetBlock, self).__init__()
+        super(ResnetBlock2D, self).__init__()
 
         #again with bn-relu-conv
         # self.conv1=GnReluConv(out_channels, kernel_size=3, stride=1, padding=1, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False)
@@ -749,6 +749,7 @@ class LearnedPEGaussian(MetaModule):
         # self.conv= MetaLinear(in_channels, out_channels bias=True).cuda()  #in the case we set the weight ourselves
         # self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
         self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
+        self.bias = torch.nn.Parameter(torch.randn(1, int(out_channels/2) ))
         torch.nn.init.normal_(self.b, 0.0, std)
 
 
@@ -763,6 +764,7 @@ class LearnedPEGaussian(MetaModule):
         # b=self.b.repeat(self.in_channels ,1)
         mat=2.0*3.141592*self.b
         x_proj = torch.matmul(x, mat)
+        x_proj=x_proj+self.bias
         # print("x is ", x.shape)
         # print("xproj is ", x_proj.shape)
         return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)

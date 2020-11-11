@@ -94,14 +94,14 @@ class MetaConv2d(nn.Conv2d, MetaModule):
                 # print("initial_weights", initial_weights)
                 # print("self.alpha_weights", self.alpha_weights)
                 # new_weights=initial_weights+weights * self.alpha_weights #we add the new weights with a learnable alpha that starts very low at the beggining to ensure that we mostly use the initial weights and then move more towards the new ones
-                new_weights=initial_weights+weights * 0.01 #we add the new weights with a learnable alpha that starts very low at the beggining to ensure that we mostly use the initial weights and then move more towards the new ones
+                new_weights=initial_weights+weights * 0.1 #we add the new weights with a learnable alpha that starts very low at the beggining to ensure that we mostly use the initial weights and then move more towards the new ones
                 weights=new_weights
                 #do the same for bias
                 if bias is not None:
                     initial_bias=self.bias.clone().detach() # the initial weight do not get optimized
                     # print("initial_bias", initial_bias)
                     # new_bias=initial_bias+bias * self.alpha_bias
-                    new_bias=initial_bias+bias * 0.01
+                    new_bias=initial_bias+bias * 0.1
                     bias=new_bias
             # else: 
                 # print("we are just using old weights")

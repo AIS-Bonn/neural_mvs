@@ -71,6 +71,8 @@ class FramePY():
             self.znear_zfar[:,0,:,:]=znear
             self.znear_zfar[:,1,:,:]=zfar
         # self.znear_zfar.requires_grad=True
+        self.cloud=frame.depth2world_xyz_mesh()
+        self.cloud=frame.assign_color(self.cloud)
     def create_frustum_mesh(self, scale):
         frame=Frame()
         frame.K=self.K
@@ -94,7 +96,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_5"
+    experiment_name="s_1"
 
     use_ray_compression=False
 
@@ -188,8 +190,8 @@ def run():
     # print("all imgs have shape ", all_imgs.shape)
 
     #for vase
-    depth_min=0.5
-    depth_max=1.6
+    depth_min=0.6
+    depth_max=2.0
     #for nerf
     # depth_min=2.0
     # depth_max=5.0
@@ -303,6 +305,7 @@ def run():
                         Scene.show(frustum, "frustum")
                         #show the first frame of the ones used for encoding
                         Gui.show(frames_for_encoding[0].rgb_32f, "rgb_for_enc")
+                        Scene.show(gt_frame.cloud, "cloud")
 
 
 
@@ -450,6 +453,7 @@ def run():
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
                         rgb_loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        # rgb_loss=((out_tensor-gt_rgb_tensor).abs()).mean()
                         # loss+=((rgb_siren-gt_rgb_tensor)**2).mean()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / loader_test.nr_samples()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / 10
@@ -463,8 +467,9 @@ def run():
 
                         ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
                         # loss=rgb_loss + smooth_loss*0.001 + ssim_loss
-                        loss=rgb_loss*0.5 + ssim_loss*0.5
+                        # loss=rgb_loss*0.5 + ssim_loss*0.5
                         # loss= ssim_loss
+                        loss=rgb_loss
 
                         #make a loss to bring znear anzfar close 
                         if use_ray_compression:

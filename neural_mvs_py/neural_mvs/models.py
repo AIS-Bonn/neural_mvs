@@ -22,6 +22,19 @@ from torch.nn.modules.module import _addindent
 
 from neural_mvs.nerf_utils import *
 
+#latticenet 
+from latticenet_py.lattice.lattice_py import LatticePy
+from latticenet_py.lattice.diceloss import GeneralizedSoftDiceLoss
+from latticenet_py.lattice.lovasz_loss import LovaszSoftmax
+from latticenet_py.lattice.models import LNN
+
+from latticenet_py.callbacks.callback import *
+from latticenet_py.callbacks.viewer_callback import *
+from latticenet_py.callbacks.visdom_callback import *
+from latticenet_py.callbacks.state_callback import *
+from latticenet_py.callbacks.phase import *
+from latticenet_py.lattice.lattice_modules import *
+
 
 ##Network with convgnrelu so that the coord added by concat coord are not destroyed y the gn in gnreluconv
 class VAE_2(torch.nn.Module):
@@ -750,7 +763,7 @@ class Encoder(torch.nn.Module):
             self.blocks_down_per_stage_list.append( torch.nn.ModuleList([]) )
             for j in range(self.nr_blocks_down_stage[i]):
                 cur_nr_channels+=2 #because we concat the coords
-                self.blocks_down_per_stage_list[i].append( ResnetBlock(cur_nr_channels, 3, 1, 1, dilations=[1,1], biases=[True,True], with_dropout=False) )
+                self.blocks_down_per_stage_list[i].append( ResnetBlock2D(cur_nr_channels, 3, 1, 1, dilations=[1,1], biases=[True,True], with_dropout=False) )
             # nr_channels_after_coarsening=int(cur_nr_channels*2)
             nr_channels_after_coarsening=self.nr_channels_after_coarsening_per_layer[i]
             print("nr_channels_after_coarsening is ", nr_channels_after_coarsening)
@@ -804,6 +817,86 @@ class Encoder(torch.nn.Module):
 
         return z
 
+class EncoderLNN(torch.nn.Module):
+    def __init__(self, z_size):
+        super(EncoderLNN, self).__init__()
+
+        #a bit more control
+        self.nr_downsamples=4
+        self.nr_blocks_down_stage=[2,2,2,2]
+        self.pointnet_layers=[16,32,64]
+        self.start_nr_filters=32
+        experiment="none"
+        #check that the experiment has a valid string
+        valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
+        if experiment not in valid_experiment:
+            err = "Experiment " + experiment + " is not valid"
+            sys.exit(err)
+
+
+
+
+
+        self.distribute=DistributeLatticeModule(experiment) 
+        print("pointnet layers is ", self.pointnet_layers)
+        self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+
+
+
+
+        #####################
+        # Downsampling path #
+        #####################
+        self.resnet_blocks_per_down_lvl_list=torch.nn.ModuleList([])
+        self.coarsens_list=torch.nn.ModuleList([])
+        corsenings_channel_counts = []
+        cur_channels_count=self.start_nr_filters
+        for i in range(self.nr_downsamples):
+            
+            #create the resnet blocks
+            self.resnet_blocks_per_down_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_down_stage[i]):
+                self.resnet_blocks_per_down_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,False], False) )
+            nr_channels_after_coarsening=int(cur_channels_count*2)
+            # print("adding bnReluCorsen which outputs nr of channels ", nr_channels_after_coarsening )
+            self.coarsens_list.append( GnReluCoarsen(nr_channels_after_coarsening)) #is still the best one because it can easily learn the versions of Avg and Blur. and the Max version is the worse for some reason
+            cur_channels_count=nr_channels_after_coarsening
+
+      
+
+    def forward(self, cloud):
+
+        positions=torch.from_numpy(cloud.V).float().to("cuda")
+        values=torch.from_numpy(cloud.C).float().to("cuda")
+        values=torch.cat( [positions,values],1 )
+
+
+        ls=LatticePy()
+        ls.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
+
+        with torch.set_grad_enabled(False):
+            distributed, indices=self.distribute(ls, positions, values)
+
+        lv, ls=self.point_net(ls, distributed, indices)
+
+        # print("lv at the beggining is ", lv.shape)
+
+        
+        for i in range(self.nr_downsamples):
+
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                lv, ls = self.resnet_blocks_per_down_lvl_list[i][j] ( lv, ls) 
+            #now we do a downsample
+            lv, ls = self.coarsens_list[i] ( lv, ls)
+
+        #from a lv of Nx256 we want a vector of just 256
+        # print("lv at the final is ", lv.shape)
+
+        z=lv.mean(dim=0)
+
+
+        return z
 
 
 
@@ -1096,11 +1189,11 @@ class SirenNetworkDirectPE(MetaModule):
         # self.position_embedders=torch.nn.ModuleList([])
 
         num_encodings=11
-        # self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
-        # cur_nr_channels=in_channels + in_channels*num_encodings*2
+        self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
+        cur_nr_channels=in_channels + in_channels*num_encodings*2
         #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
-        cur_nr_channels=256+in_channels
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        # cur_nr_channels=256+in_channels
         #combined PE  and gaussian
         # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
@@ -1657,7 +1750,8 @@ class Net(torch.nn.Module):
 
 
         # self.encoder=Encoder2D(self.z_size)
-        self.encoder=Encoder(self.z_size)
+        # self.encoder=Encoder(self.z_size)
+        self.encoder=EncoderLNN(self.z_size)
         # self.z_size+=3 #because we add the direcitons
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
@@ -1756,13 +1850,14 @@ class Net(torch.nn.Module):
         nr_imgs=x.shape[0]
         # print("encoding")
         TIME_START("encoding")
-        z=self.encoder(x)
+        # z=self.encoder(x)
+        z=self.encoder(frames_for_encoding[0].cloud)
         TIME_END("encoding")
         # print("encoder outputs z", z.shape)
 
         TIME_START("rotate")
         #make z into a nr_imgs x z_size
-        z=z.view(nr_imgs, self.z_size)
+        # z=z.view(nr_imgs, self.z_size)
 
         # # #concat the direction of the frame
         # # dirs=[]
@@ -1875,40 +1970,40 @@ class Net(torch.nn.Module):
 
 
 
-        #attempt 2, have the enconder predict only a z of 512 
-        #get the camera parameters, direction, translation, and distance. Encode them in a 64 vector
-        #pass the z_and_cam through more linear layers
-        #do a z.mean to get the full scene embedding because we want to be permutation invariant to how the frames are ordered
-        #step 1 get the camera params 
-        dirs=[]
-        R_world_cam_all_list=[]
-        t_world_cam_all_list=[]
-        for i in range( nr_imgs ):
-            tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
-            R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
-            t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
-            direction =R[:,2].view(1,3) #third column
-            dirs.append( direction ) 
-            R_world_cam_all_list.append(R.unsqueeze(0))
-            t_world_cam_all_list.append(t.view(1,1,3) )
-        R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
-        t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
-        dirs=torch.cat(dirs,0)
-        t_for_all_imgs= t_world_cam_all.view(nr_imgs, -1)
-        dist=t_for_all_imgs.view(nr_imgs,-1).norm(2, dim=1) 
-        cam_params=torch.cat([R_world_cam_all.view(nr_imgs,-1), t_world_cam_all.view(nr_imgs,-1), dirs.view(nr_imgs,-1), dist.view(nr_imgs,-1)],1)
-        #embedd, concat with the apperence z
-        cam_params=self.cam_embedder(cam_params)
-        z=torch.cat([z,cam_params],1)
-        #embedd the z_cam
-        z=self.z_with_cam_embedder(z)
-        #make a permutation invariant fusing
-        z=z.mean(0)
-        #embedd the scene 
-        # z=z.reshape(1,-1)
-        # z=self.z_scene_embedder(z)
-        z=z*2
-        # print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
+        # #attempt 2, have the enconder predict only a z of 512 
+        # #get the camera parameters, direction, translation, and distance. Encode them in a 64 vector
+        # #pass the z_and_cam through more linear layers
+        # #do a z.mean to get the full scene embedding because we want to be permutation invariant to how the frames are ordered
+        # #step 1 get the camera params 
+        # dirs=[]
+        # R_world_cam_all_list=[]
+        # t_world_cam_all_list=[]
+        # for i in range( nr_imgs ):
+        #     tf_world_cam= all_imgs_poses_cam_world_list[i].inverse()
+        #     R=torch.from_numpy(tf_world_cam.linear()).to("cuda")
+        #     t=torch.from_numpy(tf_world_cam.translation()).to("cuda")
+        #     direction =R[:,2].view(1,3) #third column
+        #     dirs.append( direction ) 
+        #     R_world_cam_all_list.append(R.unsqueeze(0))
+        #     t_world_cam_all_list.append(t.view(1,1,3) )
+        # R_world_cam_all=torch.cat(R_world_cam_all_list, 0) 
+        # t_world_cam_all=torch.cat(t_world_cam_all_list, 0) 
+        # dirs=torch.cat(dirs,0)
+        # t_for_all_imgs= t_world_cam_all.view(nr_imgs, -1)
+        # dist=t_for_all_imgs.view(nr_imgs,-1).norm(2, dim=1) 
+        # cam_params=torch.cat([R_world_cam_all.view(nr_imgs,-1), t_world_cam_all.view(nr_imgs,-1), dirs.view(nr_imgs,-1), dist.view(nr_imgs,-1)],1)
+        # #embedd, concat with the apperence z
+        # cam_params=self.cam_embedder(cam_params)
+        # z=torch.cat([z,cam_params],1)
+        # #embedd the z_cam
+        # z=self.z_with_cam_embedder(z)
+        # #make a permutation invariant fusing
+        # z=z.mean(0)
+        # #embedd the scene 
+        # # z=z.reshape(1,-1)
+        # # z=self.z_scene_embedder(z)
+        # z=z*2
+        # # print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
 
 
 
