@@ -96,7 +96,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_15"
+    experiment_name="s_16"
 
     use_ray_compression=False
 
@@ -452,8 +452,8 @@ def run():
 
                         # print("out tensor  ", out_tensor.min(), " ", out_tensor.max())
                         # print("out tensor  ", gt_rgb_tensor.min(), " ", gt_rgb_tensor.max())
-                        rgb_loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        # rgb_loss=((out_tensor-gt_rgb_tensor).abs()).mean()
+                        # rgb_loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        rgb_loss=( torch.abs(out_tensor-gt_rgb_tensor) ).mean()
                         # loss+=((rgb_siren-gt_rgb_tensor)**2).mean()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / loader_test.nr_samples()
                         # loss=(((out_tensor-gt_rgb_tensor)**2)).mean()  / 10
@@ -467,9 +467,9 @@ def run():
 
                         ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
                         # loss=rgb_loss + smooth_loss*0.001 + ssim_loss
-                        # loss=rgb_loss*0.5 + ssim_loss*0.5
+                        loss=rgb_loss*0.5 + ssim_loss*0.5
                         # loss= ssim_loss
-                        loss=rgb_loss
+                        # loss=rgb_loss
 
                         #make a loss to bring znear anzfar close 
                         if use_ray_compression:
