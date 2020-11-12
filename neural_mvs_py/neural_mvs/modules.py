@@ -743,14 +743,14 @@ class LearnedPEGaussian(MetaModule):
     def __init__(self, in_channels, out_channels, std ):
         super(LearnedPEGaussian, self).__init__()
 
-        # self.in_channels=in_channels
-
-        # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
-        # self.conv= MetaLinear(in_channels, out_channels bias=True).cuda()  #in the case we set the weight ourselves
         # self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
-        self.b = torch.nn.Parameter(torch.randn(in_channels, int(out_channels/2) ))
-        self.bias = torch.nn.Parameter(torch.randn(1, int(out_channels/2) ))
-        torch.nn.init.normal_(self.b, 0.0, std)
+        # self.bias = torch.nn.Parameter(torch.randn(1, int(out_channels/2) ))
+        # torch.nn.init.normal_(self.b, 0.0, std)
+
+
+        #with conv so we can control it using the hyernet
+        self.conv= MetaLinear(in_channels, int(out_channels/2), bias=True).cuda()  #in the case we set the weight ourselves
+        torch.nn.init.normal_(self.conv.weight, 0.0, std*2.0*3.141592)
 
 
     def forward(self, x, params=None):
@@ -761,12 +761,18 @@ class LearnedPEGaussian(MetaModule):
             print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
             exit(1)
 
-        # b=self.b.repeat(self.in_channels ,1)
-        mat=2.0*3.141592*self.b
-        x_proj = torch.matmul(x, mat)
-        x_proj=x_proj+self.bias
-        # print("x is ", x.shape)
-        # print("xproj is ", x_proj.shape)
+        # # b=self.b.repeat(self.in_channels ,1)
+        # mat=2.0*3.141592*self.b
+        # x_proj = torch.matmul(x, mat)
+        # x_proj=x_proj+self.bias
+        # # print("x is ", x.shape)
+        # # print("xproj is ", x_proj.shape)
+        # return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
+
+
+
+        #with conv so we can control it with hypernet
+        x_proj = self.conv(x, params=get_subdict(params, 'conv'), incremental=True)
         return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
 
 

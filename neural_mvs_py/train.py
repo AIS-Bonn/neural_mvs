@@ -96,7 +96,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_1"
+    experiment_name="s_13"
 
     use_ray_compression=False
 
@@ -305,7 +305,7 @@ def run():
                         Scene.show(frustum, "frustum")
                         #show the first frame of the ones used for encoding
                         Gui.show(frames_for_encoding[0].rgb_32f, "rgb_for_enc")
-                        Scene.show(gt_frame.cloud, "cloud")
+                        # Scene.show(gt_frame.cloud, "cloud")
 
 
 
@@ -547,8 +547,8 @@ def run():
                                 #     {'params': model.z_with_cam_embedder.parameters(), 'lr': train_params.lr()*10  },
                                 #     {'params': model.encoder.parameters(), 'lr': train_params.lr()*10 }
                                 # ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
 
 

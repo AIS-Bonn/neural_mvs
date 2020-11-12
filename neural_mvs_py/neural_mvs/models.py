@@ -866,8 +866,8 @@ class EncoderLNN(torch.nn.Module):
 
     def forward(self, cloud):
 
-        positions=torch.from_numpy(cloud.V).float().to("cuda")
-        values=torch.from_numpy(cloud.C).float().to("cuda")
+        positions=torch.from_numpy(cloud.V.copy() ).float().to("cuda")
+        values=torch.from_numpy(cloud.C.copy() ).float().to("cuda")
         values=torch.cat( [positions,values],1 )
 
 
@@ -1189,11 +1189,11 @@ class SirenNetworkDirectPE(MetaModule):
         # self.position_embedders=torch.nn.ModuleList([])
 
         num_encodings=11
-        self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
-        cur_nr_channels=in_channels + in_channels*num_encodings*2
+        # self.learned_pe=LearnedPE(in_channels=in_channels, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels=in_channels + in_channels*num_encodings*2
         #new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
-        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
-        # cur_nr_channels=256+in_channels
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=3)
+        cur_nr_channels=256+in_channels
         #combined PE  and gaussian
         # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
@@ -1851,7 +1851,12 @@ class Net(torch.nn.Module):
         # print("encoding")
         TIME_START("encoding")
         # z=self.encoder(x)
-        z=self.encoder(frames_for_encoding[0].cloud)
+        mesh=Mesh()
+        for i in range(len(frames_for_encoding)):
+            mesh.add( frames_for_encoding[i].cloud )
+        Scene.show(mesh, "cloud")
+        # z=self.encoder(frames_for_encoding[0].cloud)
+        z=self.encoder(mesh)
         TIME_END("encoding")
         # print("encoder outputs z", z.shape)
 
@@ -1961,6 +1966,7 @@ class Net(torch.nn.Module):
         # # var=z.std()
         # # mean=z.mean()
         # # z=(z-mean)/var
+        # z=z*2.5
         # print("NET: z has mean", z.mean().item(), " var", z.var().item(),"Std ", z.std().item(), "min ", z.min().item(), " max", z.max() )
 
 

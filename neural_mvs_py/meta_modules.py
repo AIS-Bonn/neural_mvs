@@ -120,8 +120,8 @@ class HyperNetworkPrincipledInitialization(nn.Module):
                 self.nets[-1][-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
             elif 'bias' in name:
                 in_features_main_net=param.shape[0]
-                self.nets[-1][-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
-                # self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m))
+                # self.nets[-1][-1].apply(lambda m: principled_init_for_predicting_weights(m, in_features_main_net ))
+                self.nets[-1].apply(lambda m: principled_init_for_predicting_bias(m))
 
             param_idx+=1
 
@@ -144,8 +144,13 @@ class HyperNetworkPrincipledInitialization(nn.Module):
             # print("z shape is ", z.shape)
 
 
-            # print("HYPERNET: z has mean and varaicne ", z.mean().item(), " var", z.var().item(),"Std ", z.std().item() )
-            weight= net(z).reshape(param_shape)
+            # z_scaled=z*6
+            # z_scaled=z*1000
+            # z_scaled=z*13
+            # z_scaled=z*19
+            z_scaled=z*2.5
+            # print("HYPERNET: z has mean ", z_scaled.mean().item(), " var", z_scaled.var().item(),"Std ", z_scaled.std().item() )
+            weight= net(z_scaled).reshape(param_shape)
             # if "net" in name and "weight" in name:
                 # std=weight.std()
                 # print("std is ", std)
@@ -384,7 +389,8 @@ def hyper_weight_init(m, in_features_main_net):
 def principled_init_for_predicting_weights(m, in_features_main_net):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
-        var= 1.0/(fan_in * in_features_main_net) *2 #the x2 is because we want the variance to increase from the 0.5 which we have after a sine activation to a 1.0 
+        # var= 1.0/(fan_in * in_features_main_net) *2 #the x2 is because we want the variance to increase from the 0.5 which we have after a sine activation to a 1.0 
+        var= 1.0/(fan_in * in_features_main_net)
         print("fan in is ", fan_in, " in_features_main_net ", in_features_main_net)
         print("initializing weight with var ", var)
         std= np.sqrt(var)
@@ -400,6 +406,7 @@ def principled_init_for_predicting_bias(m):
     if hasattr(m, 'weight'):
         fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
         print("initialize for bias prediction fan in is ", fan_in, )
+        # var= 1.0/(fan_in)
         var= 1.0/(fan_in)
         std= np.sqrt(var)
         bound = math.sqrt(3.0) * std
