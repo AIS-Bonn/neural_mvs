@@ -30,7 +30,16 @@ public:
     }
     ~NeuralMVS();
 
-    // torch::Tensor splat_texture(const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size);
+
+    //renders the mesh into a camera frame and returns a vector of Nx1 where a 1 indices that the vertex is visible and a 0 indives that the vertex is not rendered into the view or is occluded
+    // Eigen::MatriXi depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh, const Eigen::Affine3d tf_cam_world. const Eigen::Matrix3d K); 
+
+    //forward functions
+    torch::Tensor splat_texture(const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size);
+    torch::Tensor slice_texture(const torch::Tensor& texture, const torch::Tensor& uv_tensor);
+    //backward functions
+    std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(const torch::Tensor& grad_texture, const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor );
+    std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(const torch::Tensor& grad_values, const torch::Tensor& texture, const torch::Tensor& uv_tensor );
 
 
 private:

@@ -70,26 +70,91 @@ NeuralMVS::~NeuralMVS(){
 }
 
 
-// // positions_tensor, uv_tensor, texture_size
-// Tensor NeuralSDF::splat_texture( const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size){
+Tensor NeuralMVS::splat_texture( const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size){
 
-//     CHECK(values_tensor.dim()==2 ) << "values tensor should have 2 dimensions correponding to N x val_dim";
-//     CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
-//     CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
+    CHECK(values_tensor.dim()==2 ) << "values tensor should have 2 dimensions correponding to N x val_dim";
+    CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
+    CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
 
-//     int nr_values=values_tensor.size(0);
-//     int val_dim=values_tensor.size(1);
-//     int nr_channels_texture = val_dim+1; // we have a +1 because we store also a homogeneous value
+    int nr_values=values_tensor.size(0);
+    int val_dim=values_tensor.size(1);
+    int nr_channels_texture = val_dim+1; // we have a +1 because we store also a homogeneous value
 
-//     Tensor texture = torch::zeros({ texture_size, texture_size, nr_channels_texture }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
+    Tensor texture = torch::zeros({ texture_size, texture_size, nr_channels_texture }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
 
    
-//     m_impl->splat_texture( texture.data_ptr<float>(),   //output
-//                            values_tensor.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input
-//                            nr_values, val_dim, texture_size); //constant
+    m_impl->splat_texture( texture.data_ptr<float>(),   //output
+                           values_tensor.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input
+                           nr_values, val_dim, texture_size); //constant
 
-//     return texture;
+    return texture;
 
-// }
+}
 
-// }
+Tensor NeuralMVS::slice_texture(const torch::Tensor& texture, const torch::Tensor& uv_tensor){
+
+    CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
+    CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
+
+    int nr_values=uv_tensor.size(0);
+    int nr_channels_texture=texture.size(2);
+    int texture_size=texture.size(1);
+    // int val_dim = nr_channels_texture-1; // we have a +1 because we store also a homogeneous value
+
+    Tensor values_not_normalized_tensor = torch::zeros({ nr_values, nr_channels_texture}, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
+
+    m_impl->slice_texture( values_not_normalized_tensor.data_ptr<float>(), //output
+                           texture.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input 
+                           nr_values, nr_channels_texture, texture_size); //constant
+
+    return values_not_normalized_tensor;
+}
+
+
+std::tuple<Tensor, Tensor> NeuralMVS::splat_texture_backward( const torch::Tensor& grad_texture, const torch::Tensor& values_tensor, const torch::Tensor&  uv_tensor ){
+
+    CHECK(values_tensor.dim()==2 ) << "values tensor should have 2 dimensions correponding to N x val_dim";
+    CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
+    CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
+
+    int nr_values=values_tensor.size(0);
+    int val_dim=values_tensor.size(1);
+    int texture_size=grad_texture.size(1);
+    // int nr_channels_texture = val_dim+1; // we have a +1 because we store also a homogeneous value
+
+    Tensor grad_values = torch::zeros({ nr_values, val_dim }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
+    Tensor grad_uv = torch::zeros({ nr_values, 2 }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
+
+   
+    m_impl->splat_texture_backward( grad_values.data_ptr<float>(), grad_uv.data_ptr<float>(),  //output
+                                    grad_texture.data_ptr<float>(), values_tensor.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input
+                                    nr_values, val_dim, texture_size); //constant
+
+    return std::make_tuple(grad_values, grad_uv);
+
+}
+
+
+std::tuple<torch::Tensor, torch::Tensor> NeuralMVS::slice_texture_backward(const torch::Tensor& grad_values_not_normalized, const torch::Tensor& texture, const torch::Tensor&  uv_tensor ){
+
+
+    CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
+    CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
+
+    int nr_values=uv_tensor.size(0);
+    int nr_channels_texture=texture.size(2);
+    int texture_size=texture.size(1);
+    // int val_dim = nr_channels_texture-1; // we have a +1 because we store also a homogeneous value
+
+    Tensor grad_texture = torch::zeros({ texture_size, texture_size, nr_channels_texture }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
+    Tensor grad_uv = torch::zeros({ nr_values, 2 }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
+
+    m_impl->slice_texture_backward( grad_texture.data_ptr<float>(), grad_uv.data_ptr<float>(), //output
+                                    grad_values_not_normalized.data_ptr<float>(), texture.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input
+                                    nr_values, nr_channels_texture, texture_size); //constant
+
+    return std::make_tuple(grad_texture, grad_uv);
+
+}
+
+

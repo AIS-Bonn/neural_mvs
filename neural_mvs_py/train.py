@@ -96,7 +96,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_21"
+    experiment_name="s_22"
 
     use_ray_compression=False
 
