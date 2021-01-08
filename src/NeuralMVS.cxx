@@ -201,6 +201,8 @@ Tensor NeuralMVS::splat_texture( const torch::Tensor& values_tensor, const torch
     CHECK(values_tensor.dim()==2 ) << "values tensor should have 2 dimensions correponding to N x val_dim";
     CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
     CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
+    CHECK(values_tensor.scalar_type()==torch::kFloat32 ) << "Values should be float";
+    CHECK(uv_tensor.scalar_type()==torch::kFloat32 ) << "UVs should be float";
 
     int nr_values=values_tensor.size(0);
     int val_dim=values_tensor.size(1);
@@ -221,6 +223,11 @@ Tensor NeuralMVS::slice_texture(const torch::Tensor& texture, const torch::Tenso
 
     CHECK(uv_tensor.dim()==2 ) << "UV tensor should have 2 dimensions correponding to N x 2";
     CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
+    CHECK(texture.dim()==3 ) << "texture should have 3 dimensions correponding to HxWxC";
+    CHECK( texture.size(0)==texture.size(1) ) << "We are currently assuming that the height and width are the same. At some points I have to implement properly non-square textures";
+    CHECK(texture.scalar_type()==torch::kFloat32 ) << "Texture should be float";
+    CHECK(uv_tensor.scalar_type()==torch::kFloat32 ) << "UVs should be float";
+
 
     int nr_values=uv_tensor.size(0);
     int nr_channels_texture=texture.size(2);

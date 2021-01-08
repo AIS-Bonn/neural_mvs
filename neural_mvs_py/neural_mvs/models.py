@@ -1723,6 +1723,49 @@ class NerfDirect(MetaModule):
         return x
 
 
+class DecoderTo2D(torch.nn.Module):
+    def __init__(self, z_size, out_channels):
+        super(DecoderTo2D, self).__init__()
+
+        self.z_size=z_size
+        self.out_channels=out_channels
+        
+        # self.nr_upsamples=8 # 256
+        self.nr_upsamples=5 # 32
+        self.channels_per_stage=[z_size, int(z_size/2), int(z_size/4), int(z_size/4), int(z_size/8), int(z_size/16), int(z_size/16), int(z_size/32), int(z_size/32), int(z_size/32)    ]
+        self.upsample_list=torch.nn.ModuleList([])
+        self.conv_list=torch.nn.ModuleList([])
+        cur_nr_channels=z_size
+        for i in range(self.nr_upsamples):
+            # self.upsample_list.append(  torch.nn.ConvTranspose2d(in_channels=cur_nr_channels, out_channels=int(cur_nr_channels/2), kernel_size=2, stride=2)  )
+            # cur_nr_channels=int(cur_nr_channels/2)
+            self.upsample_list.append(  torch.nn.ConvTranspose2d(in_channels=cur_nr_channels, out_channels=self.channels_per_stage[i], kernel_size=2, stride=2)  )
+            cur_nr_channels=self.channels_per_stage[i]
+            if cur_nr_channels<4:
+                print("the cur nr of channels is too low to compute a good output with the final conv, we might want to have at least 8 feature maps")
+                exit(1)
+            self.conv_list.append(  ResnetBlock2D( out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=True   ) )
+
+        self.final_conv= BlockPAC(in_channels=cur_nr_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+      
+
+    def forward(self, z):
+
+        x=z.view(1,self.z_size,1,1)
+
+        for i in range(self.nr_upsamples):
+            x=self.upsample_list[i](x)
+            x=self.conv_list[i](x,x)
+            # print("x for stage ", i, " has shape ", x.shape )
+
+        # print("final x after decoding is ", x.shape)
+        x=self.final_conv(x,x)
+
+        # print("final x after decoding is ", x.shape)
+
+        return x
+
+
 
 
 
@@ -1752,6 +1795,7 @@ class Net(torch.nn.Module):
         # self.encoder=Encoder2D(self.z_size)
         # self.encoder=Encoder(self.z_size)
         self.encoder=EncoderLNN(self.z_size)
+        self.decoder=DecoderTo2D(self.z_size, 6)
         # self.z_size+=3 #because we add the direcitons
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
@@ -1859,6 +1903,24 @@ class Net(torch.nn.Module):
         z=self.encoder(mesh)
         TIME_END("encoding")
         # print("encoder outputs z", z.shape)
+
+        TIME_START("decode")
+        img=self.decoder(z)
+        img_directly_after_decoding=img
+        # img_mat=tensor2mat(img)
+        # Gui.show(img_mat, "img_decoded")
+        # img=img.view(self.decoder.out_channels, -1)
+        # img=img.transpose(0,1).contiguous()
+        # V=img.detach()[:, 0:3].cpu().numpy()
+        # C=img.detach()[:, 3:6].cpu().numpy()
+        # mesh_decoded=Mesh()
+        # mesh_decoded.V=V
+        # mesh_decoded.C=C
+        # mesh_decoded.m_vis.m_show_points=True
+        # mesh_decoded.m_vis.set_color_pervertcolor()
+        # Scene.show(mesh_decoded, "mesh_decoded")
+
+        TIME_END("decode")
 
         TIME_START("rotate")
         #make z into a nr_imgs x z_size
@@ -2365,7 +2427,7 @@ class Net(torch.nn.Module):
 
 
 
-        return rgb_predicted,  depth_map, acc_map, new_loss
+        return rgb_predicted,  depth_map, acc_map, new_loss, img_directly_after_decoding
 
 
 

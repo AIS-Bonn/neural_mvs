@@ -237,6 +237,9 @@ def run():
 
   
     neural_mvs=NeuralMVS.create()
+    upsampler = nn.Upsample(size=[45,45], mode='bilinear')
+    first_gt_rgb=None
+    slice_module= SliceTextureModule()
 
 
     while True:
@@ -288,6 +291,9 @@ def run():
                     gt_frame=frames_for_encoding[ random.randint(0, len(frames_for_encoding)-1 )]
                     gt_rgb_tensor=mat2tensor(gt_frame.rgb_32f, False).to("cuda")
                     mask=mat2tensor(gt_frame.mask, False).to("cuda")
+
+                    if first_gt_rgb==None:
+                        first_gt_rgb=gt_rgb_tensor
 
                     #start reading new scene
                     # if(phase.iter_nr%1==0):
@@ -371,7 +377,7 @@ def run():
                             # print("gt fra,e translation is ", gt_frame.tf_cam_world.translation())
                             # exit(1)
                             # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, render_tf )
-                            out_tensor,  depth_map, acc_map, new_loss=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, use_ray_compression, novel=True )
+                            out_tensor,  depth_map, acc_map, new_loss, img_decoded=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, render_tf, gt_frame.K, depth_min, depth_max, use_ray_compression, novel=True )
                             # out_tensor=model(ref_rgb_tensor, renrgb_siren,der_tf, render_tf )
                             if(phase.iter_nr%1==0):
                                 out_mat=tensor2mat(out_tensor)
@@ -399,7 +405,7 @@ def run():
 
                         TIME_START("forward")
                         # out_tensor=model(ref_rgb_tensor, ref_frame.tf_cam_world, gt_frame.tf_cam_world )
-                        out_tensor, depth_map, acc_map, new_loss=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max, use_ray_compression )
+                        out_tensor, depth_map, acc_map, new_loss, img_decoded=model(gt_frame, frames_for_encoding, all_imgs_poses_cam_world_list, gt_frame.tf_cam_world, gt_frame.K, depth_min, depth_max, use_ray_compression )
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
@@ -414,22 +420,14 @@ def run():
                         V=mesh.V.copy()
                         is_visible_tensor=torch.from_numpy(is_visible)
                         is_visible_tensor_bool=is_visible_tensor>0.0
-                        print("is visible bool has shape ", is_visible_tensor_bool.shape)
                         V_tensor=torch.from_numpy(V)
-                        print("V_tensor has hsape", V_tensor.shape)
                         V_visible=torch.masked_select(V_tensor,is_visible_tensor_bool)
                         V_visible=V_visible.view(-1,3)
-                        print("V_tensor visible has hsape", V_visible.shape)
                         mesh_visible=Mesh()
                         mesh_visible.V=V_visible.numpy().copy()
-                        print("V_visible is ", mesh_visible.V)
-                        print("scale of mesh is ", mesh_visible.get_scale() )
-                        print("scnee has nr of meshes ", Scene.nr_meshes() )
-                        print("scene scale before adding is ", Scene.get_scale() )
                         mesh_visible.m_vis.m_show_points=True
                         TIME_END("depth_test")
                         Scene.show(mesh_visible, "mesh_visible")
-                        print("scene scale after adding is ", Scene.get_scale() )
                         # exit(1)
 
 
@@ -509,6 +507,80 @@ def run():
                             zfar=gt_frame.znear_zfar[:,1,:,:]
                             ray_shortness_loss=((zfar-znear)**2).mean()
                             loss+=ray_shortness_loss*0.01
+
+                        
+                        # #making a loss for the img_decoded 
+                        # img_decoded=upsampler(img_decoded)
+                        # print("img decoded has shape ", img_decoded.shape)
+                        # print("gt_rgb_tensor has shape ", gt_rgb_tensor.shape)
+                        # loss_img_decoded=( torch.abs(img_decoded-first_gt_rgb) ).mean()
+                        # loss+=loss_img_decoded
+
+
+                        #get the visible predicted points 
+                        img_decoded=img_decoded.view(model.decoder.out_channels, -1)
+                        img_decoded=img_decoded.transpose(0,1).contiguous()
+                        V=img_decoded.detach()[:, 0:3].cpu().numpy()
+                        C=img_decoded.detach()[:, 3:6].cpu().numpy()
+                        cloud_predicted=Mesh()
+                        cloud_predicted.V=V
+                        is_visible=neural_mvs.depth_test(cloud_predicted, gt_frame.tf_cam_world.to_double(), gt_frame.K )
+                        V=cloud_predicted.V.copy()
+                        is_visible_tensor=torch.from_numpy(is_visible).to("cuda")
+                        is_visible_tensor_bool=is_visible_tensor>0.0
+                        V_tensor=torch.from_numpy(V).to("cuda")
+                        V_visible=torch.masked_select(V_tensor,is_visible_tensor_bool)
+                        V_visible=V_visible.view(-1,3)
+                        mesh_visible=Mesh()
+                        mesh_visible.V=V_visible.detach().cpu().numpy().copy()
+                        mesh_visible.m_vis.m_show_points=True
+                        Scene.show(mesh_visible, "mesh_visible")
+                        #get the visible pixels
+                        img_decoded_visible=torch.masked_select(img_decoded, is_visible_tensor_bool)
+                        img_decoded_visible=img_decoded_visible.view(-1,model.decoder.out_channels)
+                        img_decoded_positions_visible= img_decoded_visible[:, 0:3]
+                        img_decoded_colors_visible= img_decoded_visible[:, 3:6]
+                        #get the tf and K into pytorch tensors
+                        R= torch.from_numpy( gt_frame.tf_cam_world.linear().copy() ).to("cuda")
+                        t= torch.from_numpy( gt_frame.tf_cam_world.translation().copy() ).to("cuda")
+                        K= torch.from_numpy( gt_frame.K.copy() ).to("cuda")
+                        img_decoded_positions_visible=img_decoded_positions_visible.to("cuda")
+                        # print("R is ", R.shape)
+                        #project the visible pixels in the view
+                        img_decoded_positions_visible=torch.matmul(R, img_decoded_positions_visible.transpose(0,1) ).transpose(0,1)  
+                        img_decoded_positions_visible=img_decoded_positions_visible+t.view(1,3)
+                        img_decoded_positions_visible=torch.matmul(img_decoded_positions_visible, K.transpose(0,1) )
+                        img_decoded_positions_visible_2d =img_decoded_positions_visible[:, 0:2]/ img_decoded_positions_visible[:,2:3]
+                        # print("img_decoded_positions_visible", img_decoded_positions_visible.shape)
+                        # print("img_decoded_positions_visible_2dmin max is ", img_decoded_positions_visible_2d.min(), " ", img_decoded_positions_visible_2d.max() )
+                        #get uv 
+                        width= gt_frame.width
+                        height= gt_frame.height
+                        # print("width and height", width, " ", height)
+                        img_decoded_positions_visible_2d[:,0] = img_decoded_positions_visible_2d[:,0]/width
+                        img_decoded_positions_visible_2d[:,1] = img_decoded_positions_visible_2d[:,1]/height
+                        # print("img_decoded_positions_visible_2d ", img_decoded_positions_visible_2d)
+                        #slice colors 
+                        gt_colors= gt_rgb_tensor.squeeze(0)
+                        # print("gt_colors is ", gt_colors.shape)
+                        gt_colors = gt_colors.permute(1,2,0).contiguous()
+                        # print("gt_colors is ", gt_colors.shape)
+                        # print("gt colors is ", gt_colors)
+                        # print("uv has shape", img_decoded_positions_visible_2d.shape)
+                        # print("img_decoded_positions_visible_2d is ", img_decoded_positions_visible_2d)
+                        dummy,dummy2,sliced_colors=slice_module(gt_colors, img_decoded_positions_visible_2d)
+                        # print("sliced_colors", sliced_colors.shape )
+                        # print("img_decoded_colors_visible", img_decoded_colors_visible.shape )
+                        img_decoded_colors_visible=img_decoded_colors_visible.to("cuda")
+                        loss_color = ( torch.abs(sliced_colors-img_decoded_colors_visible) ).mean()
+                        loss+=loss_color
+
+
+
+
+
+
+
 
 
                         #debug the diff map 

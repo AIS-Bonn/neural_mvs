@@ -355,11 +355,14 @@ class BlockPAC(torch.nn.Module):
 
         in_channels=x.shape[1]
 
-
-        x = self.conv(x, guide )
+        if self.do_norm:
+            x=self.norm(x)
 
         if self.activ !=None: 
             x=self.activ(x)
+
+        x = self.conv(x, guide )
+
        
 
         return x
@@ -623,6 +626,8 @@ class BlockForResnet(MetaModule):
 
 
 
+
+
 class ResnetBlock2D(torch.nn.Module):
 
     def __init__(self, out_channels, kernel_size, stride, padding, dilations, biases, with_dropout, do_norm=False, activ=torch.nn.ReLU(inplace=False), is_first_layer=False ):
@@ -813,3 +818,42 @@ class LearnedPEGaussian2(MetaModule):
         return x
 
 
+
+
+class SplatTextureModule(torch.nn.Module):
+    def __init__(self):
+    # def __init__(self, nr_filters, neighbourhood_size, dilation=1):
+        super(SplatTextureModule, self).__init__()
+        self.first_time=True
+        self.neural_mvs=NeuralMVS.create()
+
+
+    def forward(self, values_tensor, uv_tensor, texture_size):
+
+        # homogeneous=torch.ones(values_tensor.shape[0],1).to("cuda")
+        # values_with_homogeneous=torch.cat([values_tensor, homogeneous],1)
+
+        texture = SplatTexture.apply(values_tensor, uv_tensor, texture_size, self.neural_mvs)
+        # texture = SplatTexture.apply(values_with_homogeneous, uv_tensor, texture_size)
+        
+        return texture
+
+
+class SliceTextureModule(torch.nn.Module):
+    def __init__(self):
+    # def __init__(self, nr_filters, neighbourhood_size, dilation=1):
+        super(SliceTextureModule, self).__init__()
+        self.first_time=True
+        self.neural_mvs=NeuralMVS.create()
+
+    def forward(self, texture, uv_tensor):
+
+        values_not_normalized = SliceTexture.apply(texture, uv_tensor, self.neural_mvs)
+
+        #normalize by the homogeneous coord
+        val_dim = values_not_normalized.shape[1] - 1
+        homogeneous = values_not_normalized[:, val_dim:val_dim+1].clone()
+        values=values_not_normalized[:, 0:val_dim] / ( homogeneous + 1e-5)
+
+        
+        return values, homogeneous, values_not_normalized
