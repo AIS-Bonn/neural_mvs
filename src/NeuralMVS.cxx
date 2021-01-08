@@ -1,5 +1,9 @@
 #include "neural_mvs/NeuralMVS.cuh"
 
+#include <glad/glad.h> // Initialize with gladLoadGL()
+// Include glfw3.h after our OpenGL definitions
+#include <GLFW/glfw3.h>
+
 //c++
 #include <string>
 
@@ -9,6 +13,10 @@
 #include "numerical_utils.h"
 #include "eigen_utils.h"
 #include "easy_pbr/Mesh.h"
+#include "easy_pbr/MeshGL.h"
+#include "easy_pbr/Gui.h"
+#include "UtilsGL.h"
+
 
 
 // #include "igl/adjacency_list.h"
@@ -62,6 +70,8 @@ NeuralMVS::NeuralMVS():
     m_impl( new NeuralMVSGPU() )
     {
 
+    compile_shaders();
+    init_opengl();
 
 }
 
@@ -69,6 +79,122 @@ NeuralMVS::~NeuralMVS(){
     // LOG(WARNING) << "Deleting lattice: " << m_name;
 }
 
+
+void NeuralMVS::compile_shaders(){
+    m_depth_test_shader.compile( std::string(CMAKE_SOURCE_DIR)+"/shaders/points_vert.glsl", std::string(CMAKE_SOURCE_DIR)+"/shaders/points_frag.glsl" ) ;
+}
+
+void NeuralMVS::init_opengl(){
+    GL_C( m_pos_buffer.set_size(256, 256 ) ); //established what will be the size of the textures attached to this framebuffer
+    GL_C( m_pos_buffer.add_texture("pos_gtex", GL_RGB32F, GL_RGB, GL_FLOAT) );  
+    GL_C( m_pos_buffer.add_depth("depth_gtex") );
+    m_pos_buffer.sanity_check();
+}
+
+Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh_core, const Eigen::Affine3d tf_cam_world, const Eigen::Matrix3d K){
+
+
+    // params
+    int subsample_factor=1;
+
+    //upload to meshgl
+    easy_pbr::MeshGLSharedPtr mesh=easy_pbr::MeshGL::create();
+    mesh->assign_core(mesh_core);
+    mesh->upload_to_gpu();
+    mesh->sanity_check(); //check that we have for sure all the normals for all the vertices and faces and that everything is correct
+
+
+
+    // make a viewport of a certain size like 256x256
+    int viewport_width=K(0,2)*2;
+    int viewport_height=K(1,2)*2;
+    glViewport(0.0f , 0.0f, viewport_width/subsample_factor, viewport_height/subsample_factor ); 
+
+    // make a texture to store the XYZ positions 
+    if(viewport_width/subsample_factor!=m_pos_buffer.width() || viewport_height/subsample_factor!=m_pos_buffer.height()){
+        m_pos_buffer.set_size(viewport_width/subsample_factor, viewport_height/subsample_factor);
+    }
+    m_pos_buffer.bind_for_draw();
+    m_pos_buffer.clear();
+
+
+    //setup
+    gl::Shader &shader =m_depth_test_shader;
+    if(mesh->m_core->V.size()){
+        mesh->vao.vertex_attribute(shader, "position", mesh->V_buf, 3);
+    }
+    if(mesh->m_core->F.size()){
+        mesh->vao.indices(mesh->F_buf); //Says the indices with we refer to vertices, this gives us the triangles
+    }
+
+
+    //matrices setuo
+    // Eigen::Matrix4f M = Eigen::Matrix4f::Identity();
+    Eigen::Matrix4f M=mesh->m_core->model_matrix().cast<float>().matrix();
+    Eigen::Matrix4f V = tf_cam_world.matrix().cast<float>();
+    Eigen::Matrix4f P = intrinsics_to_opengl_proj(K.cast<float>(), m_pos_buffer.width(), m_pos_buffer.height());
+    // Eigen::Matrix4f MV = V*M;
+    Eigen::Matrix4f MVP = P*V*M;
+ 
+    //shader setup
+    shader.use();
+    shader.uniform_4x4(MVP, "MVP");
+  
+
+
+    m_pos_buffer.bind_for_draw();
+    shader.draw_into(m_pos_buffer,
+                                    {
+                                    std::make_pair("pos_out", "pos_gtex"),
+                                    }
+                                    ); //makes the shaders draw into the buffers we defines in the gbuffer
+
+    // draw
+    mesh->vao.bind(); 
+    // glDrawElements(GL_TRIANGLES, mesh->m_core->F.size(), GL_UNSIGNED_INT, 0);
+    glPointSize(3.0);
+    glDrawArrays(GL_POINTS, 0, mesh->m_core->V.rows());
+
+
+    GL_C( glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0) );
+
+    //get the texture to cpu 
+    cv::Mat pos_mat= m_pos_buffer.tex_with_name("pos_gtex").download_to_cv_mat();
+    easy_pbr::Gui::show(pos_mat, "pos_mat");
+
+    //compare each vertex from the mesh to the stored xyz in the texture, if it's close then we deem it as visible
+    Eigen::MatrixXi is_visible;
+    is_visible.resize(mesh_core->V.rows(),1);
+    is_visible.setZero();
+
+    for(int i=0; i<mesh_core->V.rows(); i++){
+        Eigen::Vector3d point = mesh_core->V.row(i);
+        Eigen::Vector3d point_cam_coords=tf_cam_world*point;
+        Eigen::Vector3d point2d = K*point_cam_coords;
+
+        point2d.x()/=point2d.z();
+        point2d.y()/=point2d.z();
+        int x=point2d.x();
+        // int y=m_pos_buffer.height()-point2d.y();
+        int y=point2d.y();
+
+        cv::Vec3f pixel= pos_mat.at<cv::Vec3f>(y,x); 
+        Eigen::Vector3d pixel_xyz;
+        pixel_xyz << pixel[0], pixel[1], pixel[2];
+
+        float diff=(point-pixel_xyz).norm();
+        if(diff<0.1){
+            is_visible(i,0)=1;
+        }
+    }
+
+    //AFTERrendering we set again the m_is_dirty so that the next scene.show actually uplaod the data again to the gpu
+    mesh_core->m_is_dirty=true;
+
+
+    return is_visible;
+
+}
 
 Tensor NeuralMVS::splat_texture( const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size){
 

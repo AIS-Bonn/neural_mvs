@@ -13,6 +13,9 @@
 #include "jitify/jitify.hpp"
 #include <Eigen/Dense>
 
+#include "Shader.h"
+#include "GBuffer.h"
+
 namespace easy_pbr{
     class Mesh;
 }
@@ -30,9 +33,12 @@ public:
     }
     ~NeuralMVS();
 
+    void compile_shaders();
+    void init_opengl();
+
 
     //renders the mesh into a camera frame and returns a vector of Nx1 where a 1 indices that the vertex is visible and a 0 indives that the vertex is not rendered into the view or is occluded
-    // Eigen::MatriXi depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh, const Eigen::Affine3d tf_cam_world. const Eigen::Matrix3d K); 
+    Eigen::MatrixXi depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh_core, const Eigen::Affine3d tf_cam_world, const Eigen::Matrix3d K); 
 
     //forward functions
     torch::Tensor splat_texture(const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size);
@@ -44,6 +50,10 @@ public:
 
 private:
     NeuralMVS();
+
+    gl::Shader m_depth_test_shader;
+
+    gl::GBuffer m_pos_buffer; 
 
     std::shared_ptr<NeuralMVSGPU> m_impl;
 };

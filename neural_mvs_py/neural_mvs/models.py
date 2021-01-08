@@ -1854,7 +1854,7 @@ class Net(torch.nn.Module):
         mesh=Mesh()
         for i in range(len(frames_for_encoding)):
             mesh.add( frames_for_encoding[i].cloud )
-        Scene.show(mesh, "cloud")
+        # Scene.show(mesh, "cloud")
         # z=self.encoder(frames_for_encoding[0].cloud)
         z=self.encoder(mesh)
         TIME_END("encoding")
@@ -2201,7 +2201,7 @@ class Net(torch.nn.Module):
             #color based on sigma 
             sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
             rays_mesh.C=sigma_a.cpu().numpy()
-            Scene.show(rays_mesh, "rays_mesh_novel")
+            # Scene.show(rays_mesh, "rays_mesh_novel")
         if not novel:
             self.iter+=1
 

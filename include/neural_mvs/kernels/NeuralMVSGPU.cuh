@@ -33,7 +33,7 @@ public:
 
         //it uses Jittify to get a handle for the programs. The programs can contain more than one kernel.. It doesnt actually compile them, they will get jit compiled the first time you run them
         void create_program_handles(){
-            m_program=create_jitify_program( std::string(CMAKE_SOURCE_DIR)+"/include/neural_mesh/kernels/NeuralMVSGPU.cuh" );
+            m_program=create_jitify_program( std::string(CMAKE_SOURCE_DIR)+"/include/neural_mvs/kernels/NeuralMVSGPU.cuh" );
         }
 
 

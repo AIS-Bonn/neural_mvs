@@ -236,6 +236,7 @@ def run():
     novel_cam.m_far=3
 
   
+    neural_mvs=NeuralMVS.create()
 
 
     while True:
@@ -386,6 +387,8 @@ def run():
                                 frustum=novel_cam.create_frustum_mesh(0.1, [100,70])
                                 Scene.show(frustum, "frustum_novel")
 
+                               
+
 
 
                         # print("finishing")
@@ -400,6 +403,35 @@ def run():
                         # out_tensor=model(gt_rgb_tensor)
                         # out_tensor, mu, logvar = model(ref_rgb_tensor)
                         TIME_END("forward")
+
+
+                        #depth test 
+                        mesh=Mesh()
+                        for i in range(len(frames_for_encoding)):
+                            mesh.add( frames_for_encoding[i].cloud )
+                        TIME_START("depth_test")
+                        is_visible=neural_mvs.depth_test(mesh, gt_frame.tf_cam_world.to_double(), gt_frame.K )
+                        V=mesh.V.copy()
+                        is_visible_tensor=torch.from_numpy(is_visible)
+                        is_visible_tensor_bool=is_visible_tensor>0.0
+                        print("is visible bool has shape ", is_visible_tensor_bool.shape)
+                        V_tensor=torch.from_numpy(V)
+                        print("V_tensor has hsape", V_tensor.shape)
+                        V_visible=torch.masked_select(V_tensor,is_visible_tensor_bool)
+                        V_visible=V_visible.view(-1,3)
+                        print("V_tensor visible has hsape", V_visible.shape)
+                        mesh_visible=Mesh()
+                        mesh_visible.V=V_visible.numpy().copy()
+                        print("V_visible is ", mesh_visible.V)
+                        print("scale of mesh is ", mesh_visible.get_scale() )
+                        print("scnee has nr of meshes ", Scene.nr_meshes() )
+                        print("scene scale before adding is ", Scene.get_scale() )
+                        mesh_visible.m_vis.m_show_points=True
+                        TIME_END("depth_test")
+                        Scene.show(mesh_visible, "mesh_visible")
+                        print("scene scale after adding is ", Scene.get_scale() )
+                        # exit(1)
+
 
                         #calculate smoothness loss 
                         smooth_loss=inverse_depth_smoothness_loss(depth_map*mask, gt_rgb_tensor)
