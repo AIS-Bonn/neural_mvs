@@ -170,10 +170,10 @@ PYBIND11_MODULE(neuralmvs, m) {
     py::class_<NeuralMVS, std::shared_ptr<NeuralMVS>   > (m, "NeuralMVS")
     .def_static("create", &NeuralMVS::create<> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
     .def("depth_test", &NeuralMVS::depth_test)
-    .def("splat_texture", &NeuralMVS::splat_texture)
-    .def("slice_texture", &NeuralMVS::slice_texture)
-    .def("splat_texture_backward", &NeuralMVS::splat_texture_backward)
-    .def("slice_texture_backward", &NeuralMVS::slice_texture_backward)
+    .def_static("splat_texture", &NeuralMVS::splat_texture)
+    .def_static("slice_texture", &NeuralMVS::slice_texture)
+    .def_static("splat_texture_backward", &NeuralMVS::splat_texture_backward)
+    .def_static("slice_texture_backward", &NeuralMVS::slice_texture_backward)
     ;
 
     //TinyLoader

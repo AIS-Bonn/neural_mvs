@@ -23,17 +23,20 @@ TIME_END = lambda name: profiler_end(name)
 
 
 
+# print("creating neural mbs")
 # neural_mvs=NeuralMVS.create()
+# print("created neural mvs")
 
 
 class SplatTexture(Function):
     @staticmethod
-    def forward(ctx, values_tensor, uv_tensor, texture_size, neural_mvs):
+    def forward(ctx, values_tensor, uv_tensor, texture_size):
 
         ctx.save_for_backward(values_tensor, uv_tensor)
-        ctx.neural_mvs=neural_mvs
+        # ctx.neural_mvs=neural_mvs
 
-        texture = neural_mvs.splat_texture(values_tensor, uv_tensor, texture_size)
+        # texture = neural_mvs.splat_texture(values_tensor, uv_tensor, texture_size)
+        texture = NeuralMVS.splat_texture(values_tensor, uv_tensor, texture_size)
 
         return texture
 
@@ -42,25 +45,27 @@ class SplatTexture(Function):
 
         #I only want the gradient with respect to the UV tensor 
         values_tensor, uv_tensor =ctx.saved_tensors
-        neural_mvs=ctx.neural_mvs
+        # neural_mvs=ctx.neural_mvs
 
         # grad_val = neural_mesh_obj.slice_texture(grad_texture, uv_tensor)
-        grad_values, grad_uv =neural_mvs.splat_texture_backward( grad_texture, values_tensor, uv_tensor )
+        # grad_values, grad_uv =neural_mvs.splat_texture_backward( grad_texture, values_tensor, uv_tensor )
+        grad_values, grad_uv =NeuralMVS.splat_texture_backward( grad_texture, values_tensor, uv_tensor )
         # TODO we might need also the grad for values
         
         # return None, None, None
         # return None, grad_uv, None
-        return grad_values, grad_uv, None, None
+        return grad_values, grad_uv, None
 
 class SliceTexture(Function):
     @staticmethod
-    def forward(ctx, texture, uv_tensor, neural_mvs):
+    def forward(ctx, texture, uv_tensor):
 
         ctx.save_for_backward(texture, uv_tensor)
         # ctx.texture_size=texture.shape[1]
-        ctx.neural_mvs=neural_mvs
+        # ctx.neural_mvs=neural_mvs
 
-        values_not_normalized = neural_mvs.slice_texture(texture, uv_tensor)
+        # values_not_normalized = neural_mvs.slice_texture(texture, uv_tensor)
+        values_not_normalized = NeuralMVS.slice_texture(texture, uv_tensor)
 
         return values_not_normalized
 
@@ -70,16 +75,17 @@ class SliceTexture(Function):
         #I only want the gradient with respect to the UV tensor 
         texture, uv_tensor =ctx.saved_tensors
         # texture_size=ctx.texture_size
-        neural_mvs=ctx.neural_mvs
+        # neural_mvs=ctx.neural_mvs
 
         # grad_texture = neural_mesh_obj.splat_texture(grad_values, uv_tensor, texture_size)
-        grad_texture, grad_uv = neural_mvs.slice_texture_backward(grad_values_not_normalized, texture, uv_tensor)
+        # grad_texture, grad_uv = neural_mvs.slice_texture_backward(grad_values_not_normalized, texture, uv_tensor)
+        grad_texture, grad_uv = NeuralMVS.slice_texture_backward(grad_values_not_normalized, texture, uv_tensor)
         # TODO we need also the grad for uv
         
         
         # return None, None
         # return grad_texture, None
-        return grad_texture, grad_uv, None
+        return grad_texture, grad_uv
 
 
 

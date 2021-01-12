@@ -104,6 +104,7 @@ install(FILES "${PROJECT_SOURCE_DIR}/include/neural_mvs/jitify_helper/jitify_opt
 
 add_library( neuralmvs_cu SHARED
                                         ${CMAKE_SOURCE_DIR}/src/NeuralMVS.cxx
+                                        # ${CMAKE_SOURCE_DIR}/include/neural_mvs/kernels/NeuralMVSGPU.cuh
                                         ${CMAKE_SOURCE_DIR}/src/ModelParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/TrainParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/EvalParams.cxx

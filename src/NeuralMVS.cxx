@@ -61,22 +61,28 @@ using torch::Tensor;
 // using namespace easy_pbr::utils;
 
 
-
+std::shared_ptr<NeuralMVSGPU> NeuralMVS::m_impl(new NeuralMVSGPU());
 
 
 
 //CPU code that calls the kernels
 NeuralMVS::NeuralMVS():
-    m_impl( new NeuralMVSGPU() )
+    // m_impl( new NeuralMVSGPU() ),
+    m_opengl_initialized(false)
     {
+    
+    VLOG(1) << "init neural mvs";
 
-    compile_shaders();
-    init_opengl();
+    //we do not compile the things here because this object might be created before the viewer and therefore before the opengl context
+    // compile_shaders();
+    // init_opengl();
+
+
 
 }
 
 NeuralMVS::~NeuralMVS(){
-    // LOG(WARNING) << "Deleting lattice: " << m_name;
+    LOG(WARNING) << "Deleting NeuralMVS";
 }
 
 
@@ -85,6 +91,8 @@ void NeuralMVS::compile_shaders(){
 }
 
 void NeuralMVS::init_opengl(){
+    compile_shaders();
+
     GL_C( m_pos_buffer.set_size(256, 256 ) ); //established what will be the size of the textures attached to this framebuffer
     GL_C( m_pos_buffer.add_texture("pos_gtex", GL_RGB32F, GL_RGB, GL_FLOAT) );  
     GL_C( m_pos_buffer.add_depth("depth_gtex") );
@@ -93,6 +101,11 @@ void NeuralMVS::init_opengl(){
 
 Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh_core, const Eigen::Affine3d tf_cam_world, const Eigen::Matrix3d K){
 
+    if(!m_opengl_initialized){
+        VLOG(1) << "Initializing opengl";
+        init_opengl();
+        m_opengl_initialized=true;
+    }
 
     // params
     int subsample_factor=1;
@@ -178,15 +191,24 @@ Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh
         // int y=m_pos_buffer.height()-point2d.y();
         int y=point2d.y();
 
-        cv::Vec3f pixel= pos_mat.at<cv::Vec3f>(y,x); 
-        Eigen::Vector3d pixel_xyz;
-        pixel_xyz << pixel[0], pixel[1], pixel[2];
+        if (y>=0 || y< pos_mat.rows || x>=0 || x<pos_mat.cols ){
 
-        float diff=(point-pixel_xyz).norm();
-        if(diff<0.1){
-            is_visible(i,0)=1;
+            cv::Vec3f pixel= pos_mat.at<cv::Vec3f>(y,x); 
+            Eigen::Vector3d pixel_xyz;
+            pixel_xyz << pixel[0], pixel[1], pixel[2];
+            float diff=(point-pixel_xyz).norm();
+            if(diff<0.1){
+                is_visible(i,0)=1;
+            }
         }
     }
+
+    // //wtff-------------
+    // for(int i=0; i<mesh_core->V.rows(); i++){
+    //     if (i>10){
+    //         is_visible(i,0)=1;
+    //     }
+    // }
 
     //AFTERrendering we set again the m_is_dirty so that the next scene.show actually uplaod the data again to the gpu
     mesh_core->m_is_dirty=true;
@@ -203,17 +225,21 @@ Tensor NeuralMVS::splat_texture( const torch::Tensor& values_tensor, const torch
     CHECK(uv_tensor.size(1)==2 ) << "UV tensor last dimensions to have 2 channels";
     CHECK(values_tensor.scalar_type()==torch::kFloat32 ) << "Values should be float";
     CHECK(uv_tensor.scalar_type()==torch::kFloat32 ) << "UVs should be float";
+    CHECK(values_tensor.device().is_cuda() ) << "Values should be on the GPU but it has " << values_tensor.device();
+    CHECK(uv_tensor.device().is_cuda() ) << "UVs should be on the GPU but it has " << uv_tensor.device();
 
     int nr_values=values_tensor.size(0);
     int val_dim=values_tensor.size(1);
     int nr_channels_texture = val_dim+1; // we have a +1 because we store also a homogeneous value
 
+    TIME_START("splat_cuda");
     Tensor texture = torch::zeros({ texture_size, texture_size, nr_channels_texture }, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0) );
 
    
     m_impl->splat_texture( texture.data_ptr<float>(),   //output
                            values_tensor.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input
                            nr_values, val_dim, texture_size); //constant
+    TIME_END("splat_cuda");
 
     return texture;
 
@@ -227,6 +253,8 @@ Tensor NeuralMVS::slice_texture(const torch::Tensor& texture, const torch::Tenso
     CHECK( texture.size(0)==texture.size(1) ) << "We are currently assuming that the height and width are the same. At some points I have to implement properly non-square textures";
     CHECK(texture.scalar_type()==torch::kFloat32 ) << "Texture should be float";
     CHECK(uv_tensor.scalar_type()==torch::kFloat32 ) << "UVs should be float";
+    CHECK(texture.device().is_cuda() ) << "Texture should be on the GPU but it has " << texture.device();
+    CHECK(uv_tensor.device().is_cuda() ) << "UVs should be on the GPU but it has " << uv_tensor.device();
 
 
     int nr_values=uv_tensor.size(0);

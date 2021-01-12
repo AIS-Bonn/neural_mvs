@@ -21,6 +21,7 @@ static jitify::Program create_jitify_program(const std::string file, const std::
     if (!jitify_init) {
         jitify_init = true;
         kernel_cache = new jitify::JitCache;
+        VLOG(1) << "created new cache";
     }
 
     // std::vector<std::string> options = {"-std=c++11", "--generate-line-info", "-ftz=true", "-prec-div=false", "-prec-sqrt=false"};

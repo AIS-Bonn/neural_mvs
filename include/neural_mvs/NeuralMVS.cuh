@@ -12,6 +12,7 @@
 #include "neural_mvs/jitify_helper/jitify_options.hpp" //Needs to be added BEFORE jitify because this defined the include paths so that the kernels cna find each other
 #include "jitify/jitify.hpp"
 #include <Eigen/Dense>
+// #include "neural_mvs/kernels/NeuralMVSGPU.cuh"
 
 #include "Shader.h"
 #include "GBuffer.h"
@@ -41,11 +42,11 @@ public:
     Eigen::MatrixXi depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh_core, const Eigen::Affine3d tf_cam_world, const Eigen::Matrix3d K); 
 
     //forward functions
-    torch::Tensor splat_texture(const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size);
-    torch::Tensor slice_texture(const torch::Tensor& texture, const torch::Tensor& uv_tensor);
+    static torch::Tensor splat_texture(const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size); //uv tensor is Mx2 and in range [-1,1]
+    static torch::Tensor slice_texture(const torch::Tensor& texture, const torch::Tensor& uv_tensor);
     //backward functions
-    std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(const torch::Tensor& grad_texture, const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor );
-    std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(const torch::Tensor& grad_values, const torch::Tensor& texture, const torch::Tensor& uv_tensor );
+    static std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(const torch::Tensor& grad_texture, const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor );
+    static std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(const torch::Tensor& grad_values, const torch::Tensor& texture, const torch::Tensor& uv_tensor );
 
 
 private:
@@ -55,7 +56,9 @@ private:
 
     gl::GBuffer m_pos_buffer; 
 
-    std::shared_ptr<NeuralMVSGPU> m_impl;
+    static std::shared_ptr<NeuralMVSGPU> m_impl;
+    // std::shared_ptr<NeuralMVSGPU> m_impl;
+    bool m_opengl_initialized;
 };
 
 

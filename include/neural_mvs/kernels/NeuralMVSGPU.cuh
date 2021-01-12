@@ -19,6 +19,8 @@
 #include "Profiler.h" 
 #endif
 
+#include "EasyCuda/UtilsCuda.h"
+
 
 #define BLOCK_SIZE 256 
 
@@ -33,6 +35,7 @@ public:
 
         //it uses Jittify to get a handle for the programs. The programs can contain more than one kernel.. It doesnt actually compile them, they will get jit compiled the first time you run them
         void create_program_handles(){
+            VLOG(1) << "compiling cuda code";
             m_program=create_jitify_program( std::string(CMAKE_SOURCE_DIR)+"/include/neural_mvs/kernels/NeuralMVSGPU.cuh" );
         }
 
@@ -258,6 +261,7 @@ splat_texture(float* texture, const float* values, const float* uv ){
     atomicAdd(sw_val + val_dim, sw );
     atomicAdd(se_val + val_dim, se );
 
+    int i=0;
     
 
 

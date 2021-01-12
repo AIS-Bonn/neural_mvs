@@ -825,7 +825,8 @@ class SplatTextureModule(torch.nn.Module):
     # def __init__(self, nr_filters, neighbourhood_size, dilation=1):
         super(SplatTextureModule, self).__init__()
         self.first_time=True
-        self.neural_mvs=NeuralMVS.create()
+        # self.neural_mvs=NeuralMVS.create()
+        # print("creating neural_mvs----------")
 
 
     def forward(self, values_tensor, uv_tensor, texture_size):
@@ -833,7 +834,7 @@ class SplatTextureModule(torch.nn.Module):
         # homogeneous=torch.ones(values_tensor.shape[0],1).to("cuda")
         # values_with_homogeneous=torch.cat([values_tensor, homogeneous],1)
 
-        texture = SplatTexture.apply(values_tensor, uv_tensor, texture_size, self.neural_mvs)
+        texture = SplatTexture.apply(values_tensor, uv_tensor, texture_size)
         # texture = SplatTexture.apply(values_with_homogeneous, uv_tensor, texture_size)
         
         return texture
@@ -844,11 +845,11 @@ class SliceTextureModule(torch.nn.Module):
     # def __init__(self, nr_filters, neighbourhood_size, dilation=1):
         super(SliceTextureModule, self).__init__()
         self.first_time=True
-        self.neural_mvs=NeuralMVS.create()
+        # self.neural_mvs=NeuralMVS.create()
 
     def forward(self, texture, uv_tensor):
 
-        values_not_normalized = SliceTexture.apply(texture, uv_tensor, self.neural_mvs)
+        values_not_normalized = SliceTexture.apply(texture, uv_tensor)
 
         #normalize by the homogeneous coord
         val_dim = values_not_normalized.shape[1] - 1
