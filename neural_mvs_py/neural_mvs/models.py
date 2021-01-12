@@ -23,7 +23,7 @@ from torch.nn.modules.module import _addindent
 from neural_mvs.nerf_utils import *
 
 #latticenet 
-from latticenet_py.lattice.lattice_py import LatticePy
+from latticenet_py.lattice.lattice_wrapper import LatticeWrapper
 from latticenet_py.lattice.diceloss import GeneralizedSoftDiceLoss
 from latticenet_py.lattice.lovasz_loss import LovaszSoftmax
 from latticenet_py.lattice.models import LNN
@@ -1900,13 +1900,13 @@ class Net(torch.nn.Module):
             mesh.add( frames_for_encoding[i].cloud )
         # Scene.show(mesh, "cloud")
         # z=self.encoder(frames_for_encoding[0].cloud)
-        z=self.encoder(mesh)
+        # z=self.encoder(mesh)
         TIME_END("encoding")
         # print("encoder outputs z", z.shape)
 
         TIME_START("decode")
-        img=self.decoder(z)
-        img_directly_after_decoding=img
+        # img=self.decoder(z)
+        # img_directly_after_decoding=img
         # img_mat=tensor2mat(img)
         # Gui.show(img_mat, "img_decoded")
         # img=img.view(self.decoder.out_channels, -1)
@@ -2127,308 +2127,308 @@ class Net(torch.nn.Module):
 
 
 
-        # TIME_START("full_siren")
-        # #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
-        # #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
-        # # print("x has shape", x.shape)
-        # height=gt_frame.height
-        # width=gt_frame.width
-        # fx=gt_K[0,0] ### 
-        # fy=gt_K[1,1] ### 
-        # cx=gt_K[0,2] ### 
-        # cy=gt_K[1,2] ### 
-        # tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() ).to("cuda")
-        # #vase
-        # # near_thresh=0.7
-        # # far_thresh=1.2
-        # #socrates
-        # near_thresh=depth_min
-        # far_thresh=depth_max
-        # # if novel:
-        #     # near_thresh=near_thresh+0.1
-        #     # far_thresh=far_thresh-0.1
-        # # depth_samples_per_ray=100
-        # # depth_samples_per_ray=60
+        TIME_START("full_siren")
+        #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
+        #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
+        # print("x has shape", x.shape)
+        height=gt_frame.height
+        width=gt_frame.width
+        fx=gt_K[0,0] ### 
+        fy=gt_K[1,1] ### 
+        cx=gt_K[0,2] ### 
+        cy=gt_K[1,2] ### 
+        tform_cam2world =torch.from_numpy( gt_tf_cam_world.inverse().matrix() ).to("cuda")
+        #vase
+        # near_thresh=0.7
+        # far_thresh=1.2
+        #socrates
+        near_thresh=depth_min
+        far_thresh=depth_max
+        # if novel:
+            # near_thresh=near_thresh+0.1
+            # far_thresh=far_thresh-0.1
+        # depth_samples_per_ray=100
+        # depth_samples_per_ray=60
+        depth_samples_per_ray=40
         # depth_samples_per_ray=40
-        # # depth_samples_per_ray=40
-        # # depth_samples_per_ray=30
-        # chunksize=512*512
-        # # chunksize=1024*1024
+        # depth_samples_per_ray=30
+        chunksize=512*512
+        # chunksize=1024*1024
 
-        # # Get the "bundle" of rays through all image pixels.
-        # TIME_START("ray_bundle")
-        # ray_origins, ray_directions = get_ray_bundle(
-        #     height, width, fx,fy,cx,cy, tform_cam2world, novel=novel
+        # Get the "bundle" of rays through all image pixels.
+        TIME_START("ray_bundle")
+        ray_origins, ray_directions = get_ray_bundle(
+            height, width, fx,fy,cx,cy, tform_cam2world, novel=novel
+        )
+        # ###DEBUG ray origin
+        # rays_o_mesh=Mesh()
+        # rays_o_mesh.V=ray_origins.view(-1, 3).numpy()
+        # rays_o_mesh.m_vis.m_show_points=True
+        # rays_o_mesh.m_vis.m_point_size=20
+        # Scene.show(rays_o_mesh, "rays_o_mesh")
+        # #debug ray direction
+        # rays_points=ray_origins+ray_directions*1.0
+        # rays_p_mesh=Mesh()
+        # rays_p_mesh.V=rays_points.view(-1, 3).numpy()
+        # rays_p_mesh.m_vis.m_show_points=True
+        # rays_p_mesh.m_vis.m_point_size=4
+        # Scene.show(rays_p_mesh, "rays_p_mesh")
+        TIME_END("ray_bundle")
+
+        TIME_START("sample")
+        # Sample query points along each ray
+        # query_points, depth_values = compute_query_points_from_rays(
+        #     ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
         # )
-        # # ###DEBUG ray origin
-        # # rays_o_mesh=Mesh()
-        # # rays_o_mesh.V=ray_origins.view(-1, 3).numpy()
-        # # rays_o_mesh.m_vis.m_show_points=True
-        # # rays_o_mesh.m_vis.m_point_size=20
-        # # Scene.show(rays_o_mesh, "rays_o_mesh")
-        # # #debug ray direction
-        # # rays_points=ray_origins+ray_directions*1.0
-        # # rays_p_mesh=Mesh()
-        # # rays_p_mesh.V=rays_points.view(-1, 3).numpy()
-        # # rays_p_mesh.m_vis.m_show_points=True
-        # # rays_p_mesh.m_vis.m_point_size=4
-        # # Scene.show(rays_p_mesh, "rays_p_mesh")
-        # TIME_END("ray_bundle")
+        # near_thresh_tensor=gt_frame.znear_zfar[:,0,:,:]
+        # far_thresh_tensor=gt_frame.znear_zfar[:,1,:,:]
+        # if novel:
+        #     near_thresh_tensor=near_thresh_tensor.clone().detach()
+        #     far_thresh_tensor=far_thresh_tensor.clone().detach()
+        #     near_thresh_tensor.fill_(depth_min)
+        #     far_thresh_tensor.fill_(depth_max)
 
-        # TIME_START("sample")
-        # # Sample query points along each ray
-        # # query_points, depth_values = compute_query_points_from_rays(
-        # #     ray_origins, ray_directions, near_thresh, far_thresh, depth_samples_per_ray, randomize=True
-        # # )
-        # # near_thresh_tensor=gt_frame.znear_zfar[:,0,:,:]
-        # # far_thresh_tensor=gt_frame.znear_zfar[:,1,:,:]
-        # # if novel:
-        # #     near_thresh_tensor=near_thresh_tensor.clone().detach()
-        # #     far_thresh_tensor=far_thresh_tensor.clone().detach()
-        # #     near_thresh_tensor.fill_(depth_min)
-        # #     far_thresh_tensor.fill_(depth_max)
+        #just set the two tensors to the min and max 
+        near_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        far_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        near_thresh_tensor.fill_(depth_min)
+        far_thresh_tensor.fill_(depth_max)
 
-        # #just set the two tensors to the min and max 
-        # near_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
-        # far_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
-        # near_thresh_tensor.fill_(depth_min)
-        # far_thresh_tensor.fill_(depth_max)
+        query_points, depth_values = compute_query_points_from_rays2(
+            ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
+        )
 
-        # query_points, depth_values = compute_query_points_from_rays2(
-        #     ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
-        # )
+        TIME_END("sample")
 
-        # TIME_END("sample")
+        # "Flatten" the query points.
+        # print("query points is ", query_points.shape)
+        flattened_query_points = query_points.reshape((-1, 3))
+        # print("flattened_query_points is ", flattened_query_points.shape)
 
-        # # "Flatten" the query points.
-        # # print("query points is ", query_points.shape)
-        # flattened_query_points = query_points.reshape((-1, 3))
-        # # print("flattened_query_points is ", flattened_query_points.shape)
+        # TIME_START("pos_encode")
+        # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
+        # flattened_query_points=self.leaned_pe(flattened_query_points.to("cuda") )
+        # print("flattened_query_points after pe", flattened_query_points.shape)
+        flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
+        # print("flatened_query_pointss is ", flatened_query_pointss.shape)
+        # TIME_END("pos_encode")
 
-        # # TIME_START("pos_encode")
-        # # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
-        # # flattened_query_points=self.leaned_pe(flattened_query_points.to("cuda") )
-        # # print("flattened_query_points after pe", flattened_query_points.shape)
-        # flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
-        # # print("flatened_query_pointss is ", flatened_query_pointss.shape)
-        # # TIME_END("pos_encode")
+        # batches = get_minibatches(flattened_query_points, chunksize=chunksize)
+        # predictions = []
+        # nr_batches=0
+        # TIME_START("siren_batches")
+        # for batch in batches:
+        #     # print("batch is ", batch.shape)
+        #     nr_batches+=1
+        #     # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
+        #     # batch=batch-0.4
+        #     # batch=((batch+1.92)/2.43)*2.0-1.0
+        #     # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
+        #     # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
+        #     predictions.append( self.siren_net(batch.to("cuda") )-3.0 )
+        #     # predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
+        #     # predictions.append( self.nerf_net(batch.to("cuda") ) )
+        #     # if not Scene.does_mesh_with_name_exist("rays"):
+        #     # if not novel:
+        #     #     rays_mesh=Mesh()
+        #     #     rays_mesh.V=batch.numpy()
+        #     #     rays_mesh.m_vis.m_show_points=True
+        #     #     Scene.show(rays_mesh, "rays_mesh")
+        #     # if novel:
+        #     #     rays_mesh=Mesh()
+        #     #     rays_mesh.V=batch.numpy()
+        #     #     rays_mesh.m_vis.m_show_points=True
+        #     #     Scene.show(rays_mesh, "rays_mesh_novel")
+        # print(" nr batch ", nr_batches, " / ", len(batches))
+        # # print("got nr_batches ", nr_batches)
+        # TIME_END("siren_batches")
+        # radiance_field_flattened = torch.cat(predictions, dim=0)
 
-        # # batches = get_minibatches(flattened_query_points, chunksize=chunksize)
-        # # predictions = []
-        # # nr_batches=0
-        # # TIME_START("siren_batches")
-        # # for batch in batches:
-        # #     # print("batch is ", batch.shape)
-        # #     nr_batches+=1
-        # #     # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params) )
-        # #     # batch=batch-0.4
-        # #     # batch=((batch+1.92)/2.43)*2.0-1.0
-        # #     # print("batch has mean min max ", batch.mean(), batch.min(), batch.max() )
-        # #     # predictions.append( self.siren_net(batch.to("cuda"), params=siren_params ) )
-        # #     predictions.append( self.siren_net(batch.to("cuda") )-3.0 )
-        # #     # predictions.append( self.nerf_net(batch.to("cuda"), params=siren_params ) )
-        # #     # predictions.append( self.nerf_net(batch.to("cuda") ) )
-        # #     # if not Scene.does_mesh_with_name_exist("rays"):
-        # #     # if not novel:
-        # #     #     rays_mesh=Mesh()
-        # #     #     rays_mesh.V=batch.numpy()
-        # #     #     rays_mesh.m_vis.m_show_points=True
-        # #     #     Scene.show(rays_mesh, "rays_mesh")
-        # #     # if novel:
-        # #     #     rays_mesh=Mesh()
-        # #     #     rays_mesh.V=batch.numpy()
-        # #     #     rays_mesh.m_vis.m_show_points=True
-        # #     #     Scene.show(rays_mesh, "rays_mesh_novel")
-        # # print(" nr batch ", nr_batches, " / ", len(batches))
-        # # # print("got nr_batches ", nr_batches)
-        # # TIME_END("siren_batches")
-        # # radiance_field_flattened = torch.cat(predictions, dim=0)
+        # print("self, iter is ",self.iter, )
 
-        # # print("self, iter is ",self.iter, )
-
-        # # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
-        # # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
-        # # flattened_query_points/=2.43
-        # # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions ) #radiance field has shape height,width, nr_samples,4
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
+        # flattened_query_points/=2.43
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions ) #radiance field has shape height,width, nr_samples,4
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
-        # # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
-        # # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
-        # # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
+        # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
+        # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
 
-        # #debug
-        # if not novel and self.iter%100==0:
-        #     rays_mesh=Mesh()
-        #     rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
-        #     rays_mesh.m_vis.m_show_points=True
-        #     #color based on sigma 
-        #     sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
-        #     rays_mesh.C=sigma_a.cpu().numpy()
-        #     # Scene.show(rays_mesh, "rays_mesh_novel")
-        # if not novel:
-        #     self.iter+=1
+        #debug
+        if not novel and self.iter%100==0:
+            rays_mesh=Mesh()
+            rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
+            rays_mesh.m_vis.m_show_points=True
+            #color based on sigma 
+            sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+            rays_mesh.C=sigma_a.cpu().numpy()
+            Scene.show(rays_mesh, "rays_mesh_novel")
+        if not novel:
+            self.iter+=1
 
 
-        # # print("radiance field has shape ", radiance_field_flattened.shape)
-        # # sigma=radiance_field_flattened[:,:,:,0:3]
-        # # weight down the sigma if the
-        # #weight downt he radiance field if it's far away from the mean between znear and zfar
-        # mean_ray_img=(far_thresh_tensor-near_thresh_tensor)*0.5
-        # range_of_samples_img=far_thresh_tensor-near_thresh_tensor #says for each pixel what is the range of values that the sampled points will take
-        # #get the difference between each depth value for every sample, and the mean depth along the ray
-        # #that difference will be a positive or a negative number and we abs it, it will be zero for the value in the middle and large for all the values going further or closer
-        # #we want to map that range from [0,range] to [1,0] smoothly so that the gradient can be smoothly computer
-        # sigma_normal=range_of_samples_img.view(height,width,1) # from 1, c, height ,wifdht to  height,width,1,c
-        # mean_ray_img=mean_ray_img.view(height,width,1) 
-        # # print("depth_values is ", depth_values.shape)# height,width,nr_samples
-        # #pass through a a guass func  https://en.wikipedia.org/wiki/Gaussian_function
-        # x_u=(depth_values-mean_ray_img)**2
-        # # print("x_u has min max", x_u.min()," ", x_u.max())
-        # sigma2=sigma_normal**2
-        # # scale=1.0/(sigma_normal * torch.sqrt(2.0*3.141592) ) 
-        # scale=1.0/(sigma_normal * 2.50662827463 ) 
-        # parenthesis=-0.5*x_u/sigma2
-        # # gauss_val=scale*torch.exp(parenthesis) #height,width, nr_samplles
-        # #attemp2 
-        # gauss_val=map_range(x_u, 0, 0.5, 1.0, 0.0) #height,width, nr_samplles
-        # # print("gaus vall has shape ", gauss_val.shape)
-        # # print("gaus vall min max ", gauss_val.min(), " max ", gauss_val.max() )
-        # if not novel:
-        #     if use_ray_compression:
-        #         # radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
-        #         sigma= radiance_field_flattened[:,:,:, 3:4].clone()
-        #         # rgb= radiance_field_flattened[:,:,:, 0:3].clone()
-        #         # print("sigma min max is ", sigma.min(), sigma.max())
-        #         # radiance_field_flattened[:,:,:, 3:4]=sigma*gauss_val.view(height,width,depth_samples_per_ray,1)
-        #         # radiance_field_flattened[:,:,:, 0:3]=rgb*gauss_val.view(height,width,depth_samples_per_ray,1)
+        # print("radiance field has shape ", radiance_field_flattened.shape)
+        # sigma=radiance_field_flattened[:,:,:,0:3]
+        # weight down the sigma if the
+        #weight downt he radiance field if it's far away from the mean between znear and zfar
+        mean_ray_img=(far_thresh_tensor-near_thresh_tensor)*0.5
+        range_of_samples_img=far_thresh_tensor-near_thresh_tensor #says for each pixel what is the range of values that the sampled points will take
+        #get the difference between each depth value for every sample, and the mean depth along the ray
+        #that difference will be a positive or a negative number and we abs it, it will be zero for the value in the middle and large for all the values going further or closer
+        #we want to map that range from [0,range] to [1,0] smoothly so that the gradient can be smoothly computer
+        sigma_normal=range_of_samples_img.view(height,width,1) # from 1, c, height ,wifdht to  height,width,1,c
+        mean_ray_img=mean_ray_img.view(height,width,1) 
+        # print("depth_values is ", depth_values.shape)# height,width,nr_samples
+        #pass through a a guass func  https://en.wikipedia.org/wiki/Gaussian_function
+        x_u=(depth_values-mean_ray_img)**2
+        # print("x_u has min max", x_u.min()," ", x_u.max())
+        sigma2=sigma_normal**2
+        # scale=1.0/(sigma_normal * torch.sqrt(2.0*3.141592) ) 
+        scale=1.0/(sigma_normal * 2.50662827463 ) 
+        parenthesis=-0.5*x_u/sigma2
+        # gauss_val=scale*torch.exp(parenthesis) #height,width, nr_samplles
+        #attemp2 
+        gauss_val=map_range(x_u, 0, 0.5, 1.0, 0.0) #height,width, nr_samplles
+        # print("gaus vall has shape ", gauss_val.shape)
+        # print("gaus vall min max ", gauss_val.min(), " max ", gauss_val.max() )
+        if not novel:
+            if use_ray_compression:
+                # radiance_field_flattened=radiance_field_flattened*gauss_val.view(height,width,depth_samples_per_ray,1)
+                sigma= radiance_field_flattened[:,:,:, 3:4].clone()
+                # rgb= radiance_field_flattened[:,:,:, 0:3].clone()
+                # print("sigma min max is ", sigma.min(), sigma.max())
+                # radiance_field_flattened[:,:,:, 3:4]=sigma*gauss_val.view(height,width,depth_samples_per_ray,1)
+                # radiance_field_flattened[:,:,:, 0:3]=rgb*gauss_val.view(height,width,depth_samples_per_ray,1)
 
-        # # else:
-        #     # sigma= radiance_field_flattened[:,:,:, 3:4].clone()
-        #     # sigma=sigma*0.1
-        #     # radiance_field_flattened[:,:,:, 3:4]=sigma
-        #     # rgb= radiance_field_flattened[:,:,:, 0:3].clone()
-        #     # radiance_field_flattened[:,:,:, 0:3] = rgb*0.2
+        # else:
+            # sigma= radiance_field_flattened[:,:,:, 3:4].clone()
+            # sigma=sigma*0.1
+            # radiance_field_flattened[:,:,:, 3:4]=sigma
+            # rgb= radiance_field_flattened[:,:,:, 0:3].clone()
+            # radiance_field_flattened[:,:,:, 0:3] = rgb*0.2
         
             
 
 
 
-        # radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
+        radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
 
 
-        # # "Unflatten" to obtain the radiance field.
-        # unflattened_shape = list(query_points.shape[:-1]) + [self.siren_out_channels]
-        # radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
+        # "Unflatten" to obtain the radiance field.
+        unflattened_shape = list(query_points.shape[:-1]) + [self.siren_out_channels]
+        radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
 
-        # # Perform differentiable volume rendering to re-synthesize the RGB image.
-        # rgb_predicted, depth_map, acc_map = render_volume_density(
-        # # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
-        # # rgb_predicted, depth_map, acc_map = render_volume_density2(
-        #     radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
+        # Perform differentiable volume rendering to re-synthesize the RGB image.
+        rgb_predicted, depth_map, acc_map = render_volume_density(
+        # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
+        # rgb_predicted, depth_map, acc_map = render_volume_density2(
+            radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
+        )
+
+        # print("rgb predicted has shpae ", rgb_predicted.shape)
+        # rgb_predicted=rgb_predicted.view(1,3,height,width)
+        rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        # print("depth map size is ", depth_map.shape)
+        depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
+        # depth_map_mat=tensor2mat(depth_map)
+        TIME_END("full_siren")
+
+        # print("rgb_predicted is ", rgb_predicted.shape)
+
+
+        #when rgb predicted is actually just a bunch of features like 64 features per pixel then we regress from them the rgb
+        #GUIDE cannot be the rgb image because when we render from a novel view we don't have the gt for that one
+        # guide=rgb_predicted
+        # print("rgb_predicted out is ", rgb_predicted.shape)
+        # print("guide out is ", guide.shape)
+
+        # for i in range(self.nr_rgb_pred+2):
+        #     rgb_predicted=self.rgb_pred[i](rgb_predicted )
+        # print("rgb_predicted out is ", rgb_predicted.shape)
+
+
+        # #predict rgb by unprojecting the depth and then usign a siren in 3D
+        # # mask=guide>0.0
+        # # depth_map=depth_map*mask
+        # #unproject the depth map
+        # x, y = meshgrid_xy(
+        # torch.arange(
+        #     width, dtype=torch.float32, device=torch.device("cuda")
+        # ),
+        # torch.arange(
+        #     height, dtype=torch.float32, device=torch.device("cuda")
+        # ),
         # )
-
-        # # print("rgb predicted has shpae ", rgb_predicted.shape)
-        # # rgb_predicted=rgb_predicted.view(1,3,height,width)
-        # rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
-        # # print("depth map size is ", depth_map.shape)
-        # depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
-        # # depth_map_mat=tensor2mat(depth_map)
-        # TIME_END("full_siren")
-
-        # # print("rgb_predicted is ", rgb_predicted.shape)
-
-
-        # #when rgb predicted is actually just a bunch of features like 64 features per pixel then we regress from them the rgb
-        # #GUIDE cannot be the rgb image because when we render from a novel view we don't have the gt for that one
-        # # guide=rgb_predicted
-        # # print("rgb_predicted out is ", rgb_predicted.shape)
-        # # print("guide out is ", guide.shape)
-
-        # # for i in range(self.nr_rgb_pred+2):
-        # #     rgb_predicted=self.rgb_pred[i](rgb_predicted )
-        # # print("rgb_predicted out is ", rgb_predicted.shape)
-
-
-        # # #predict rgb by unprojecting the depth and then usign a siren in 3D
-        # # # mask=guide>0.0
-        # # # depth_map=depth_map*mask
-        # # #unproject the depth map
-        # # x, y = meshgrid_xy(
-        # # torch.arange(
-        # #     width, dtype=torch.float32, device=torch.device("cuda")
-        # # ),
-        # # torch.arange(
-        # #     height, dtype=torch.float32, device=torch.device("cuda")
-        # # ),
+        # # print("x is shape ", x.shape)
+        # directions = torch.stack(
+        #     [
+        #         (x - cx) / fx,
+        #         (y - cy) / fy,
+        #         torch.ones_like(x),
+        #     ],
+        #     dim=-1,
+        # )
+        # # print("direction is ", directions.shape)
+        # # print("depth map", depth_map.shape)
+        # depth_map=depth_map.permute(0,2,3,1).contiguous().squeeze(0) #from N,C,H,W to H,W,C
+        # # print("depth map", depth_map.shape)
+        # points_3d=directions*depth_map
+        # # print("points3d before transforming", points_3d.shape)
+        # #trasnform frm cam2workd 
+        # points_3d=points_3d.view(-1,3)
+        # # print("points3d linear", points_3d.shape)
+        # # R =torch.from_numpy( gt_tf_cam_world.inverse().linear() ).to("cuda")
+        # print("points3d just before transforming has min max ", points_3d.min().item(), points_3d.max().item())
+        # R=tform_cam2world[:3, :3].to("cuda")
+        # # t =torch.from_numpy( gt_tf_cam_world.inverse().translation() ).to("cuda")
+        # t= tform_cam2world[:3, -1].to("cuda")
+        # # print("R ", R.shape)
+        # # print("t ", t.shape)
+        # # print("R is ", R)
+        # points_3d=torch.matmul(R, points_3d.transpose(0,1) ).transpose(0,1)
+        # # print("points3d after rot", points_3d.shape)
+        # points_3d=points_3d+t.unsqueeze(0)
+        # # points_3d=torch.sum(
+        # #     points_3d[..., None, :] * tform_cam2world[:3, :3], dim=-1
         # # )
-        # # # print("x is shape ", x.shape)
-        # # directions = torch.stack(
-        # #     [
-        # #         (x - cx) / fx,
-        # #         (y - cy) / fy,
-        # #         torch.ones_like(x),
-        # #     ],
-        # #     dim=-1,
-        # # )
-        # # # print("direction is ", directions.shape)
-        # # # print("depth map", depth_map.shape)
-        # # depth_map=depth_map.permute(0,2,3,1).contiguous().squeeze(0) #from N,C,H,W to H,W,C
-        # # # print("depth map", depth_map.shape)
-        # # points_3d=directions*depth_map
-        # # # print("points3d before transforming", points_3d.shape)
-        # # #trasnform frm cam2workd 
-        # # points_3d=points_3d.view(-1,3)
-        # # # print("points3d linear", points_3d.shape)
-        # # # R =torch.from_numpy( gt_tf_cam_world.inverse().linear() ).to("cuda")
-        # # print("points3d just before transforming has min max ", points_3d.min().item(), points_3d.max().item())
-        # # R=tform_cam2world[:3, :3].to("cuda")
-        # # # t =torch.from_numpy( gt_tf_cam_world.inverse().translation() ).to("cuda")
-        # # t= tform_cam2world[:3, -1].to("cuda")
-        # # # print("R ", R.shape)
-        # # # print("t ", t.shape)
-        # # # print("R is ", R)
-        # # points_3d=torch.matmul(R, points_3d.transpose(0,1) ).transpose(0,1)
-        # # # print("points3d after rot", points_3d.shape)
-        # # points_3d=points_3d+t.unsqueeze(0)
-        # # # points_3d=torch.sum(
-        # # #     points_3d[..., None, :] * tform_cam2world[:3, :3], dim=-1
-        # # # )
-        # # # points_3d = tform_cam2world[:3, -1].expand(points_3d.shape)
-        # # points_3d=points_3d.view(height, width,3)
-        # # # print("points3d ", points_3d.shape)
-        # # points_3d=points_3d.unsqueeze(2)
-        # # # print("points3d when entering siren ", points_3d.shape)
-        # # #DEBUG the points
-        # # cloud=Mesh()
-        # # cloud.V=points_3d.detach().view(-1,3).cpu().numpy()
-        # # cloud.m_vis.m_show_points=True
-        # # Scene.show(cloud, "cloud_debug")
+        # # points_3d = tform_cam2world[:3, -1].expand(points_3d.shape)
+        # points_3d=points_3d.view(height, width,3)
+        # # print("points3d ", points_3d.shape)
+        # points_3d=points_3d.unsqueeze(2)
+        # # print("points3d when entering siren ", points_3d.shape)
+        # #DEBUG the points
+        # cloud=Mesh()
+        # cloud.V=points_3d.detach().view(-1,3).cpu().numpy()
+        # cloud.m_vis.m_show_points=True
+        # Scene.show(cloud, "cloud_debug")
 
-        # # print("points3d just before siren has min max ", points_3d.min().item(), points_3d.max().item())
-        # # rgb_siren=self.siren_net( points_3d )
-        # # # print("rgb siren ", rgb_siren.shape)
-        # # rgb_siren=rgb_siren.permute(2,3,0,1)
-        # # # print("rgb siren ", rgb_siren.shape)
-        # # depth_map=depth_map.permute(2,0,1).unsqueeze(0) #from to H,W,C to N,C,H,W
-        # # # rgb_predicted
-        # # # print("rgb_predicted ", rgb_predicted.shape)
-        # # # rgb_predicted=rgb_siren
+        # print("points3d just before siren has min max ", points_3d.min().item(), points_3d.max().item())
+        # rgb_siren=self.siren_net( points_3d )
+        # # print("rgb siren ", rgb_siren.shape)
+        # rgb_siren=rgb_siren.permute(2,3,0,1)
+        # # print("rgb siren ", rgb_siren.shape)
+        # depth_map=depth_map.permute(2,0,1).unsqueeze(0) #from to H,W,C to N,C,H,W
+        # # rgb_predicted
+        # # print("rgb_predicted ", rgb_predicted.shape)
+        # # rgb_predicted=rgb_siren
 
         
 
 
 
         # #NEW LOSSES
-        # new_loss=0
-        # #make the opacity be low all around
-        # sigma_a = torch.sigmoid(radiance_field[..., 3])
-        # loss_sigma_a=sigma_a.mean()
-        # new_loss+=loss_sigma_a
+        new_loss=0
+        #make the opacity be low all around
+        sigma_a = torch.sigmoid(radiance_field[..., 3])
+        loss_sigma_a=sigma_a.mean()
+        new_loss+=loss_sigma_a
 
 
 
 
-        # return rgb_predicted,  depth_map, acc_map, new_loss, img_directly_after_decoding
-        return img_directly_after_decoding
+        return rgb_predicted,  depth_map, acc_map, new_loss
+        # return img_directly_after_decoding
 
 
 
