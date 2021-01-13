@@ -903,9 +903,27 @@ class SpatialLNN(torch.nn.Module):
     def __init__(self ):
         super(SpatialLNN, self).__init__()
 
+
+
+
+
+
+
+
+
+
+
+
         #a bit more control
-        self.pointnet_layers=[16,32,64]
-        self.start_nr_filters=64
+        # self.model_params=model_params
+        self.nr_downsamples=3
+        self.nr_blocks_down_stage= [2,2,2]
+        self.nr_blocks_bottleneck=1
+        self.nr_blocks_up_stage= [2,2,2]
+        self.nr_levels_down_with_normal_resnet=3
+        self.nr_levels_up_with_normal_resnet=3
+        # compression_factor=model_params.compression_factor()
+        dropout_last_layer=False
         experiment="none"
         #check that the experiment has a valid string
         valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
@@ -916,7 +934,12 @@ class SpatialLNN(torch.nn.Module):
 
 
 
+
         self.distribute=DistributeLatticeModule(experiment) 
+        # self.pointnet_layers=model_params.pointnet_layers()
+        # self.start_nr_filters=model_params.pointnet_start_nr_channels()
+        self.pointnet_layers=[16,32,64]
+        self.start_nr_filters=64
         print("pointnet layers is ", self.pointnet_layers)
         self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
 
@@ -926,9 +949,108 @@ class SpatialLNN(torch.nn.Module):
         #####################
         # Downsampling path #
         #####################
-        self.resnets=torch.nn.ModuleList([])
-        for i in range(8):
-            self.resnets.append( ResnetBlock(self.start_nr_filters, [1,1], [False,False], False) )
+        self.resnet_blocks_per_down_lvl_list=torch.nn.ModuleList([])
+        self.coarsens_list=torch.nn.ModuleList([])
+        self.maxpool_list=torch.nn.ModuleList([])
+        corsenings_channel_counts = []
+        skip_connection_channel_counts = []
+        cur_channels_count=self.start_nr_filters
+        for i in range(self.nr_downsamples):
+            
+            #create the resnet blocks
+            self.resnet_blocks_per_down_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_down_stage[i]):
+                if i<self.nr_levels_down_with_normal_resnet:
+                    print("adding down_resnet_block with nr of filters", cur_channels_count )
+                    should_use_dropout=False
+                    print("adding down_resnet_block with dropout", should_use_dropout )
+                    self.resnet_blocks_per_down_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,False], should_use_dropout) )
+                else:
+                    print("adding down_bottleneck_block with nr of filters", cur_channels_count )
+                    self.resnet_blocks_per_down_lvl_list[i].append( BottleneckBlock(cur_channels_count, [False,False,False]) )
+            skip_connection_channel_counts.append(cur_channels_count)
+            # nr_channels_after_coarsening=int(cur_channels_count*2*compression_factor)
+            nr_channels_after_coarsening=int(cur_channels_count)
+            print("adding bnReluCorsen which outputs nr of channels ", nr_channels_after_coarsening )
+            self.coarsens_list.append( GnReluCoarsen(nr_channels_after_coarsening)) #is still the best one because it can easily learn the versions of Avg and Blur. and the Max version is the worse for some reason
+            cur_channels_count=nr_channels_after_coarsening
+            corsenings_channel_counts.append(cur_channels_count)
+
+        #####################
+        #     Bottleneck    #
+        #####################
+        self.resnet_blocks_bottleneck=torch.nn.ModuleList([])
+        for j in range(self.nr_blocks_bottleneck):
+                print("adding bottleneck_resnet_block with nr of filters", cur_channels_count )
+                self.resnet_blocks_bottleneck.append( BottleneckBlock(cur_channels_count, [False,False,False]) )
+
+        self.do_concat_for_vertical_connection=True
+        #######################
+        #   Upsampling path   #
+        #######################
+        self.finefy_list=torch.nn.ModuleList([])
+        self.up_activation_list=torch.nn.ModuleList([])
+        self.up_match_dim_list=torch.nn.ModuleList([])
+        self.up_bn_match_dim_list=torch.nn.ModuleList([])
+        self.resnet_blocks_per_up_lvl_list=torch.nn.ModuleList([])
+        for i in range(self.nr_downsamples):
+            nr_chanels_skip_connection=skip_connection_channel_counts.pop()
+
+            # if the finefy is the deepest one int the network then it just divides by 2 the nr of channels because we know it didnt get as input two concatet tensors
+            nr_chanels_finefy=int(cur_channels_count/2)
+
+            #do it with finefy
+            print("adding bnReluFinefy which outputs nr of channels ", nr_chanels_finefy )
+            self.finefy_list.append( GnReluFinefy(nr_chanels_finefy ))
+
+            #after finefy we do a concat with the skip connection so the number of channels doubles
+            if self.do_concat_for_vertical_connection:
+                cur_channels_count=nr_chanels_skip_connection+nr_chanels_finefy
+            else:
+                cur_channels_count=nr_chanels_skip_connection
+
+            self.resnet_blocks_per_up_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_up_stage[i]):
+                is_last_conv=j==self.nr_blocks_up_stage[i]-1 and i==self.nr_downsamples-1 #the last conv of the last upsample is followed by a slice and not a bn, therefore we need a bias
+                if i>=self.nr_downsamples-self.nr_levels_up_with_normal_resnet:
+                    print("adding up_resnet_block with nr of filters", cur_channels_count ) 
+                    self.resnet_blocks_per_up_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,is_last_conv], False) )
+                else:
+                    print("adding up_bottleneck_block with nr of filters", cur_channels_count ) 
+                    self.resnet_blocks_per_up_lvl_list[i].append( BottleneckBlock(cur_channels_count, [False,False,is_last_conv] ) )
+
+
+
+
+
+
+
+        # #a bit more control
+        # self.pointnet_layers=[16,32,64]
+        # self.start_nr_filters=64
+        # experiment="none"
+        # #check that the experiment has a valid string
+        # valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
+        # if experiment not in valid_experiment:
+        #     err = "Experiment " + experiment + " is not valid"
+        #     sys.exit(err)
+
+
+
+
+        # self.distribute=DistributeLatticeModule(experiment) 
+        # print("pointnet layers is ", self.pointnet_layers)
+        # self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+
+
+
+
+        # #####################
+        # # Downsampling path #
+        # #####################
+        # self.resnets=torch.nn.ModuleList([])
+        # for i in range(8):
+        #     self.resnets.append( ResnetBlock(self.start_nr_filters, [1,1], [False,False], False) )
          
       
 
@@ -941,14 +1063,82 @@ class SpatialLNN(torch.nn.Module):
 
         ls=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
 
+        # with torch.set_grad_enabled(False):
+        #     distributed, indices, weights=self.distribute(ls, positions, values)
+
+        # lv, ls=self.point_net(ls, distributed, indices)
+
+        
+        # for i in range(len(self.resnets)):
+        #     lv, ls = self.resnets[i]( lv, ls) 
+
+
+
+
+
+
+
         with torch.set_grad_enabled(False):
             distributed, indices, weights=self.distribute(ls, positions, values)
 
         lv, ls=self.point_net(ls, distributed, indices)
 
+
         
-        for i in range(len(self.resnets)):
-            lv, ls = self.resnets[i]( lv, ls) 
+        fine_structures_list=[]
+        fine_values_list=[]
+        # TIME_START("down_path")
+        for i in range(self.nr_downsamples):
+
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                # print("start downsample stage ", i , " resnet block ", j, "lv has shape", lv.shape, " ls has val dim", ls.val_dim() )
+                lv, ls = self.resnet_blocks_per_down_lvl_list[i][j] ( lv, ls) 
+
+            #saving them for when we do finefy so we can concat them there
+            fine_structures_list.append(ls) 
+            fine_values_list.append(lv)
+
+            #now we do a downsample
+            # print("start coarsen stage ", i, "lv has shape", lv.shape, "ls has val_dim", ls.val_dim() )
+            lv, ls = self.coarsens_list[i] ( lv, ls)
+            # print( "finished coarsen stage ", i, "lv has shape", lv.shape, "ls has val_dim", ls.val_dim() )
+
+        # TIME_END("down_path")
+
+        # #bottleneck
+        for j in range(self.nr_blocks_bottleneck):
+            # print("bottleneck stage", j,  "lv has shape", lv.shape, "ls has val_dim", ls.val_dim()  )
+            lv, ls = self.resnet_blocks_bottleneck[j] ( lv, ls) 
+
+
+        #upsample (we start from the bottom of the U-net, so the upsampling that is closest to the blottlenck)
+        # TIME_START("up_path")
+        for i in range(self.nr_downsamples):
+
+            fine_values=fine_values_list.pop()
+            fine_structure=fine_structures_list.pop()
+
+
+            #finefy
+            # print("start finefy stage", i,  "lv has shape", lv.shape, "ls has val_dim ", ls.val_dim(),  "fine strcture has val dim ", fine_structure.val_dim() )
+            lv, ls = self.finefy_list[i] ( lv, ls, fine_structure  )
+
+            #concat or adding for the vertical connection
+            if self.do_concat_for_vertical_connection: 
+                lv=torch.cat((lv, fine_values ),1)
+            else:
+                lv+=fine_values
+
+            #resnet blocks
+            for j in range(self.nr_blocks_up_stage[i]):
+                # print("start resnet block in upstage", i, "lv has shape", lv.shape, "ls has val dim" , ls.val_dim() )
+                lv, ls = self.resnet_blocks_per_up_lvl_list[i][j] ( lv, ls) 
+        # TIME_END("up_path")
+
+        # print("lv has shape ", lv.shape)
+
+
 
 
 
@@ -1266,7 +1456,7 @@ class SirenNetworkDirectPE(MetaModule):
         # # cur_nr_channels=128+3
 
         #we add also the point features 
-        cur_nr_channels+=64
+        cur_nr_channels+=120
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
@@ -1959,9 +2149,8 @@ class Net(torch.nn.Module):
 
         mesh=Mesh()
         for i in range(len(frames_for_encoding)):
-        # for i in range(1):
             mesh.add( frames_for_encoding[i].cloud )
-        # mesh.random_subsample(0.7)
+        mesh.random_subsample(0.7)
         mesh.m_vis.m_show_points=True
         mesh.m_vis.set_color_pervertcolor()
         Scene.show(mesh, "cloud")
