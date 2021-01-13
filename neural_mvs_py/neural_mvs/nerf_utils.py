@@ -9,6 +9,25 @@ import torch.nn.functional as F
 # import torchsearchsorted
 
 
+from easypbr  import Profiler
+#Just to have something close to the macros we have in c++
+def profiler_start(name):
+    if(Profiler.is_profiling_gpu()):
+        torch.cuda.synchronize()
+    Profiler.start(name)
+def profiler_end(name):
+    if(Profiler.is_profiling_gpu()):
+        torch.cuda.synchronize()
+    Profiler.end(name)
+TIME_START = lambda name: profiler_start(name)
+TIME_END = lambda name: profiler_end(name)
+
+
+#We create it here because otherwise for some reason the GPU synronizes when we create and kinda slows everything down
+one_e_10 = torch.tensor([1e10], dtype=torch.float32).to("cuda")
+
+
+
 def img2mse(img_src, img_tgt):
     return torch.nn.functional.mse_loss(img_src, img_tgt)
 
@@ -484,9 +503,11 @@ def render_volume_density(
     # TESTED
     # sigma_a = torch.relu(radiance_field[..., siren_out_channels-1])
     # rgb = torch.sigmoid(radiance_field[..., :siren_out_channels-1])
+    # TIME_START("why")
     sigma_a = radiance_field[..., siren_out_channels-1]
     rgb = radiance_field[..., :siren_out_channels-1]
-    one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device)
+    # one_e_10 = torch.tensor([1e10], dtype=ray_origins.dtype, device=ray_origins.device) #we dont create it here because for some reason teh gpu syncronizes here and stalls the pipeline
+    # TIME_END("why")
     dists = torch.cat(
         (
             depth_values[..., 1:] - depth_values[..., :-1],

@@ -1968,7 +1968,9 @@ class Net(torch.nn.Module):
 
 
         #pass the mesh through the lattice 
+        TIME_START("spatial_lnn")
         lv, ls = self.spatial_lnn(mesh)
+        TIME_END("spatial_lnn")
        
 
 
@@ -2042,7 +2044,9 @@ class Net(torch.nn.Module):
 
         #slice from lattice 
         flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
+        TIME_START("slice")
         point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+        TIME_END("slice")
 
 
         # print("self, iter is ",self.iter, )
@@ -2050,7 +2054,9 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
+        TIME_START("just_siren")
         radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, point_features ) #radiance field has shape height,width, nr_samples,4
+        TIME_END("just_siren")
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
@@ -2059,18 +2065,17 @@ class Net(torch.nn.Module):
         #debug
         if not novel and self.iter%100==0:
             rays_mesh=Mesh()
-            rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
-            rays_mesh.m_vis.m_show_points=True
-            #color based on sigma 
-            sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
-            rays_mesh.C=sigma_a.cpu().numpy()
+            # rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
+            # rays_mesh.m_vis.m_show_points=True
+            # #color based on sigma 
+            # sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+            # rays_mesh.C=sigma_a.cpu().numpy()
             # Scene.show(rays_mesh, "rays_mesh_novel")
         if not novel:
             self.iter+=1
 
 
     
-
         radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
 
 
@@ -2079,11 +2084,14 @@ class Net(torch.nn.Module):
         radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
 
         # Perform differentiable volume rendering to re-synthesize the RGB image.
+        TIME_START("render_volume")
         rgb_predicted, depth_map, acc_map = render_volume_density(
         # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
         # rgb_predicted, depth_map, acc_map = render_volume_density2(
-            radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
+            # radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
+            radiance_field, ray_origins, depth_values, self.siren_out_channels
         )
+        TIME_END("render_volume")
 
         # print("rgb predicted has shpae ", rgb_predicted.shape)
         # rgb_predicted=rgb_predicted.view(1,3,height,width)
