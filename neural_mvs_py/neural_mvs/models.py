@@ -1959,8 +1959,9 @@ class Net(torch.nn.Module):
 
         mesh=Mesh()
         for i in range(len(frames_for_encoding)):
+        # for i in range(1):
             mesh.add( frames_for_encoding[i].cloud )
-        mesh.random_subsample(0.7)
+        # mesh.random_subsample(0.7)
         mesh.m_vis.m_show_points=True
         mesh.m_vis.set_color_pervertcolor()
         Scene.show(mesh, "cloud")

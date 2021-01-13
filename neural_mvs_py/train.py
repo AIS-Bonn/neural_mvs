@@ -192,6 +192,11 @@ def run():
             model.train(phase.grad)
             is_training=phase.grad
 
+            # if loader_test.finished_reading_scene():
+            #     print("is finished")
+            # else: 
+            #     print("is NOT")
+
 
             # pbar = tqdm(total=phase.loader.nr_samples())
             # for i in range(loader_test.nr_samples()):
@@ -205,7 +210,7 @@ def run():
                     #preload all frames_for_encoding 
                     frames_for_encoding=[]
                     all_imgs_poses_cam_world_list=[]
-                    for i in range(6):
+                    for i in range(6): #####IF YOU CHANGE THIS change also the nr_imgs_to_read in the train.cfg
                         frame=loader_test.get_random_frame()
                         frame_py=FramePY(frame, depth_min, depth_max) 
                         frames_for_encoding.append(frame_py)
