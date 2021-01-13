@@ -899,6 +899,62 @@ class EncoderLNN(torch.nn.Module):
         return z
 
 
+class SpatialLNN(torch.nn.Module):
+    def __init__(self ):
+        super(SpatialLNN, self).__init__()
+
+        #a bit more control
+        self.pointnet_layers=[16,32,64]
+        self.start_nr_filters=64
+        experiment="none"
+        #check that the experiment has a valid string
+        valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
+        if experiment not in valid_experiment:
+            err = "Experiment " + experiment + " is not valid"
+            sys.exit(err)
+
+
+
+
+        self.distribute=DistributeLatticeModule(experiment) 
+        print("pointnet layers is ", self.pointnet_layers)
+        self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+
+
+
+
+        #####################
+        # Downsampling path #
+        #####################
+        self.resnets=torch.nn.ModuleList([])
+        for i in range(8):
+            self.resnets.append( ResnetBlock(self.start_nr_filters, [1,1], [False,False], False) )
+         
+      
+
+    def forward(self, cloud):
+
+        positions=torch.from_numpy(cloud.V.copy() ).float().to("cuda")
+        values=torch.from_numpy(cloud.C.copy() ).float().to("cuda")
+        values=torch.cat( [positions,values],1 )
+
+
+        ls=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
+
+        with torch.set_grad_enabled(False):
+            distributed, indices, weights=self.distribute(ls, positions, values)
+
+        lv, ls=self.point_net(ls, distributed, indices)
+
+        
+        for i in range(len(self.resnets)):
+            lv, ls = self.resnets[i]( lv, ls) 
+
+
+
+        return lv, ls
+
+
 
 
 class SirenNetwork(MetaModule):
@@ -1198,7 +1254,7 @@ class SirenNetworkDirectPE(MetaModule):
         # self.learned_pe=LearnedPEGaussian2(in_channels=in_channels, out_channels=256, std=5, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels=256+in_channels +    in_channels + in_channels*num_encodings*2
         learned_pe_channels=cur_nr_channels
-        self.skip_pe_point=2
+        self.skip_pe_point=999
 
         # self.position_embedder=( MetaSequential( 
         #     Block(activ=torch.relu, in_channels=in_channels, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
@@ -1208,6 +1264,9 @@ class SirenNetworkDirectPE(MetaModule):
         #     Block(activ=None, in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
         #     ) )
         # # cur_nr_channels=128+3
+
+        #we add also the point features 
+        cur_nr_channels+=64
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
@@ -1259,7 +1318,7 @@ class SirenNetworkDirectPE(MetaModule):
 
 
 
-    def forward(self, x, ray_directions, params=None):
+    def forward(self, x, ray_directions, point_features, params=None):
         if params is None:
             params = OrderedDict(self.named_parameters())
 
@@ -1285,6 +1344,13 @@ class SirenNetworkDirectPE(MetaModule):
         ray_directions=ray_directions.view(height, width, -1)
         ray_directions=ray_directions.permute(2,0,1).unsqueeze(0)
         # print("ray_directions is ", ray_directions.shape )
+
+
+        #append to x the point_features
+        # print("before the x has shape", x.shape)
+        point_features=point_features.view(height, width, nr_points, -1 )
+        x=torch.cat([x,point_features],3)
+        # print("after the x has shape", x.shape)
 
 
         #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
@@ -1796,6 +1862,10 @@ class Net(torch.nn.Module):
         # self.encoder=Encoder(self.z_size)
         self.encoder=EncoderLNN(self.z_size)
         self.decoder=DecoderTo2D(self.z_size, 6)
+
+        self.spatial_lnn=SpatialLNN()
+        self.slice=SliceLatticeModule()
+
         # self.z_size+=3 #because we add the direcitons
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=4)
@@ -1890,10 +1960,14 @@ class Net(torch.nn.Module):
         mesh=Mesh()
         for i in range(len(frames_for_encoding)):
             mesh.add( frames_for_encoding[i].cloud )
+        mesh.random_subsample(0.7)
         mesh.m_vis.m_show_points=True
         mesh.m_vis.set_color_pervertcolor()
         Scene.show(mesh, "cloud")
 
+
+        #pass the mesh through the lattice 
+        lv, ls = self.spatial_lnn(mesh)
        
 
 
@@ -1964,14 +2038,18 @@ class Net(torch.nn.Module):
         # print("flatened_query_pointss is ", flatened_query_pointss.shape)
         # TIME_END("pos_encode")
 
-      
+
+        #slice from lattice 
+        flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
+        point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+
 
         # print("self, iter is ",self.iter, )
 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, point_features ) #radiance field has shape height,width, nr_samples,4
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
         # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
