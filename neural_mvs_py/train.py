@@ -73,6 +73,7 @@ class FramePY():
         # self.znear_zfar.requires_grad=True
         self.cloud=frame.depth2world_xyz_mesh()
         self.cloud=frame.assign_color(self.cloud)
+        self.cloud.remove_vertices_at_zero()
     def create_frustum_mesh(self, scale):
         frame=Frame()
         frame.K=self.K
@@ -96,7 +97,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_25_ulnn"
+    experiment_name="s_32_mr_sum_com"
 
     use_ray_compression=False
 
@@ -345,8 +346,8 @@ def run():
                         loss.backward()
                         TIME_END("backward")
                         cb.after_backward_pass()
-                        # grad_clip=0.01
-                        # torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                        grad_clip=0.01
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                         # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
                         # summary(model)
                         # exit()

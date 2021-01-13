@@ -916,12 +916,12 @@ class SpatialLNN(torch.nn.Module):
 
         #a bit more control
         # self.model_params=model_params
-        self.nr_downsamples=3
-        self.nr_blocks_down_stage= [2,2,2]
+        self.nr_downsamples=4
+        self.nr_blocks_down_stage= [2,2,2,2,2]
         self.nr_blocks_bottleneck=1
-        self.nr_blocks_up_stage= [2,2,2]
-        self.nr_levels_down_with_normal_resnet=3
-        self.nr_levels_up_with_normal_resnet=3
+        self.nr_blocks_up_stage= [1,1,1,1,1]
+        self.nr_levels_down_with_normal_resnet=5
+        self.nr_levels_up_with_normal_resnet=5
         # compression_factor=model_params.compression_factor()
         dropout_last_layer=False
         experiment="none"
@@ -997,7 +997,8 @@ class SpatialLNN(torch.nn.Module):
             nr_chanels_skip_connection=skip_connection_channel_counts.pop()
 
             # if the finefy is the deepest one int the network then it just divides by 2 the nr of channels because we know it didnt get as input two concatet tensors
-            nr_chanels_finefy=int(cur_channels_count/2)
+            # nr_chanels_finefy=int(cur_channels_count/2)
+            nr_chanels_finefy=int(nr_chanels_skip_connection)
 
             #do it with finefy
             print("adding bnReluFinefy which outputs nr of channels ", nr_chanels_finefy )
@@ -1111,6 +1112,7 @@ class SpatialLNN(torch.nn.Module):
             # print("bottleneck stage", j,  "lv has shape", lv.shape, "ls has val_dim", ls.val_dim()  )
             lv, ls = self.resnet_blocks_bottleneck[j] ( lv, ls) 
 
+        multi_res_lattice=[] 
 
         #upsample (we start from the bottom of the U-net, so the upsampling that is closest to the blottlenck)
         # TIME_START("up_path")
@@ -1137,12 +1139,13 @@ class SpatialLNN(torch.nn.Module):
         # TIME_END("up_path")
 
         # print("lv has shape ", lv.shape)
+            multi_res_lattice.append( [lv,ls] )
 
 
 
 
 
-        return lv, ls
+        return multi_res_lattice
 
 
 
@@ -1456,7 +1459,7 @@ class SirenNetworkDirectPE(MetaModule):
         # # cur_nr_channels=128+3
 
         #we add also the point features 
-        cur_nr_channels+=120
+        cur_nr_channels+=128
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
@@ -2050,8 +2053,8 @@ class Net(torch.nn.Module):
 
         # self.encoder=Encoder2D(self.z_size)
         # self.encoder=Encoder(self.z_size)
-        self.encoder=EncoderLNN(self.z_size)
-        self.decoder=DecoderTo2D(self.z_size, 6)
+        # self.encoder=EncoderLNN(self.z_size)
+        # self.decoder=DecoderTo2D(self.z_size, 6)
 
         self.spatial_lnn=SpatialLNN()
         self.slice=SliceLatticeModule()
@@ -2067,7 +2070,7 @@ class Net(torch.nn.Module):
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
-        self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
+        # self.hyper_net = HyperNetworkPrincipledInitialization(hyper_in_features=self.z_size, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=3468, hyper_hidden_layers=3, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetworkIncremental(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.siren_net)
         # self.hyper_net = HyperNetwork(hyper_in_features=self.nr_points_z*3*2, hyper_hidden_layers=1, hyper_hidden_features=512, hypo_module=self.nerf_net)
@@ -2158,7 +2161,7 @@ class Net(torch.nn.Module):
 
         #pass the mesh through the lattice 
         TIME_START("spatial_lnn")
-        lv, ls = self.spatial_lnn(mesh)
+        multi_res_lattice = self.spatial_lnn(mesh)
         TIME_END("spatial_lnn")
        
 
@@ -2234,8 +2237,45 @@ class Net(torch.nn.Module):
         #slice from lattice 
         flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
         TIME_START("slice")
-        point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+        multires_sliced=[]
+        for i in range(len(multi_res_lattice)):
+            lv=multi_res_lattice[i][0]
+            ls=multi_res_lattice[i][1]
+            point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+            # print("sliced at res i", i, " is ", point_features.shape)
+            multires_sliced.append(point_features.unsqueeze(2) )
         TIME_END("slice")
+        #aggregate all the features 
+        aggregated_point_features=multires_sliced[0]
+        for i in range(len(multi_res_lattice)-1):
+            aggregated_point_features=aggregated_point_features+ multires_sliced[i+1]
+        aggregated_point_features=aggregated_point_features/ len(multi_res_lattice)
+        #attemopt 2 aggegare with maxpool
+        # aggregated_point_features=torch.cat(multires_sliced,2)
+        # aggregated_point_features, _=aggregated_point_features.max(dim=2)
+        #attemopt 2 aggegare with ,ean
+        # aggregated_point_features=torch.cat(multires_sliced,2)
+        # aggregated_point_features =aggregated_point_features.mean(dim=2)
+        #attempt 3 start at the coarser one and then replace parts of it with the finer ones
+        # aggregated_point_features=multires_sliced[0] #coarsers sliced features
+        # for i in range(len(multi_res_lattice)-1):
+        #     cur_sliced_features= multires_sliced[i+1]
+        #     cur_valid_features_mask= cur_sliced_features!=0.0
+        #     # aggregated_point_features[cur_valid_features_mask] =  cur_sliced_features[cur_valid_features_mask]
+        #     aggregated_point_features.masked_scatter(cur_valid_features_mask, cur_sliced_features)
+
+        #having a good feature for a point in the ray should somehow conver information to the other points in the ray so we need to pass some information between all of them
+        aggregated_point_features_img=aggregated_point_features.view(height,width,depth_samples_per_ray,-1 )
+        # print("aggregated_point_features_img has shape ", aggregated_point_features_img.shape)
+        #for each ray we get the maximum feature
+        aggregated_point_features_img_max, _=aggregated_point_features_img.max(dim=2, keepdim=True)
+        # print("aggregated_point_features_img_max has shape ", aggregated_point_features_img_max.shape)
+        aggregated_point_features_img=aggregated_point_features_img+ aggregated_point_features_img_max
+        aggregated_point_features= aggregated_point_features_img.view( height*width*depth_samples_per_ray, -1)
+
+
+
+
 
 
         # print("self, iter is ",self.iter, )
@@ -2244,7 +2284,7 @@ class Net(torch.nn.Module):
         # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
         # flattened_query_points/=2.43
         TIME_START("just_siren")
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, point_features ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, aggregated_point_features ) #radiance field has shape height,width, nr_samples,4
         TIME_END("just_siren")
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
