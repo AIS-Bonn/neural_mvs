@@ -717,7 +717,7 @@ class SpatialEncoder2D(torch.nn.Module):
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
         for i in range(5):
-            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=False) )
+            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=True) )
            
 
         self.relu=torch.nn.ReLU(inplace=False)
@@ -738,9 +738,10 @@ class SpatialEncoder2D(torch.nn.Module):
         # TIME_START("down_path")
         for i in range( len(self.resnet_list) ):
             x = self.resnet_list[i] (x, x) 
+            # x = self.resnet_list[i] (x, initial_rgb) 
 
-        x=self.concat_coord(x)
-        x=torch.cat([x,initial_rgb],1)
+        # x=self.concat_coord(x)
+        # x=torch.cat([x,initial_rgb],1)
       
 
         return x
@@ -1071,8 +1072,9 @@ class SpatialLNN(torch.nn.Module):
 
 
         # #a bit more control
-        # self.pointnet_layers=[16,32,64]
-        # self.start_nr_filters=64
+        # # self.pointnet_layers=[16,32,64]
+        # self.pointnet_layers=[64,64]
+        # self.start_nr_filters=128
         # experiment="none"
         # #check that the experiment has a valid string
         # valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
@@ -1108,10 +1110,11 @@ class SpatialLNN(torch.nn.Module):
 
         ls=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
 
-        # with torch.set_grad_enabled(False):
-        #     distributed, indices, weights=self.distribute(ls, positions, values)
+        # distributed, indices, weights=self.distribute(ls, positions, values)
 
         # lv, ls=self.point_net(ls, distributed, indices)
+
+        # lv, ls=self.expand(lv, ls, ls.positions() )
 
         
         # for i in range(len(self.resnets)):
@@ -1123,8 +1126,13 @@ class SpatialLNN(torch.nn.Module):
 
 
 
-        with torch.set_grad_enabled(False):
-            distributed, indices, weights=self.distribute(ls, positions, values)
+
+
+
+
+
+        # with torch.set_grad_enabled(False):
+        distributed, indices, weights=self.distribute(ls, positions, values)
 
         lv, ls=self.point_net(ls, distributed, indices)
 
@@ -1160,7 +1168,7 @@ class SpatialLNN(torch.nn.Module):
             # print("bottleneck stage", j,  "lv has shape", lv.shape, "ls has val_dim", ls.val_dim()  )
             lv, ls = self.resnet_blocks_bottleneck[j] ( lv, ls) 
 
-        multi_res_lattice=[] 
+        # multi_res_lattice=[] 
 
         #upsample (we start from the bottom of the U-net, so the upsampling that is closest to the blottlenck)
         # TIME_START("up_path")
@@ -1187,13 +1195,14 @@ class SpatialLNN(torch.nn.Module):
         # TIME_END("up_path")
 
         # print("lv has shape ", lv.shape)
-            multi_res_lattice.append( [lv,ls] )
+            # multi_res_lattice.append( [lv,ls] )
 
 
 
 
 
-        return multi_res_lattice
+        # return multi_res_lattice
+        return lv, ls
 
 
 
@@ -2109,6 +2118,7 @@ class Net(torch.nn.Module):
         self.slice=SliceLatticeModule()
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
+        # self.learned_pe=LearnedPEGaussian(in_channels=3, out_channels=256, std=5)
 
         # self.z_size+=3 #because we add the direcitons
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
@@ -2143,17 +2153,17 @@ class Net(torch.nn.Module):
         #     BlockLinear(  in_channels=self.z_size, out_channels= self.nr_points_z*3,  bias=True,  activ=None )
         # )
 
-        cam_params=9 + 3 + 3+ 1
-        self.cam_embedder = torch.nn.Sequential(
-            BlockLinear(  in_channels=cam_params, out_channels=64,  bias=True,  activ=torch.relu ),
-            # BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=torch.relu ),
-            BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=None )
-        )
-        self.z_with_cam_embedder = torch.nn.Sequential(
-            BlockLinear(  in_channels=self.z_size+64, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
-            # BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
-            BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=None )
-        )
+        # cam_params=9 + 3 + 3+ 1
+        # self.cam_embedder = torch.nn.Sequential(
+        #     BlockLinear(  in_channels=cam_params, out_channels=64,  bias=True,  activ=torch.relu ),
+        #     # BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=torch.relu ),
+        #     BlockLinear(  in_channels=64, out_channels=64,  bias=True,  activ=None )
+        # )
+        # self.z_with_cam_embedder = torch.nn.Sequential(
+        #     BlockLinear(  in_channels=self.z_size+64, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+        #     # BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
+        #     BlockLinear(  in_channels=self.z_size, out_channels=self.z_size,  bias=True,  activ=None )
+        # )
         # self.z_scene_embedder = torch.nn.Sequential(
         #     BlockLinear(  in_channels=self.z_size*6, out_channels=self.z_size*3,  bias=True,  activ=torch.relu ),
         #     BlockLinear(  in_channels=self.z_size*3, out_channels=self.z_size,  bias=True,  activ=torch.relu ),
@@ -2209,6 +2219,19 @@ class Net(torch.nn.Module):
             mesh.add( cur_cloud )
             img_features=self.spatial_2d(frames_for_encoding[i].rgb_tensor )
             # img_features_list.append( img_features )
+            if i==0:
+                #show the features 
+                height=img_features.shape[2]
+                width=img_features.shape[3]
+                img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+                img_features_for_pca=img_features_for_pca.view(height*width, -1)
+                pca=PCA.apply(img_features_for_pca)
+                pca=pca.view(height, width, 3)
+                pca=pca.permute(2,0,1).unsqueeze(0)
+                pca_mat=tensor2mat(pca)
+                Gui.show(pca_mat, "pca_mat")
+
+
 
             uv1=frames_for_encoding[i].compute_uv(cur_cloud) #uv for projecting this cloud into this frame
             # uv2=frames_for_encoding[i].compute_uv_with_assign_color(cur_cloud) #uv for projecting this cloud into this frame
@@ -2268,6 +2291,7 @@ class Net(torch.nn.Module):
             # Gui.show(tex_mat,"tex_splatted")
 
 
+
         #compute psitions and values
         positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
         sliced_features=torch.cat(sliced_features_list,0)
@@ -2276,6 +2300,10 @@ class Net(torch.nn.Module):
         values=sliced_features
         values=torch.cat( [positions,values],1 )
         # print("values is ", values.shape)
+
+        #concat also the encoded positions 
+        # pos_encod=self.siren_net.learned_pe(positions )
+        # values=torch.cat( [values,pos_encod],1 )
 
         #check diff DEBUG------------------------------------------------------------
         # diff=((sliced_features-color_values)**2).mean()
@@ -2292,7 +2320,7 @@ class Net(torch.nn.Module):
 
         #pass the mesh through the lattice 
         TIME_START("spatial_lnn")
-        multi_res_lattice = self.spatial_lnn(positions, values)
+        lv, ls = self.spatial_lnn(positions, values)
         TIME_END("spatial_lnn")
        
 
@@ -2368,13 +2396,14 @@ class Net(torch.nn.Module):
         #slice from lattice 
         flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
         TIME_START("slice")
-        multires_sliced=[]
-        for i in range(len(multi_res_lattice)):
-            lv=multi_res_lattice[i][0]
-            ls=multi_res_lattice[i][1]
-            point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
-            # print("sliced at res i", i, " is ", point_features.shape)
-            multires_sliced.append(point_features.unsqueeze(2) )
+        # multires_sliced=[]
+        # for i in range(len(multi_res_lattice)):
+        #     lv=multi_res_lattice[i][0]
+        #     ls=multi_res_lattice[i][1]
+        #     point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+        #     # print("sliced at res i", i, " is ", point_features.shape)
+        #     multires_sliced.append(point_features.unsqueeze(2) )
+        point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
         TIME_END("slice")
         #aggregate all the features 
         # aggregated_point_features=multires_sliced[0]
@@ -2395,7 +2424,8 @@ class Net(torch.nn.Module):
         #     # aggregated_point_features[cur_valid_features_mask] =  cur_sliced_features[cur_valid_features_mask]
         #     aggregated_point_features.masked_scatter(cur_valid_features_mask, cur_sliced_features)
         #attempt 4, just get the finest one
-        aggregated_point_features=multires_sliced[ len(multi_res_lattice)-1  ]
+        # aggregated_point_features=multires_sliced[ len(multi_res_lattice)-1  ]
+        aggregated_point_features=point_features
 
         #having a good feature for a point in the ray should somehow conver information to the other points in the ray so we need to pass some information between all of them
         #for each ray we get the maximum feature
@@ -2499,18 +2529,18 @@ class PCA(Function):
 
         X=sv.detach().cpu()#we switch to cpu because svd for gpu needs magma: No CUDA implementation of 'gesdd'. Install MAGMA and rebuild cutorch (http://icl.cs.utk.edu/magma/) at /opt/pytorch/aten/src/THC/generic/THCTensorMathMagma.cu:191
         k=3
-        print("x is ", X.shape)
+        # print("x is ", X.shape)
         X_mean = torch.mean(X,0)
-        print("x_mean is ", X_mean.shape)
+        # print("x_mean is ", X_mean.shape)
         X = X - X_mean.expand_as(X)
 
         U,S,V = torch.svd(torch.t(X)) 
         C = torch.mm(X,U[:,:k])
-        print("C has shape ", C.shape)
-        print("C min and max is ", C.min(), " ", C.max() )
+        # print("C has shape ", C.shape)
+        # print("C min and max is ", C.min(), " ", C.max() )
         C-=C.min()
         C/=C.max()
-        print("after normalization C min and max is ", C.min(), " ", C.max() )
+        # print("after normalization C min and max is ", C.min(), " ", C.max() )
 
         return C
 

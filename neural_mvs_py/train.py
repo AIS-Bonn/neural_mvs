@@ -44,6 +44,7 @@ torch.manual_seed(0)
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = True
 # torch.autograd.set_detect_anomaly(True)
+# torch.set_printoptions(edgeitems=5)
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
@@ -117,7 +118,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_18"
+    experiment_name="s_38"
 
     use_ray_compression=False
 
