@@ -46,9 +46,9 @@ public:
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("splat_texture")
-                        .instantiate(nr_values, val_dim, texture_size)
+                        .instantiate(val_dim, texture_size)
                         .configure(blocks, blockSize)
-                        .launch( texture, values, uv );
+                        .launch(nr_values, texture, values, uv );
             CUDA_CHECK_CURESULT(res);
             CUDA_CHECK_ERROR();
 
@@ -60,9 +60,9 @@ public:
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("slice_texture")
-                        .instantiate(nr_values, nr_channels_texture, texture_size)
+                        .instantiate(nr_channels_texture, texture_size)
                         .configure(blocks, blockSize)
-                        .launch( values_not_normalized_tensor, texture, uv );
+                        .launch(nr_values, values_not_normalized_tensor, texture, uv );
             CUDA_CHECK_CURESULT(res);
             CUDA_CHECK_ERROR();
 
@@ -75,9 +75,9 @@ public:
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("splat_texture_backward")
-                        .instantiate(nr_values, val_dim, texture_size)
+                        .instantiate( val_dim, texture_size)
                         .configure(blocks, blockSize)
-                        .launch( grad_values, grad_uv, grad_texture, values, uv );
+                        .launch( nr_values, grad_values, grad_uv, grad_texture, values, uv );
             CUDA_CHECK_CURESULT(res);
             CUDA_CHECK_ERROR();
 
@@ -92,9 +92,9 @@ public:
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("slice_texture_backward")
-                        .instantiate(nr_values, nr_channels_texture, texture_size)
+                        .instantiate( nr_channels_texture, texture_size)
                         .configure(blocks, blockSize)
-                        .launch( grad_texture, grad_uv, grad_values_not_normalized, texture, uv );
+                        .launch( nr_values, grad_texture, grad_uv, grad_values_not_normalized, texture, uv );
             CUDA_CHECK_CURESULT(res);
             CUDA_CHECK_ERROR();
 
@@ -121,10 +121,10 @@ public:
 
 
 
-template<int nr_values, int val_dim, int texture_size>
+template< int val_dim, int texture_size>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
-splat_texture(float* texture, const float* values, const float* uv ){
+splat_texture(int nr_values, float* texture, const float* values, const float* uv ){
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x; //each thread will deal with a new value
 
@@ -261,7 +261,7 @@ splat_texture(float* texture, const float* values, const float* uv ){
     atomicAdd(sw_val + val_dim, sw );
     atomicAdd(se_val + val_dim, se );
 
-    int i=0;
+    // int i=0;
     
 
 
@@ -269,10 +269,10 @@ splat_texture(float* texture, const float* values, const float* uv ){
 
 
 
-template<int nr_values, int nr_channels_texture, int texture_size>
+template<int nr_channels_texture, int texture_size>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
-slice_texture( float* values_not_normalized, const float* texture, const float* uv ){
+slice_texture( int nr_values, float* values_not_normalized, const float* texture, const float* uv ){
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x; //each thread will deal with a new value
 
@@ -327,6 +327,8 @@ slice_texture( float* values_not_normalized, const float* texture, const float* 
     // const float* q22 = texture + x2*nr_channels_texture + y2*texture_size*nr_channels_texture;
     // const float* q21 = texture + x2*nr_channels_texture + y1*texture_size*nr_channels_texture;
 
+    // printf("accesing at x %d and y %d\n", ix_nw, iy_nw );
+
     const float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_size*nr_channels_texture;
     const float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_size*nr_channels_texture;
     const float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_size*nr_channels_texture;
@@ -365,10 +367,10 @@ slice_texture( float* values_not_normalized, const float* texture, const float* 
 }
 
 
-template<int nr_values, int val_dim, int texture_size>
+template< int val_dim, int texture_size>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
-splat_texture_backward(float* grad_values, float* grad_uv, const float* grad_texture, const float* values, const float* uv ){
+splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const float* grad_texture, const float* values, const float* uv ){
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x; //each thread will deal with a new value
 
@@ -532,10 +534,10 @@ splat_texture_backward(float* grad_values, float* grad_uv, const float* grad_tex
 
 
 
-template<int nr_values, int nr_channels_texture, int texture_size>
+template< int nr_channels_texture, int texture_size>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
-slice_texture_backward(float* grad_texture, float* grad_uv, const float* grad_values_not_normalized, const float* texture, const float* uv ){
+slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const float* grad_values_not_normalized, const float* texture, const float* uv ){
 
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x; //each thread will deal with a new value

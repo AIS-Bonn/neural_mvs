@@ -703,6 +703,44 @@ class Encoder2D(torch.nn.Module):
 
         return x
 
+class SpatialEncoder2D(torch.nn.Module):
+    def __init__(self, nr_channels):
+        super(SpatialEncoder2D, self).__init__()
+
+        self.first_time=True
+
+        self.start_nr_channels=nr_channels
+        self.first_conv = torch.nn.Conv2d(5, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        cur_nr_channels=self.start_nr_channels
+        
+
+        #cnn for encoding
+        self.resnet_list=torch.nn.ModuleList([])
+        for i in range(5):
+            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=True) )
+           
+
+        self.relu=torch.nn.ReLU(inplace=False)
+        self.concat_coord=ConcatCoord() 
+
+
+    def forward(self, x):
+
+        x=self.concat_coord(x)
+       
+        #first conv
+        x = self.first_conv(x)
+        x=self.relu(x)
+
+        #encode 
+        # TIME_START("down_path")
+        for i in range( len(self.resnet_list) ):
+            x = self.resnet_list[i] (x, x) 
+      
+
+        return x
+
+
 
 
 class Encoder(torch.nn.Module):
@@ -938,7 +976,8 @@ class SpatialLNN(torch.nn.Module):
         self.distribute=DistributeLatticeModule(experiment) 
         # self.pointnet_layers=model_params.pointnet_layers()
         # self.start_nr_filters=model_params.pointnet_start_nr_channels()
-        self.pointnet_layers=[16,32,64]
+        # self.pointnet_layers=[16,32,64]
+        self.pointnet_layers=[64,64] #when we use features like the pac features for each position, we don't really need to encode them that much
         self.start_nr_filters=64
         print("pointnet layers is ", self.pointnet_layers)
         self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
@@ -1055,11 +1094,11 @@ class SpatialLNN(torch.nn.Module):
          
       
 
-    def forward(self, cloud):
+    def forward(self, positions, values):
 
-        positions=torch.from_numpy(cloud.V.copy() ).float().to("cuda")
-        values=torch.from_numpy(cloud.C.copy() ).float().to("cuda")
-        values=torch.cat( [positions,values],1 )
+        # positions=torch.from_numpy(cloud.V.copy() ).float().to("cuda")
+        # values=torch.from_numpy(cloud.C.copy() ).float().to("cuda")
+        # values=torch.cat( [positions,values],1 )
 
 
         ls=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
@@ -2061,7 +2100,10 @@ class Net(torch.nn.Module):
         # self.decoder=DecoderTo2D(self.z_size, 6)
 
         self.spatial_lnn=SpatialLNN()
+        self.spatial_2d=SpatialEncoder2D(nr_channels=32)
         self.slice=SliceLatticeModule()
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
 
         # self.z_size+=3 #because we add the direcitons
         # self.siren_net = SirenNetwork(in_channels=3, out_channels=4)
@@ -2155,9 +2197,71 @@ class Net(torch.nn.Module):
         # nr_imgs=x.shape[0]
 
         mesh=Mesh()
+        sliced_features_list=[]
         for i in range(len(frames_for_encoding)):
-            mesh.add( frames_for_encoding[i].cloud )
-        mesh.random_subsample(0.9)
+            cur_cloud=frames_for_encoding[i].cloud.clone()
+            cur_cloud.random_subsample(0.9)
+            mesh.add( cur_cloud )
+            img_features=self.spatial_2d(frames_for_encoding[i].rgb_tensor )
+            # img_features_list.append( img_features )
+
+            uv1=frames_for_encoding[i].compute_uv(cur_cloud) #uv for projecting this cloud into this frame
+            uv2=frames_for_encoding[i].compute_uv_with_assign_color(cur_cloud) #uv for projecting this cloud into this frame
+            uv=uv2
+
+            ####DEBUG 
+            # print("uv1", uv1)
+            # print("uv2", uv2)
+            # diff = ((uv1-uv2)**2).mean()
+            # print("diff in uv is ", diff)
+
+            uv_tensor=torch.from_numpy(uv).float().to("cuda")
+            uv_tensor= uv_tensor*2 -1
+
+            #flip
+            uv_tensor[:,1]=-uv_tensor[:,1]
+
+            # print("uv tensor min max is ", uv_tensor.min(), " " , uv_tensor.max())
+
+            # print("uv tensor is ", uv_tensor)
+
+            # print("img_features ", img_features.shape)
+            # img_features=img_features.squeeze(0)
+            # img_features=img_features.squeeze(0)
+            img_features=frames_for_encoding[i].rgb_tensor.squeeze(0)
+            img_features=img_features.permute(1,2,0)
+            # print("img_featuresis ", img_features.shape)
+            dummy, dummy, sliced_features= self.slice_texture(img_features, uv_tensor)
+            # print("sliced_features is ", sliced_features.shape)
+            sliced_features_list.append(sliced_features)
+
+            #####debug by splatting again-----------------------------
+            # color_val=torch.from_numpy(cur_cloud.C.copy() ).float().to("cuda")
+            # texture= self.splat_texture(sliced_features, uv_tensor, 40)
+            # # texture= self.splat_texture(color_val, uv_tensor, 40)
+            # texture=texture.permute(2,0,1).unsqueeze(0)
+            # texture=texture[:,0:3, : , :]
+            # print("texture is ", texture.shape)
+            # tex_mat=tensor2mat(texture)
+            # Gui.show(tex_mat,"tex_splatted")
+
+
+        #compute psitions and values
+        positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
+        sliced_features=torch.cat(sliced_features_list,0)
+        color_values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
+        # values=color_values
+        values=sliced_features
+        values=torch.cat( [positions,values],1 )
+
+        #check diff DEBUG------------------------------------------------------------
+        # diff=((sliced_features-color_values)**2).mean()
+        # print("diff is ", diff)
+        # print("color values is ", color_values)
+        # print("sliced color is ", sliced_features)
+
+
+        
         mesh.m_vis.m_show_points=True
         mesh.m_vis.set_color_pervertcolor()
         Scene.show(mesh, "cloud")
@@ -2165,7 +2269,7 @@ class Net(torch.nn.Module):
 
         #pass the mesh through the lattice 
         TIME_START("spatial_lnn")
-        multi_res_lattice = self.spatial_lnn(mesh)
+        multi_res_lattice = self.spatial_lnn(positions, values)
         TIME_END("spatial_lnn")
        
 

@@ -82,6 +82,26 @@ class FramePY():
         frame.height=self.height
         cloud=frame.create_frustum_mesh(scale)
         return cloud
+    def compute_uv(self, cloud):
+        frame=Frame()
+        frame.rgb_32f=self.rgb_32f
+        frame.K=self.K
+        frame.tf_cam_world=self.tf_cam_world
+        frame.width=self.width
+        frame.height=self.height
+        uv=frame.compute_uv(cloud)
+        return uv
+    def compute_uv_with_assign_color(self, cloud):
+        frame=Frame()
+        frame.rgb_32f=self.rgb_32f
+        frame.K=self.K
+        frame.tf_cam_world=self.tf_cam_world
+        frame.width=self.width
+        frame.height=self.height
+        cloud=frame.assign_color(cloud)
+        return cloud.UV.copy()
+        
+        
 
      
 
@@ -97,7 +117,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_4_sr_exp"
+    experiment_name="s_7_feat"
 
     use_ray_compression=False
 

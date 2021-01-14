@@ -42,11 +42,11 @@ public:
     Eigen::MatrixXi depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh_core, const Eigen::Affine3d tf_cam_world, const Eigen::Matrix3d K); 
 
     //forward functions
-    static torch::Tensor splat_texture(const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor, const int& texture_size); //uv tensor is Mx2 and in range [-1,1]
-    static torch::Tensor slice_texture(const torch::Tensor& texture, const torch::Tensor& uv_tensor);
+    static torch::Tensor splat_texture(torch::Tensor& values_tensor, torch::Tensor& uv_tensor, const int& texture_size); //uv tensor is Mx2 and in range [-1,1]
+    static torch::Tensor slice_texture(torch::Tensor& texture, torch::Tensor& uv_tensor);
     //backward functions
-    static std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(const torch::Tensor& grad_texture, const torch::Tensor& values_tensor, const torch::Tensor& uv_tensor );
-    static std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(const torch::Tensor& grad_values, const torch::Tensor& texture, const torch::Tensor& uv_tensor );
+    static std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(torch::Tensor& grad_texture, torch::Tensor& values_tensor, torch::Tensor& uv_tensor );
+    static std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(torch::Tensor& grad_values, torch::Tensor& texture, torch::Tensor& uv_tensor );
 
 
 private:
