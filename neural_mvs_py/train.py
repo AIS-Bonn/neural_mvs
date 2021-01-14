@@ -97,7 +97,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_32_mr_sum_com"
+    experiment_name="s_4_sr_exp"
 
     use_ray_compression=False
 

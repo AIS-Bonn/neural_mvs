@@ -1022,7 +1022,7 @@ class SpatialLNN(torch.nn.Module):
 
 
 
-
+        self.expand=ExpandLatticeModule( 10, 0.05, True )
 
 
 
@@ -1083,6 +1083,10 @@ class SpatialLNN(torch.nn.Module):
             distributed, indices, weights=self.distribute(ls, positions, values)
 
         lv, ls=self.point_net(ls, distributed, indices)
+
+        # print("before lv", lv.shape)
+        lv, ls=self.expand(lv, ls, ls.positions() )
+        # print("after lv", lv.shape)
 
 
         
@@ -2153,7 +2157,7 @@ class Net(torch.nn.Module):
         mesh=Mesh()
         for i in range(len(frames_for_encoding)):
             mesh.add( frames_for_encoding[i].cloud )
-        mesh.random_subsample(0.7)
+        mesh.random_subsample(0.9)
         mesh.m_vis.m_show_points=True
         mesh.m_vis.set_color_pervertcolor()
         Scene.show(mesh, "cloud")
@@ -2246,10 +2250,10 @@ class Net(torch.nn.Module):
             multires_sliced.append(point_features.unsqueeze(2) )
         TIME_END("slice")
         #aggregate all the features 
-        aggregated_point_features=multires_sliced[0]
-        for i in range(len(multi_res_lattice)-1):
-            aggregated_point_features=aggregated_point_features+ multires_sliced[i+1]
-        aggregated_point_features=aggregated_point_features/ len(multi_res_lattice)
+        # aggregated_point_features=multires_sliced[0]
+        # for i in range(len(multi_res_lattice)-1):
+            # aggregated_point_features=aggregated_point_features+ multires_sliced[i+1]
+        # aggregated_point_features=aggregated_point_features/ len(multi_res_lattice)
         #attemopt 2 aggegare with maxpool
         # aggregated_point_features=torch.cat(multires_sliced,2)
         # aggregated_point_features, _=aggregated_point_features.max(dim=2)
@@ -2263,15 +2267,20 @@ class Net(torch.nn.Module):
         #     cur_valid_features_mask= cur_sliced_features!=0.0
         #     # aggregated_point_features[cur_valid_features_mask] =  cur_sliced_features[cur_valid_features_mask]
         #     aggregated_point_features.masked_scatter(cur_valid_features_mask, cur_sliced_features)
+        #attempt 4, just get the finest one
+        aggregated_point_features=multires_sliced[ len(multi_res_lattice)-1  ]
 
         #having a good feature for a point in the ray should somehow conver information to the other points in the ray so we need to pass some information between all of them
-        aggregated_point_features_img=aggregated_point_features.view(height,width,depth_samples_per_ray,-1 )
-        # print("aggregated_point_features_img has shape ", aggregated_point_features_img.shape)
         #for each ray we get the maximum feature
-        aggregated_point_features_img_max, _=aggregated_point_features_img.max(dim=2, keepdim=True)
-        # print("aggregated_point_features_img_max has shape ", aggregated_point_features_img_max.shape)
-        aggregated_point_features_img=aggregated_point_features_img+ aggregated_point_features_img_max
-        aggregated_point_features= aggregated_point_features_img.view( height*width*depth_samples_per_ray, -1)
+        # aggregated_point_features_img=aggregated_point_features.view(height,width,depth_samples_per_ray,-1 )
+        # aggregated_point_features_img_max, _=aggregated_point_features_img.max(dim=2, keepdim=True)
+        # aggregated_point_features_img=aggregated_point_features_img+ aggregated_point_features_img_max
+        # aggregated_point_features= aggregated_point_features_img.view( height*width*depth_samples_per_ray, -1)
+
+        ##aggregate by summing the max over all resolutions
+        # aggregated_point_features_all=torch.cat(multires_sliced,2)
+        # aggregated_point_features_max, _=aggregated_point_features_all.max(dim=2)
+        # aggregated_point_features=aggregated_point_features.squeeze(2)+ aggregated_point_features_max
 
 
 
