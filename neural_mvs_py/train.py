@@ -117,7 +117,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_7_feat"
+    experiment_name="s_9_feat_dirs"
 
     use_ray_compression=False
 

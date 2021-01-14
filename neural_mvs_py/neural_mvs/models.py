@@ -2225,12 +2225,29 @@ class Net(torch.nn.Module):
 
             # print("uv tensor is ", uv_tensor)
 
+
+            #concat to the ray origin and ray dir
+            fx=frames_for_encoding[i].K[0,0] ### 
+            fy=frames_for_encoding[i].K[1,1] ### 
+            cx=frames_for_encoding[i].K[0,2] ### 
+            cy=frames_for_encoding[i].K[1,2] ### 
+            tform_cam2world =torch.from_numpy( frames_for_encoding[i].tf_cam_world.inverse().matrix() ).to("cuda")
+            ray_origins, ray_directions = get_ray_bundle(
+                frames_for_encoding[i].height, frames_for_encoding[i].width, fx,fy,cx,cy, tform_cam2world, novel=False
+            )
+            # print("ray origins ", ray_origins.shape)
+            # print("ray_directions ", ray_directions.shape)
+
+
             # print("img_features ", img_features.shape)
             # img_features=img_features.squeeze(0)
-            # img_features=img_features.squeeze(0)
-            img_features=frames_for_encoding[i].rgb_tensor.squeeze(0)
+            img_features=img_features.squeeze(0)
+            # img_features=frames_for_encoding[i].rgb_tensor.squeeze(0)
             img_features=img_features.permute(1,2,0)
             # print("img_featuresis ", img_features.shape)
+
+            img_features=torch.cat([img_features, ray_origins, ray_directions], 2)
+
             dummy, dummy, sliced_features= self.slice_texture(img_features, uv_tensor)
             # print("sliced_features is ", sliced_features.shape)
             sliced_features_list.append(sliced_features)
@@ -2253,6 +2270,7 @@ class Net(torch.nn.Module):
         # values=color_values
         values=sliced_features
         values=torch.cat( [positions,values],1 )
+        # print("values is ", values.shape)
 
         #check diff DEBUG------------------------------------------------------------
         # diff=((sliced_features-color_values)**2).mean()
