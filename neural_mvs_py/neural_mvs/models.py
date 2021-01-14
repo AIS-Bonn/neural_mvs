@@ -710,14 +710,14 @@ class SpatialEncoder2D(torch.nn.Module):
         self.first_time=True
 
         self.start_nr_channels=nr_channels
-        self.first_conv = torch.nn.Conv2d(5, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         cur_nr_channels=self.start_nr_channels
         
 
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
         for i in range(5):
-            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=True) )
+            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=False) )
            
 
         self.relu=torch.nn.ReLU(inplace=False)
@@ -726,7 +726,9 @@ class SpatialEncoder2D(torch.nn.Module):
 
     def forward(self, x):
 
-        x=self.concat_coord(x)
+        # x=self.concat_coord(x)
+
+        initial_rgb=x
        
         #first conv
         x = self.first_conv(x)
@@ -736,6 +738,9 @@ class SpatialEncoder2D(torch.nn.Module):
         # TIME_START("down_path")
         for i in range( len(self.resnet_list) ):
             x = self.resnet_list[i] (x, x) 
+
+        x=self.concat_coord(x)
+        x=torch.cat([x,initial_rgb],1)
       
 
         return x
@@ -2206,8 +2211,8 @@ class Net(torch.nn.Module):
             # img_features_list.append( img_features )
 
             uv1=frames_for_encoding[i].compute_uv(cur_cloud) #uv for projecting this cloud into this frame
-            uv2=frames_for_encoding[i].compute_uv_with_assign_color(cur_cloud) #uv for projecting this cloud into this frame
-            uv=uv2
+            # uv2=frames_for_encoding[i].compute_uv_with_assign_color(cur_cloud) #uv for projecting this cloud into this frame
+            uv=uv1
 
             ####DEBUG 
             # print("uv1", uv1)

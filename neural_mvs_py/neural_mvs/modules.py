@@ -335,6 +335,7 @@ class BlockPAC(torch.nn.Module):
        
         self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
         self.conv=PacConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=self.bias).cuda() 
+        # self.conv=torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=self.bias).cuda() 
         
 
        
@@ -362,6 +363,7 @@ class BlockPAC(torch.nn.Module):
             x=self.activ(x)
 
         x = self.conv(x, guide )
+        # x = self.conv(x )
 
        
 
