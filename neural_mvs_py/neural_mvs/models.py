@@ -1042,6 +1042,7 @@ class SpatialLNN(torch.nn.Module):
         self.start_nr_filters=64
         print("pointnet layers is ", self.pointnet_layers)
         self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+        self.conv_start=None
 
 
 
@@ -1185,10 +1186,29 @@ class SpatialLNN(torch.nn.Module):
 
 
 
+        #ATTEMPT !
+        # distributed, indices, weights=self.distribute(ls, positions, values)
+        # lv, ls=self.point_net(ls, distributed, indices)
 
-        # with torch.set_grad_enabled(False):
-        distributed, indices, weights=self.distribute(ls, positions, values)
-        lv, ls=self.point_net(ls, distributed, indices)
+        #ATTEMP 2
+        #get for each vertex just the mean values arount the area
+        indices, weights=ls.just_create_verts(positions, True)
+        ls.set_positions(positions)
+        indices_long=indices.long()
+        indices_long[indices_long<0]=0 #some indices may be -1 because they were not inserted into the hashmap, this will cause an error for scatter_max so we just set them to 0
+        val_dim=values.shape[1]
+        values=values.repeat(1,4)
+        values=values.view(-1,val_dim)
+        # print("values is ", values.shape)
+        # print("indices_long is ", indices_long.shape)
+        lv = torch_scatter.scatter_mean(values, indices_long, dim=0)
+        ls.set_values(lv)
+        #conv to get it to 64 or so
+        if self.conv_start==None: 
+            self.conv_start=ConvLatticeModule(nr_filters=64, neighbourhood_size=1, dilation=1, bias=True) #disable the bias becuse it is followed by a gn
+        lv, ls = self.conv_start(lv,ls)
+
+        
 
         # lv, ls, indices, weights = self.splat(ls, positions, values)
 
@@ -1254,6 +1274,9 @@ class SpatialLNN(torch.nn.Module):
             # multi_res_lattice.append( [lv,ls] )
 
 
+        #for the last thing, concat the lv  with the intial lv so as to get in the values also the positiuon
+        # lv=torch.cat([lv, positions],1)
+        # ls.set_values(lv)
 
 
 
@@ -1576,10 +1599,8 @@ class SirenNetworkDirectPE(MetaModule):
 
         ### USE NO POSITIONS
         # cur_nr_channels=128
-        # self.learned_pe_feat=LearnedPEGaussian(in_channels=128, out_channels=256, std=5)
-        # self.learned_pe_feat=LearnedPE(in_channels=128, num_encoding_functions=3, logsampling=True)
-        # cur_nr_channels=cur_nr_channels+256
-        # cur_nr_channels=128 + 128*3*2
+        # self.learned_pe_feat=LearnedPE(in_channels=cur_nr_channels, num_encoding_functions=6, logsampling=True)
+        # cur_nr_channels=128 + 128*6*2
 
 
         for i in range(self.nr_layers):
@@ -1671,10 +1692,8 @@ class SirenNetworkDirectPE(MetaModule):
         ###DUMB
         # x=point_features
         # point_features_2d=point_features.view(-1,128)
-        # print("point_features is ", point_features.shape1)
         # feat_enc=self.learned_pe_feat( point_features_2d )
         # x=feat_enc.view(height, width, nr_points, -1 )
-        # print("x has shape", x.shape)
 
 
 
@@ -2374,7 +2393,7 @@ class Net(torch.nn.Module):
         color_values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
         # values=color_values
         values=sliced_features
-        # values=torch.cat( [positions,values],1 )
+        values=torch.cat( [positions,values],1 )
         # print("values is ", values.shape)
 
         #concat also the encoded positions 

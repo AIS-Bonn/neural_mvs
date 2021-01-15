@@ -118,7 +118,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_56_np_enc"
+    experiment_name="s_3_mean"
 
     use_ray_compression=False
 
@@ -316,9 +316,10 @@ def run():
                        
 
                       
-
-                        ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
-                        loss=rgb_loss*0.5 + ssim_loss*0.5
+                        #SSIM LOSS does not mae things better, it may even make then worse
+                        # ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
+                        # loss=rgb_loss*0.5 + ssim_loss*0.5
+                        loss=rgb_loss
                       
 
                       
