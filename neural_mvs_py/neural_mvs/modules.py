@@ -333,7 +333,8 @@ class BlockPAC(torch.nn.Module):
             self.drop=torch.nn.Dropout2d(0.2)
 
        
-        self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
+        # self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
+        self.norm = torch.nn.GroupNorm( int(in_channels/4), in_channels).cuda()
         self.conv=PacConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=self.bias).cuda() 
         # self.conv=torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=self.bias).cuda() 
         
@@ -683,7 +684,7 @@ class LearnedPE(MetaModule):
         self.num_encoding_functions=num_encoding_functions
         self.logsampling=logsampling
 
-        out_channels=3*self.num_encoding_functions*2
+        out_channels=in_channels*self.num_encoding_functions*2
        
         # self.conv= torch.nn.Linear(in_channels, out_channels, bias=True).cuda()  
         self.conv= MetaLinear(in_channels, int(out_channels/2), bias=True).cuda()  #in the case we set the weight ourselves
@@ -712,6 +713,7 @@ class LearnedPE(MetaModule):
             self.conv.weight=torch.nn.Parameter(weight)
             # self.conv.weight.requires_grad=False
             print("weight is", weight.shape)
+            print("bias is", self.conv.bias.shape)
             print("weight is", weight)
 
 

@@ -717,10 +717,14 @@ class SpatialEncoder2D(torch.nn.Module):
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
         for i in range(5):
-            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True,True], with_dropout=False, do_norm=True) )
+            #having no norm here is better than having a batchnorm. Maybe its because we use a batch of 1
+            #also PAC works better than a conv
+            #using norm with GroupNorm seems to work as good as no normalization but probably a bit more stable so we keep it with GN
+            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ) )
            
 
         self.relu=torch.nn.ReLU(inplace=False)
+        # self.gelu=torch.nn.GELU()
         self.concat_coord=ConcatCoord() 
 
 
@@ -745,6 +749,56 @@ class SpatialEncoder2D(torch.nn.Module):
       
 
         return x
+
+class SpatialEncoderDense2D(torch.nn.Module):
+    def __init__(self, nr_channels):
+        super(SpatialEncoderDense2D, self).__init__()
+
+        self.first_time=True
+
+        self.start_nr_channels=8
+        self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        cur_nr_channels=self.start_nr_channels
+        
+
+        #cnn for encoding 
+        self.conv_list=torch.nn.ModuleList([])
+        for i in range(12):
+            self.conv_list.append( BlockPAC(in_channels=cur_nr_channels, out_channels=8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True ) )
+            cur_nr_channels+=8
+           
+
+        self.relu=torch.nn.ReLU(inplace=False)
+        self.concat_coord=ConcatCoord() 
+
+
+    def forward(self, x):
+
+        # x=self.concat_coord(x)
+
+        initial_rgb=x
+       
+        #first conv
+        x = self.first_conv(x)
+        x=self.relu(x)
+
+        #encode 
+        # TIME_START("down_path")
+        stack=[x]
+        for i in range( len(self.conv_list) ):
+            input_conv=torch.cat(stack,1)
+            x=self.conv_list[i](input_conv, input_conv)
+            stack.append(x)
+
+        # x=self.concat_coord(x)
+        # x=torch.cat([x,initial_rgb],1)
+      
+        x=torch.cat(stack,1)
+
+        # print("x final si ", x.shape)
+
+        return x
+
 
 
 
@@ -980,6 +1034,7 @@ class SpatialLNN(torch.nn.Module):
 
 
         self.distribute=DistributeLatticeModule(experiment) 
+        # self.splat=SplatLatticeModule() 
         # self.pointnet_layers=model_params.pointnet_layers()
         # self.start_nr_filters=model_params.pointnet_start_nr_channels()
         # self.pointnet_layers=[16,32,64]
@@ -1133,8 +1188,9 @@ class SpatialLNN(torch.nn.Module):
 
         # with torch.set_grad_enabled(False):
         distributed, indices, weights=self.distribute(ls, positions, values)
-
         lv, ls=self.point_net(ls, distributed, indices)
+
+        # lv, ls, indices, weights = self.splat(ls, positions, values)
 
         # print("before lv", lv.shape)
         lv, ls=self.expand(lv, ls, ls.positions() )
@@ -1518,6 +1574,14 @@ class SirenNetworkDirectPE(MetaModule):
         #we add also the point features 
         cur_nr_channels+=128
 
+        ### USE NO POSITIONS
+        # cur_nr_channels=128
+        # self.learned_pe_feat=LearnedPEGaussian(in_channels=128, out_channels=256, std=5)
+        # self.learned_pe_feat=LearnedPE(in_channels=128, num_encoding_functions=3, logsampling=True)
+        # cur_nr_channels=cur_nr_channels+256
+        # cur_nr_channels=128 + 128*3*2
+
+
         for i in range(self.nr_layers):
             is_first_layer=i==0
             self.net.append( MetaSequential( BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
@@ -1601,6 +1665,17 @@ class SirenNetworkDirectPE(MetaModule):
         point_features=point_features.view(height, width, nr_points, -1 )
         x=torch.cat([x,point_features],3)
         # print("after the x has shape", x.shape)
+
+
+
+        ###DUMB
+        # x=point_features
+        # point_features_2d=point_features.view(-1,128)
+        # print("point_features is ", point_features.shape1)
+        # feat_enc=self.learned_pe_feat( point_features_2d )
+        # x=feat_enc.view(height, width, nr_points, -1 )
+        # print("x has shape", x.shape)
+
 
 
         #the x in this case is Nx3 but in order to make it run fine with the 1x1 conv we make it a Nx3x1x1
@@ -2115,6 +2190,7 @@ class Net(torch.nn.Module):
 
         self.spatial_lnn=SpatialLNN()
         self.spatial_2d=SpatialEncoder2D(nr_channels=32)
+        # self.spatial_2d=SpatialEncoderDense2D(nr_channels=32)
         self.slice=SliceLatticeModule()
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
@@ -2298,7 +2374,7 @@ class Net(torch.nn.Module):
         color_values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
         # values=color_values
         values=sliced_features
-        values=torch.cat( [positions,values],1 )
+        # values=torch.cat( [positions,values],1 )
         # print("values is ", values.shape)
 
         #concat also the encoded positions 
