@@ -1332,6 +1332,314 @@ class SpatialLNN(torch.nn.Module):
 
 
 
+class SpatialLNNFixed(torch.nn.Module):
+    def __init__(self ):
+        super(SpatialLNNFixed, self).__init__()
+
+
+
+
+
+
+
+
+
+
+
+
+        #a bit more control
+        # self.model_params=model_params
+        self.nr_downsamples=4
+        # self.nr_blocks_down_stage= [2,2,2,2,2]
+        self.nr_blocks_down_stage= [2,2,2,2,2]
+        self.nr_blocks_bottleneck=1
+        # self.nr_blocks_up_stage= [1,1,1,1,1]
+        self.nr_blocks_up_stage= [2,2,2,2,2]
+        self.nr_levels_down_with_normal_resnet=5
+        self.nr_levels_up_with_normal_resnet=5
+        # compression_factor=model_params.compression_factor()
+        dropout_last_layer=False
+        experiment="none"
+        #check that the experiment has a valid string
+        valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
+        if experiment not in valid_experiment:
+            err = "Experiment " + experiment + " is not valid"
+            sys.exit(err)
+
+
+
+
+
+        self.distribute=DistributeLatticeModule(experiment) 
+        # self.splat=SplatLatticeModule() 
+        # self.pointnet_layers=model_params.pointnet_layers()
+        # self.start_nr_filters=model_params.pointnet_start_nr_channels()
+        # self.pointnet_layers=[16,32,64]
+        self.pointnet_layers=[64,64] #when we use features like the pac features for each position, we don't really need to encode them that much
+        self.start_nr_filters=64
+        print("pointnet layers is ", self.pointnet_layers)
+        # self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+        self.conv_start=None
+
+
+
+
+        #####################
+        # Downsampling path #
+        #####################
+        self.resnet_blocks_per_down_lvl_list=torch.nn.ModuleList([])
+        self.coarsens_list=torch.nn.ModuleList([])
+        self.maxpool_list=torch.nn.ModuleList([])
+        corsenings_channel_counts = []
+        skip_connection_channel_counts = []
+        cur_channels_count=self.start_nr_filters
+        for i in range(self.nr_downsamples):
+            
+            #create the resnet blocks
+            self.resnet_blocks_per_down_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_down_stage[i]):
+                print("adding down_resnet_block with nr of filters", cur_channels_count )
+                should_use_dropout=False
+                # self.resnet_blocks_per_down_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,False], should_use_dropout) )
+                # self.resnet_blocks_per_down_lvl_list[i].append( ResnetBlockReluConvLattice(cur_channels_count, [1,1], [True,True], should_use_dropout) )
+                # self.resnet_blocks_per_down_lvl_list[i].append( ResnetBlockConvReluLattice(cur_channels_count, [1,1], [True,True], should_use_dropout) )
+                self.resnet_blocks_per_down_lvl_list[i].append( ConvRelu(cur_channels_count, dilation=1, bias=True, with_dropout=False) )
+            skip_connection_channel_counts.append(cur_channels_count)
+            # nr_channels_after_coarsening=int(cur_channels_count*2*compression_factor)
+            nr_channels_after_coarsening=int(cur_channels_count)
+            print("adding bnReluCorsen which outputs nr of channels ", nr_channels_after_coarsening )
+            # self.coarsens_list.append( GnReluCoarsen(nr_channels_after_coarsening)) #is still the best one because it can easily learn the versions of Avg and Blur. and the Max version is the worse for some reason
+            # self.coarsens_list.append( ReluCoarsen(nr_channels_after_coarsening, bias=True)) #is still the best one because it can easily learn the versions of Avg and Blur. and the Max version is the worse for some reason
+            self.coarsens_list.append( CoarsenRelu(nr_channels_after_coarsening, bias=True)) #is still the best one because it can easily learn the versions of Avg and Blur. and the Max version is the worse for some reason
+            cur_channels_count=nr_channels_after_coarsening
+            corsenings_channel_counts.append(cur_channels_count)
+
+        #####################
+        #     Bottleneck    #
+        #####################
+        self.resnet_blocks_bottleneck=torch.nn.ModuleList([])
+        for j in range(self.nr_blocks_bottleneck):
+                print("adding bottleneck_resnet_block with nr of filters", cur_channels_count )
+                # self.resnet_blocks_bottleneck.append( BottleneckBlock(cur_channels_count, [False,False,False]) )
+                # self.resnet_blocks_bottleneck.append(  ResnetBlock(cur_channels_count, [1,1], [False,False], should_use_dropout) )
+                # self.resnet_blocks_bottleneck.append(  ResnetBlockReluConvLattice(cur_channels_count, [1,1], [True,True], should_use_dropout) )
+                # self.resnet_blocks_bottleneck.append(  ResnetBlockConvReluLattice(cur_channels_count, [1,1], [True,True], should_use_dropout) )
+                self.resnet_blocks_bottleneck.append( ConvRelu(cur_channels_count, dilation=1, bias=True, with_dropout=False) )
+
+        self.do_concat_for_vertical_connection=True
+        #######################
+        #   Upsampling path   #
+        #######################
+        self.finefy_list=torch.nn.ModuleList([])
+        self.up_activation_list=torch.nn.ModuleList([])
+        self.up_match_dim_list=torch.nn.ModuleList([])
+        self.up_bn_match_dim_list=torch.nn.ModuleList([])
+        self.resnet_blocks_per_up_lvl_list=torch.nn.ModuleList([])
+        for i in range(self.nr_downsamples):
+            nr_chanels_skip_connection=skip_connection_channel_counts.pop()
+
+            # if the finefy is the deepest one int the network then it just divides by 2 the nr of channels because we know it didnt get as input two concatet tensors
+            # nr_chanels_finefy=int(cur_channels_count/2)
+            nr_chanels_finefy=int(nr_chanels_skip_connection)
+
+            #do it with finefy
+            print("adding bnReluFinefy which outputs nr of channels ", nr_chanels_finefy )
+            # self.finefy_list.append( GnReluFinefy(nr_chanels_finefy ))
+            # self.finefy_list.append( GnReluFinefyWTF(nr_chanels_finefy ))
+            # self.finefy_list.append( ReluFinefy(nr_chanels_finefy, bias=True ))
+            self.finefy_list.append( FinefyRelu(nr_chanels_finefy, bias=True ))
+
+            #after finefy we do a concat with the skip connection so the number of channels doubles
+            if self.do_concat_for_vertical_connection:
+                cur_channels_count=nr_chanels_skip_connection+nr_chanels_finefy
+            else:
+                cur_channels_count=nr_chanels_skip_connection
+
+            self.resnet_blocks_per_up_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_up_stage[i]):
+                is_last_conv=j==self.nr_blocks_up_stage[i]-1 and i==self.nr_downsamples-1 #the last conv of the last upsample is followed by a slice and not a bn, therefore we need a bias
+                print("adding up_resnet_block with nr of filters", cur_channels_count ) 
+                # self.resnet_blocks_per_up_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,is_last_conv], False) )
+                # self.resnet_blocks_per_up_lvl_list[i].append( ResnetBlockReluConvLattice(cur_channels_count, [1,1], [True,True], False) )
+                # self.resnet_blocks_per_up_lvl_list[i].append( ResnetBlockConvReluLattice(cur_channels_count, [1,1], [True,True], False) )
+                self.resnet_blocks_per_up_lvl_list[i].append( ConvRelu(cur_channels_count, dilation=1, bias=True, with_dropout=False) )
+
+
+
+        self.expand=ExpandLatticeModule( 10, 0.05, True )
+
+
+
+        # #a bit more control
+        # # self.pointnet_layers=[16,32,64]
+        # self.pointnet_layers=[64,64]
+        # self.start_nr_filters=128
+        # experiment="none"
+        # #check that the experiment has a valid string
+        # valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
+        # if experiment not in valid_experiment:
+        #     err = "Experiment " + experiment + " is not valid"
+        #     sys.exit(err)
+
+
+
+
+        # self.distribute=DistributeLatticeModule(experiment) 
+        # print("pointnet layers is ", self.pointnet_layers)
+        # self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+
+
+
+
+        # #####################
+        # # Downsampling path #
+        # #####################
+        # self.resnets=torch.nn.ModuleList([])
+        # for i in range(8):
+        #     self.resnets.append( ResnetBlock(self.start_nr_filters, [1,1], [False,False], False) )
+         
+      
+
+    def forward(self, positions, sliced_local_features, sliced_global_features):
+
+        # positions=torch.from_numpy(cloud.V.copy() ).float().to("cuda")
+        # values=torch.from_numpy(cloud.C.copy() ).float().to("cuda")
+        # values=torch.cat( [positions,values],1 )
+
+
+        ls=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
+
+        # distributed, indices, weights=self.distribute(ls, positions, values)
+
+        # lv, ls=self.point_net(ls, distributed, indices)
+
+        # lv, ls=self.expand(lv, ls, ls.positions() )
+
+        
+        # for i in range(len(self.resnets)):
+        #     lv, ls = self.resnets[i]( lv, ls) 
+
+
+
+
+
+
+
+
+
+
+
+        #ATTEMPT !
+        # distributed, indices, weights=self.distribute(ls, positions, values)
+        # lv, ls=self.point_net(ls, distributed, indices)
+
+        #ATTEMP 2
+        #get for each vertex just the mean values arount the area
+        indices, weights=ls.just_create_verts(positions, True)
+        ls.set_positions(positions)
+        indices_long=indices.long()
+        indices_long[indices_long<0]=0 #some indices may be -1 because they were not inserted into the hashmap, this will cause an error for scatter_max so we just set them to 0
+
+        #average the weighted local features
+        local_val_dim=sliced_local_features.shape[1]
+        sliced_local_features=sliced_local_features.repeat(1,4)
+        sliced_local_features=sliced_local_features.view(-1,local_val_dim)
+        sliced_local_features=sliced_local_features*weights.view(-1,1) #weight the image features because they are local
+        lv_local = torch_scatter.scatter_mean(sliced_local_features, indices_long, dim=0)
+
+        #average the global features and then positionally encode them
+        global_val_dim=sliced_global_features.shape[1]
+        sliced_global_features=sliced_global_features.repeat(1,4)
+        sliced_global_features=sliced_global_features.view(-1,global_val_dim)
+        lv_global = torch_scatter.scatter_mean(sliced_global_features, indices_long, dim=0)
+        #encode the average positions, ray directions, etc
+        lv_global=positional_encoding(lv_global, num_encoding_functions=11)
+        
+        lv=torch.cat([lv_local, lv_global],1)
+        ls.set_values(lv)
+        #conv to get it to 64 or so
+        if self.conv_start==None: 
+            self.conv_start=ConvLatticeModule(nr_filters=64, neighbourhood_size=1, dilation=1, bias=True) #disable the bias becuse it is followed by a gn
+        lv, ls = self.conv_start(lv,ls)
+
+        
+
+        # lv, ls, indices, weights = self.splat(ls, positions, values)
+
+        # print("before lv", lv.shape)
+        lv, ls=self.expand(lv, ls, ls.positions() )
+        # print("after lv", lv.shape)
+
+
+        
+        fine_structures_list=[]
+        fine_values_list=[]
+        # TIME_START("down_path")
+        for i in range(self.nr_downsamples):
+
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                # print("start downsample stage ", i , " resnet block ", j, "lv has shape", lv.shape, " ls has val dim", ls.val_dim() )
+                lv, ls = self.resnet_blocks_per_down_lvl_list[i][j] ( lv, ls) 
+
+            #saving them for when we do finefy so we can concat them there
+            fine_structures_list.append(ls) 
+            fine_values_list.append(lv)
+
+            #now we do a downsample
+            # print("start coarsen stage ", i, "lv has shape", lv.shape, "ls has val_dim", ls.val_dim() )
+            lv, ls = self.coarsens_list[i] ( lv, ls)
+            # print( "finished coarsen stage ", i, "lv has shape", lv.shape, "ls has val_dim", ls.val_dim() )
+
+        # TIME_END("down_path")
+
+        # #bottleneck
+        for j in range(self.nr_blocks_bottleneck):
+            # print("bottleneck stage", j,  "lv has shape", lv.shape, "ls has val_dim", ls.val_dim()  )
+            lv, ls = self.resnet_blocks_bottleneck[j] ( lv, ls) 
+
+        # multi_res_lattice=[] 
+
+        #upsample (we start from the bottom of the U-net, so the upsampling that is closest to the blottlenck)
+        # TIME_START("up_path")
+        for i in range(self.nr_downsamples):
+
+            fine_values=fine_values_list.pop()
+            fine_structure=fine_structures_list.pop()
+
+
+            #finefy
+            # print("start finefy stage", i,  "lv has shape", lv.shape, "ls has val_dim ", ls.val_dim(),  "fine strcture has val dim ", fine_structure.val_dim() )
+            lv, ls = self.finefy_list[i] ( lv, ls, fine_structure  )
+
+            #concat or adding for the vertical connection
+            if self.do_concat_for_vertical_connection: 
+                lv=torch.cat((lv, fine_values ),1)
+            else:
+                lv+=fine_values
+
+            #resnet blocks
+            for j in range(self.nr_blocks_up_stage[i]):
+                # print("start resnet block in upstage", i, "lv has shape", lv.shape, "ls has val dim" , ls.val_dim() )
+                lv, ls = self.resnet_blocks_per_up_lvl_list[i][j] ( lv, ls) 
+        # TIME_END("up_path")
+
+        # print("lv has shape ", lv.shape)
+            # multi_res_lattice.append( [lv,ls] )
+
+
+        #for the last thing, concat the lv  with the intial lv so as to get in the values also the positiuon
+        # lv=torch.cat([lv, positions],1)
+        # ls.set_values(lv)
+
+
+
+        # return multi_res_lattice
+        return lv, ls
+
+
+
+
 class SirenNetwork(MetaModule):
     def __init__(self, in_channels, out_channels):
         super(SirenNetwork, self).__init__()
@@ -2352,7 +2660,8 @@ class Net(torch.nn.Module):
         # self.encoder=EncoderLNN(self.z_size)
         # self.decoder=DecoderTo2D(self.z_size, 6)
 
-        self.spatial_lnn=SpatialLNN()
+        # self.spatial_lnn=SpatialLNN()
+        self.spatial_lnn=SpatialLNNFixed()
         self.spatial_2d=SpatialEncoder2D(nr_channels=64)
         # self.spatial_2d=SpatialEncoderDense2D(nr_channels=32)
         self.slice=SliceLatticeModule()
