@@ -118,7 +118,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="27_bias"
+    experiment_name="29_featenc"
 
     use_ray_compression=False
 
