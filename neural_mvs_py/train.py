@@ -41,6 +41,7 @@ from easypbr import Scene
 config_file="train.cfg"
 
 torch.manual_seed(0)
+random.seed(0)
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = True
 # torch.autograd.set_detect_anomaly(True)
@@ -118,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="29_featenc"
+    experiment_name="32_cc"
 
     use_ray_compression=False
 
@@ -311,8 +312,8 @@ def run():
                       
                        
 
-                        rgb_loss=((out_tensor-gt_rgb_tensor)**2).mean()
-                        # rgb_loss=( torch.abs(out_tensor-gt_rgb_tensor) ).mean()
+                        # rgb_loss=((out_tensor-gt_rgb_tensor)**2).mean()
+                        rgb_loss=( torch.abs(out_tensor-gt_rgb_tensor) ).mean()
                        
 
                       

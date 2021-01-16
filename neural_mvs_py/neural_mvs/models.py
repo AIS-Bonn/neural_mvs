@@ -713,7 +713,7 @@ class SpatialEncoder2D(torch.nn.Module):
 
         self.start_nr_channels=nr_channels
         # self.first_conv = torch.nn.Conv2d(253, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
-        self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        self.first_conv = torch.nn.Conv2d(6, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         cur_nr_channels=self.start_nr_channels
         
 
@@ -743,19 +743,20 @@ class SpatialEncoder2D(torch.nn.Module):
 
 
         #CONCATTING ALL OF THIS SHIT MAKES IT WORSE
-        # #concat also the ray direction and origin and coords
-        # fx=frame.K[0,0] ### 
-        # fy=frame.K[1,1] ### 
-        # cx=frame.K[0,2] ### 
-        # cy=frame.K[1,2] ### 
-        # tform_cam2world =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
-        # ray_origins, ray_directions = get_ray_bundle(
-        #     frame.height, frame.width, fx,fy,cx,cy, tform_cam2world, novel=False
-        # )
+        #concat also the ray direction and origin and coords
+        fx=frame.K[0,0] ### 
+        fy=frame.K[1,1] ### 
+        cx=frame.K[0,2] ### 
+        cy=frame.K[1,2] ### 
+        tform_cam2world =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
+        ray_origins, ray_directions = get_ray_bundle(
+            frame.height, frame.width, fx,fy,cx,cy, tform_cam2world, novel=False
+        )
         # x=self.concat_coord(x)
         # ray_origins=ray_origins.view(1,height,width,-1).permute(0,3,1,2)
-        # ray_directions=ray_directions.view(1,height,width,-1).permute(0,3,1,2)
+        ray_directions=ray_directions.view(1,height,width,-1).permute(0,3,1,2)
         # x=torch.cat([x,ray_origins, ray_directions],1)
+        x=torch.cat([x, ray_directions],1)
 
         # channels=x.shape[1]
         # # print("nr channels is ", channels)
@@ -2481,7 +2482,7 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
         #concat also the encoded features 
         reduce_feat_channels=16
-        encoding_feat=4
+        encoding_feat=6
         self.conv_reduce_feat=BlockSiren(activ=torch.relu, in_channels=128, out_channels=reduce_feat_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
         self.learned_pe_features=LearnedPE(in_channels=reduce_feat_channels, num_encoding_functions=encoding_feat, logsampling=True)
         feat_enc_channels=reduce_feat_channels+ reduce_feat_channels*encoding_feat*2
@@ -2558,9 +2559,9 @@ class SirenNetworkDirectPE_Simple(MetaModule):
         x=self.first_conv(x)
 
         for i in range(len(self.net)):
-            # x=x+point_features
-            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
             x=x+point_features
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+            # x=x+point_features
 
             # print("x has shape after resnet ", x.shape)
 
