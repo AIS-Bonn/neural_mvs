@@ -716,7 +716,7 @@ class SpatialEncoder2D(torch.nn.Module):
 
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
-        for i in range(5):
+        for i in range(8):
             #having no norm here is better than having a batchnorm. Maybe its because we use a batch of 1
             #also PAC works better than a conv
             #using norm with GroupNorm seems to work as good as no normalization but probably a bit more stable so we keep it with GN
@@ -741,8 +741,8 @@ class SpatialEncoder2D(torch.nn.Module):
         #encode 
         # TIME_START("down_path")
         for i in range( len(self.resnet_list) ):
-            x = self.resnet_list[i] (x, x) 
-            # x = self.resnet_list[i] (x, initial_rgb) 
+            # x = self.resnet_list[i] (x, x) 
+            x = self.resnet_list[i] (x, initial_rgb) 
 
         # x=self.concat_coord(x)
         # x=torch.cat([x,initial_rgb],1)
@@ -1157,7 +1157,7 @@ class SpatialLNN(torch.nn.Module):
          
       
 
-    def forward(self, positions, values):
+    def forward(self, positions, sliced_local_features, sliced_global_features):
 
         # positions=torch.from_numpy(cloud.V.copy() ).float().to("cuda")
         # values=torch.from_numpy(cloud.C.copy() ).float().to("cuda")
@@ -1196,12 +1196,23 @@ class SpatialLNN(torch.nn.Module):
         ls.set_positions(positions)
         indices_long=indices.long()
         indices_long[indices_long<0]=0 #some indices may be -1 because they were not inserted into the hashmap, this will cause an error for scatter_max so we just set them to 0
-        val_dim=values.shape[1]
-        values=values.repeat(1,4)
-        values=values.view(-1,val_dim)
-        # print("values is ", values.shape)
-        # print("indices_long is ", indices_long.shape)
-        lv = torch_scatter.scatter_mean(values, indices_long, dim=0)
+
+        #average the weighted local features
+        local_val_dim=sliced_local_features.shape[1]
+        sliced_local_features=sliced_local_features.repeat(1,4)
+        sliced_local_features=sliced_local_features.view(-1,local_val_dim)
+        sliced_local_features=sliced_local_features*weights.view(-1,1) #weight the image features because they are local
+        lv_local = torch_scatter.scatter_mean(sliced_local_features, indices_long, dim=0)
+
+        #average the global features and then positionally encode them
+        global_val_dim=sliced_global_features.shape[1]
+        sliced_global_features=sliced_global_features.repeat(1,4)
+        sliced_global_features=sliced_global_features.view(-1,global_val_dim)
+        lv_global = torch_scatter.scatter_mean(sliced_global_features, indices_long, dim=0)
+        #encode the average positions, ray directions, etc
+        lv_global=positional_encoding(lv_global, num_encoding_functions=11)
+        
+        lv=torch.cat([lv_local, lv_global],1)
         ls.set_values(lv)
         #conv to get it to 64 or so
         if self.conv_start==None: 
@@ -1599,8 +1610,8 @@ class SirenNetworkDirectPE(MetaModule):
 
         ### USE NO POSITIONS
         # cur_nr_channels=128
-        # self.learned_pe_feat=LearnedPE(in_channels=cur_nr_channels, num_encoding_functions=6, logsampling=True)
-        # cur_nr_channels=128 + 128*6*2
+        # self.learned_pe_feat=LearnedPE(in_channels=cur_nr_channels, num_encoding_functions=4, logsampling=True)
+        # cur_nr_channels=128 + 128*4*2
 
 
         for i in range(self.nr_layers):
@@ -2004,6 +2015,103 @@ class SirenNetworkDirectPETrim(MetaModule):
         return x
 
 
+#more similar to the pixelnerf https://arxiv.org/pdf/2012.02190v1.pdf
+class SirenNetworkDirectPE_PixelNERF(MetaModule):
+    def __init__(self, in_channels, out_channels):
+        super(SirenNetworkDirectPE_PixelNERF, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=4
+        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+     
+
+        cur_nr_channels=in_channels
+        self.net=torch.nn.ModuleList([])
+        
+        num_encodings=11
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        cur_nr_channels=256+in_channels
+        num_encoding_directions=4
+        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        dirs_channels=3+ 3*num_encoding_directions*2
+        cur_nr_channels+=dirs_channels
+        #now we concatenate the positions and directions and pass them through the initial conv
+        self.first_conv=BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
+
+        cur_nr_channels= self.out_channels_per_layer[0]
+
+      
+
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( ResnetBlockNerf(activ=torch.relu, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True,True], do_norm=False, with_dropout=False).cuda() ) )
+           
+
+        self.pred_sigma_and_rgb=MetaSequential(
+            # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=4, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            )
+       
+       
+
+
+
+    def forward(self, x, ray_directions, point_features, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        if len(x.shape)!=4:
+            print("SirenDirectPE forward: x should be a H,W,nr_points,3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+            exit(1)
+
+        height=x.shape[0]
+        width=x.shape[1]
+        nr_points=x.shape[2]
+
+        #from 71,107,30,3  to Nx3
+        x=x.view(-1,3)
+        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        x=x.view(height, width, nr_points, -1 )
+        x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
+
+        #also make the direcitons into image 
+        ray_directions=ray_directions.view(-1,3)
+        ray_directions=F.normalize(ray_directions, p=2, dim=1)
+        ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+        ray_directions=ray_directions.view(height, width, -1)
+        ray_directions=ray_directions.permute(2,0,1).unsqueeze(0) #1,C,HW
+        ray_directions=ray_directions.repeat(nr_points,1,1,1) #repeat as many times as samples that you have in a ray
+
+        x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
+        x=self.first_conv(x)
+
+
+        #append to x the point_features
+        point_features=point_features.view(height, width, nr_points, -1 )
+        point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
+
+
+
+
+        for i in range(len(self.net)):
+            x=x+point_features
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+
+            # print("x has shape after resnet ", x.shape)
+
+        sigma_and_rgb=self.pred_sigma_and_rgb(x)
+        sigma_a=torch.relu( sigma_and_rgb[:,0:1, :, :] ) #first channel is the sigma
+        rgb=torch.sigmoid(  sigma_and_rgb[:, 1:4, :, :]  )
+        x=torch.cat([rgb, sigma_a],1)
+
+        x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+
+       
+        return  x
+
+
 #this siren net receives directly the coordinates, no need to make a concat coord or whatever
 #This one does soemthin like densenet so each layers just append to a stack
 class SirenNetworkDense(MetaModule):
@@ -2208,7 +2316,7 @@ class Net(torch.nn.Module):
         # self.decoder=DecoderTo2D(self.z_size, 6)
 
         self.spatial_lnn=SpatialLNN()
-        self.spatial_2d=SpatialEncoder2D(nr_channels=32)
+        self.spatial_2d=SpatialEncoder2D(nr_channels=64)
         # self.spatial_2d=SpatialEncoderDense2D(nr_channels=32)
         self.slice=SliceLatticeModule()
         self.slice_texture= SliceTextureModule()
@@ -2221,6 +2329,8 @@ class Net(torch.nn.Module):
         # self.siren_net = SirenNetworkDirect(in_channels=3, out_channels=3)
         # self.siren_net = SirenNetworkDirect(in_channels=3+3*self.num_encodings*2, out_channels=self.siren_out_channels)
         self.siren_net = SirenNetworkDirectPE(in_channels=3, out_channels=self.siren_out_channels)
+        # self.siren_net = SirenNetworkDirectPE_PixelNERF(in_channels=3, out_channels=self.siren_out_channels)
+        
         # self.siren_net = SirenNetworkDirectPETrim(in_channels=3, out_channels=self.siren_out_channels)
         # self.siren_net = SirenNetworkDense(in_channels=3+3*self.num_encodings*2, out_channels=4)
         # self.nerf_net = NerfDirect(in_channels=3+3*self.num_encodings*2, out_channels=4)
@@ -2307,24 +2417,25 @@ class Net(torch.nn.Module):
         # nr_imgs=x.shape[0]
 
         mesh=Mesh()
-        sliced_features_list=[]
+        sliced_local_features_list=[]
+        sliced_global_features_list=[]
         for i in range(len(frames_for_encoding)):
             cur_cloud=frames_for_encoding[i].cloud.clone()
-            cur_cloud.random_subsample(0.9)
+            cur_cloud.random_subsample(0.8)
             mesh.add( cur_cloud )
             img_features=self.spatial_2d(frames_for_encoding[i].rgb_tensor )
-            # img_features_list.append( img_features )
-            if i==0:
-                #show the features 
-                height=img_features.shape[2]
-                width=img_features.shape[3]
-                img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-                img_features_for_pca=img_features_for_pca.view(height*width, -1)
-                pca=PCA.apply(img_features_for_pca)
-                pca=pca.view(height, width, 3)
-                pca=pca.permute(2,0,1).unsqueeze(0)
-                pca_mat=tensor2mat(pca)
-                Gui.show(pca_mat, "pca_mat")
+            #DO PCA
+            # if i==0:
+            #     #show the features 
+            #     height=img_features.shape[2]
+            #     width=img_features.shape[3]
+            #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+            #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
+            #     pca=PCA.apply(img_features_for_pca)
+            #     pca=pca.view(height, width, 3)
+            #     pca=pca.permute(2,0,1).unsqueeze(0)
+            #     pca_mat=tensor2mat(pca)
+            #     Gui.show(pca_mat, "pca_mat")
 
 
 
@@ -2369,11 +2480,17 @@ class Net(torch.nn.Module):
             img_features=img_features.permute(1,2,0)
             # print("img_featuresis ", img_features.shape)
 
-            img_features=torch.cat([img_features, ray_origins, ray_directions], 2)
+            # img_features=torch.cat([img_features, ray_origins, ray_directions], 2)
+            #we distinguish between local features and global features
+            local_features=img_features
+            global_features=torch.cat([ray_origins, ray_directions],2)
 
-            dummy, dummy, sliced_features= self.slice_texture(img_features, uv_tensor)
-            # print("sliced_features is ", sliced_features.shape)
-            sliced_features_list.append(sliced_features)
+            dummy, dummy, sliced_local_features= self.slice_texture(local_features, uv_tensor)
+            dummy, dummy, sliced_global_features= self.slice_texture(global_features, uv_tensor)
+            # print("current_sliced_local_features is ", sliced_local_features.shape)
+            # print("current_sliced_global_features is ", sliced_global_features.shape)
+            sliced_local_features_list.append(sliced_local_features)
+            sliced_global_features_list.append(sliced_global_features)
 
             #####debug by splatting again-----------------------------
             # color_val=torch.from_numpy(cur_cloud.C.copy() ).float().to("cuda")
@@ -2389,11 +2506,15 @@ class Net(torch.nn.Module):
 
         #compute psitions and values
         positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
-        sliced_features=torch.cat(sliced_features_list,0)
-        color_values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
+        sliced_local_features=torch.cat(sliced_local_features_list,0)
+        sliced_global_features=torch.cat(sliced_global_features_list,0)
+        sliced_global_features=torch.cat([sliced_global_features, positions],1)
+        # print("final sliced_local_features is ", sliced_local_features.shape)
+        # print("final sliced_global_features is ", sliced_global_features.shape)
+        # color_values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
         # values=color_values
-        values=sliced_features
-        values=torch.cat( [positions,values],1 )
+        # values=sliced_features
+        # values=torch.cat( [positions,values],1 )
         # print("values is ", values.shape)
 
         #concat also the encoded positions 
@@ -2415,7 +2536,8 @@ class Net(torch.nn.Module):
 
         #pass the mesh through the lattice 
         TIME_START("spatial_lnn")
-        lv, ls = self.spatial_lnn(positions, values)
+        # lv, ls = self.spatial_lnn(positions, values)
+        lv, ls = self.spatial_lnn(positions, sliced_local_features, sliced_global_features)
         TIME_END("spatial_lnn")
        
 
@@ -2445,7 +2567,7 @@ class Net(torch.nn.Module):
             # far_thresh=far_thresh-0.1
         # depth_samples_per_ray=100
         # depth_samples_per_ray=60
-        depth_samples_per_ray=40
+        depth_samples_per_ray=100
         # depth_samples_per_ray=40
         # depth_samples_per_ray=30
         chunksize=512*512

@@ -118,7 +118,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_3_mean"
+    experiment_name="s_13gated"
 
     use_ray_compression=False
 
