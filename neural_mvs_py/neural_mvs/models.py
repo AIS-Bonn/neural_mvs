@@ -709,18 +709,21 @@ class SpatialEncoder2D(torch.nn.Module):
 
         self.first_time=True
 
+        self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
+
         self.start_nr_channels=nr_channels
+        # self.first_conv = torch.nn.Conv2d(253, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         self.first_conv = torch.nn.Conv2d(3, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         cur_nr_channels=self.start_nr_channels
         
 
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
-        for i in range(8):
+        for i in range(5):
             #having no norm here is better than having a batchnorm. Maybe its because we use a batch of 1
             #also PAC works better than a conv
             #using norm with GroupNorm seems to work as good as no normalization but probably a bit more stable so we keep it with GN
-            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ) )
+            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
            
 
         self.relu=torch.nn.ReLU(inplace=False)
@@ -728,24 +731,56 @@ class SpatialEncoder2D(torch.nn.Module):
         self.concat_coord=ConcatCoord() 
 
 
-    def forward(self, x):
+    def forward(self, x, frame):
 
         # x=self.concat_coord(x)
 
         initial_rgb=x
+
+        height=x.shape[2]
+        width=x.shape[3]
+        channels=x.shape[1]
+
+
+        #CONCATTING ALL OF THIS SHIT MAKES IT WORSE
+        # #concat also the ray direction and origin and coords
+        # fx=frame.K[0,0] ### 
+        # fy=frame.K[1,1] ### 
+        # cx=frame.K[0,2] ### 
+        # cy=frame.K[1,2] ### 
+        # tform_cam2world =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
+        # ray_origins, ray_directions = get_ray_bundle(
+        #     frame.height, frame.width, fx,fy,cx,cy, tform_cam2world, novel=False
+        # )
+        # x=self.concat_coord(x)
+        # ray_origins=ray_origins.view(1,height,width,-1).permute(0,3,1,2)
+        # ray_directions=ray_directions.view(1,height,width,-1).permute(0,3,1,2)
+        # x=torch.cat([x,ray_origins, ray_directions],1)
+
+        # channels=x.shape[1]
+        # # print("nr channels is ", channels)
+        # x=x.view(-1, channels)
+        # x=self.learned_pe(x)
+        # x=x.view(1,-1, height,width)
+
+
        
         #first conv
         x = self.first_conv(x)
         x=self.relu(x)
 
+        after_first_conv=x
+
         #encode 
         # TIME_START("down_path")
         for i in range( len(self.resnet_list) ):
-            # x = self.resnet_list[i] (x, x) 
-            x = self.resnet_list[i] (x, initial_rgb) 
+            x = self.resnet_list[i] (x, x) 
+            # x = self.resnet_list[i] (x, initial_rgb) 
 
         # x=self.concat_coord(x)
         # x=torch.cat([x,initial_rgb],1)
+
+        # x=x+after_first_conv
       
 
         return x
@@ -1611,7 +1646,7 @@ class SirenNetworkDirectPE(MetaModule):
         ### USE NO POSITIONS
         # cur_nr_channels=128
         # self.learned_pe_feat=LearnedPE(in_channels=cur_nr_channels, num_encoding_functions=4, logsampling=True)
-        # cur_nr_channels=128 + 128*4*2
+        # cur_nr_channels=128 + 128*4*2    +256+3 #adding also the position encoded
 
 
         for i in range(self.nr_layers):
@@ -1680,6 +1715,7 @@ class SirenNetworkDirectPE(MetaModule):
         #from 71,107,30,3  to Nx3
         x=x.view(-1,3)
         x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        pos_enc=x
         x=x.view(height, width, nr_points, -1 )
 
         #also make the direcitons into image 
@@ -1704,6 +1740,7 @@ class SirenNetworkDirectPE(MetaModule):
         # x=point_features
         # point_features_2d=point_features.view(-1,128)
         # feat_enc=self.learned_pe_feat( point_features_2d )
+        # feat_enc=torch.cat([feat_enc,pos_enc],1)
         # x=feat_enc.view(height, width, nr_points, -1 )
 
 
@@ -2423,7 +2460,7 @@ class Net(torch.nn.Module):
             cur_cloud=frames_for_encoding[i].cloud.clone()
             cur_cloud.random_subsample(0.8)
             mesh.add( cur_cloud )
-            img_features=self.spatial_2d(frames_for_encoding[i].rgb_tensor )
+            img_features=self.spatial_2d(frames_for_encoding[i].rgb_tensor, frames_for_encoding[i] )
             #DO PCA
             # if i==0:
             #     #show the features 

@@ -15,6 +15,8 @@ from torchmeta.modules.utils import *
 from torchmeta.modules import (MetaModule, MetaSequential)
 
 from neural_mvs_py.neural_mvs.pac import *
+from latticenet_py.lattice.lattice_modules import *
+
 
 
 
@@ -892,3 +894,203 @@ class SliceTextureModule(torch.nn.Module):
 
         
         return values, homogeneous, values_not_normalized
+
+
+
+
+#LATTICE 
+
+class ConvRelu(torch.nn.Module):
+    def __init__(self, nr_filters, dilation, bias, with_dropout):
+        super(ConvRelu, self).__init__()
+        self.nr_filters=nr_filters
+        self.conv=ConvLatticeModule(nr_filters=nr_filters, neighbourhood_size=1, dilation=dilation, bias=bias)
+        self.relu = torch.nn.ReLU(inplace=True)
+        self.with_dropout=with_dropout
+        if with_dropout:
+            self.drop=DropoutLattice(0.2)
+        # self.relu = torch.nn.ReLU()
+    def forward(self, lv, ls):
+
+        ls.set_values(lv)
+
+        #similar to densenet and resnet: bn, relu, conv https://arxiv.org/pdf/1603.05027.pdf
+        # lv=gelu(lv)
+        if self.with_dropout:
+            lv = self.drop(lv)
+        ls.set_values(lv)
+        lv_1, ls_1 = self.conv(lv, ls)
+        lv_1=self.relu(lv_1)
+
+
+        ls_1.set_values(lv_1)
+
+        return lv_1, ls_1
+
+
+class CoarsenRelu(torch.nn.Module):
+    def __init__(self, nr_filters, bias):
+        super(CoarsenRelu, self).__init__()
+        self.nr_filters=nr_filters
+        self.coarse=CoarsenLatticeModule(nr_filters=nr_filters, bias=bias)
+        self.relu = torch.nn.ReLU(inplace=True)
+    def forward(self, lv, ls, concat_connection=None):
+
+        ls.set_values(lv)
+
+        #similar to densenet and resnet: bn, relu, conv
+        ls.set_values(lv)
+        lv_1, ls_1 = self.coarse(lv, ls)
+        lv_1=self.relu(lv_1)
+
+        return lv_1, ls_1
+
+
+class FinefyRelu(torch.nn.Module):
+    def __init__(self, nr_filters, bias):
+        super(FinefyRelu, self).__init__()
+        self.nr_filters=nr_filters
+        self.fine=FinefyLatticeModule(nr_filters=nr_filters, bias=bias)
+        self.relu = torch.nn.ReLU(inplace=True)
+    def forward(self, lv_coarse, ls_coarse, ls_fine):
+
+        ls_coarse.set_values(lv_coarse)
+
+        #similar to densenet and resnet: bn, relu, conv
+        ls_coarse.set_values(lv_coarse)
+        lv_1, ls_1 = self.fine(lv_coarse, ls_coarse, ls_fine)
+        lv_1=self.relu(lv_1)
+
+        ls_1.set_values(lv_1)
+
+        return lv_1, ls_1
+
+
+
+
+
+class ReluConv(torch.nn.Module):
+    def __init__(self, nr_filters, dilation, bias, with_dropout):
+        super(ReluConv, self).__init__()
+        self.nr_filters=nr_filters
+        self.conv=ConvLatticeModule(nr_filters=nr_filters, neighbourhood_size=1, dilation=dilation, bias=bias)
+        self.relu = torch.nn.ReLU(inplace=True)
+        self.with_dropout=with_dropout
+        if with_dropout:
+            self.drop=DropoutLattice(0.2)
+        # self.relu = torch.nn.ReLU()
+    def forward(self, lv, ls):
+
+        ls.set_values(lv)
+        lv=self.relu(lv)
+
+        #similar to densenet and resnet: bn, relu, conv https://arxiv.org/pdf/1603.05027.pdf
+        # lv=gelu(lv)
+        if self.with_dropout:
+            lv = self.drop(lv)
+        ls.set_values(lv)
+        lv_1, ls_1 = self.conv(lv, ls)
+
+
+        ls_1.set_values(lv_1)
+
+        return lv_1, ls_1
+
+
+class ReluCoarsen(torch.nn.Module):
+    def __init__(self, nr_filters, bias):
+        super(ReluCoarsen, self).__init__()
+        self.nr_filters=nr_filters
+        self.coarse=CoarsenLatticeModule(nr_filters=nr_filters, bias=bias)
+        self.relu = torch.nn.ReLU(inplace=True)
+    def forward(self, lv, ls, concat_connection=None):
+
+        ls.set_values(lv)
+        lv=self.relu(lv)
+
+        #similar to densenet and resnet: bn, relu, conv
+        ls.set_values(lv)
+        lv_1, ls_1 = self.coarse(lv, ls)
+
+        return lv_1, ls_1
+
+
+class ReluFinefy(torch.nn.Module):
+    def __init__(self, nr_filters, bias):
+        super(ReluFinefy, self).__init__()
+        self.nr_filters=nr_filters
+        self.fine=FinefyLatticeModule(nr_filters=nr_filters, bias=bias)
+        self.relu = torch.nn.ReLU(inplace=True)
+    def forward(self, lv_coarse, ls_coarse, ls_fine):
+
+        ls_coarse.set_values(lv_coarse)
+        lv_coarse=self.relu(lv_coarse)
+
+
+        #similar to densenet and resnet: bn, relu, conv
+        ls_coarse.set_values(lv_coarse)
+        lv_1, ls_1 = self.fine(lv_coarse, ls_coarse, ls_fine)
+
+        ls_1.set_values(lv_1)
+
+        return lv_1, ls_1
+
+
+
+
+
+
+
+
+class FinefyOnly(torch.nn.Module):
+    def __init__(self, nr_filters, bias):
+        super(FinefyOnly, self).__init__()
+        self.nr_filters=nr_filters
+        self.fine=FinefyLatticeModule(nr_filters=nr_filters, bias=bias)
+    def forward(self, lv_coarse, ls_coarse, ls_fine):
+
+        ls_coarse.set_values(lv_coarse)
+
+        #similar to densenet and resnet: bn, relu, conv
+        ls_coarse.set_values(lv_coarse)
+        lv_1, ls_1 = self.fine(lv_coarse, ls_coarse, ls_fine)
+
+        ls_1.set_values(lv_1)
+
+        return lv_1, ls_1
+
+
+
+
+
+class ResnetBlockConvReluLattice(torch.nn.Module):
+
+    def __init__(self, nr_filters, dilations, biases, with_dropout):
+        super(ResnetBlockConvReluLattice, self).__init__()
+        
+        #again with bn-relu-conv
+        self.conv1=ReluConv(nr_filters, dilations[0], biases[0], with_dropout=False)
+        self.conv2=ReluConv(nr_filters, dilations[1], biases[1], with_dropout=with_dropout)
+
+        # self.conv1=GnReluDepthwiseConv(nr_filters, dilations[0], biases[0], with_dropout=False)
+        # self.conv2=GnReluDepthwiseConv(nr_filters, dilations[1], biases[1], with_dropout=with_dropout)
+
+        # self.residual_gate  = torch.nn.Parameter( torch.ones( 1 ).to("cuda") ) #gate for the skip connection https://openreview.net/pdf?id=Sywh5KYex
+
+
+    def forward(self, lv, ls):
+      
+
+        identity=lv
+
+        ls.set_values(lv)
+
+        # print("conv 1")
+        lv, ls=self.conv1(lv,ls)
+        # print("conv 2")
+        lv, ls=self.conv2(lv,ls)
+        # print("finished conv 2")
+        # lv=lv*self.residual_gate
+        # lv+=identity
+        ls.set_values(lv)
+        return lv, ls
