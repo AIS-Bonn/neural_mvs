@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="38ssim"
+    experiment_name="41_pacrgb"
 
     use_ray_compression=False
 
@@ -346,8 +346,7 @@ def run():
                             optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
                             # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
-                            # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=300)
-                            # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             # lambda1 = lambda epoch: 0.9999 ** phase.iter_nr
                             # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1])
                             optimizer.zero_grad()
@@ -357,10 +356,8 @@ def run():
 
                     #backward
                     if is_training:
-                        # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                            # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / phase.loader.nr_samples() )
-                            # scheduler.step(phase.epoch_nr + float(phase.samples_processed_this_epoch) / loader_test.nr_samples() )
-                            # scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                         # if isinstance(scheduler, torch.optim.lr_scheduler.LambdaLR):
                             # scheduler.step()
                         optimizer.zero_grad()
@@ -379,8 +376,8 @@ def run():
                         optimizer.step()
 
                         # if (phase.iter_nr%10==0):
-                        #     optimizer.step() # DO it only once after getting gradients for all images
-                        #     optimizer.zero_grad()
+                            # optimizer.step() # DO it only once after getting gradients for all images
+                            # optimizer.zero_grad()
 
 
                 if train_params.with_viewer():
