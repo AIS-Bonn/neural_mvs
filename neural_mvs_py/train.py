@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="32_cc"
+    experiment_name="38ssim"
 
     use_ray_compression=False
 
@@ -318,9 +318,9 @@ def run():
 
                       
                         #SSIM LOSS does not mae things better, it may even make then worse
-                        # ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
-                        # loss=rgb_loss*0.5 + ssim_loss*0.5
-                        loss=rgb_loss
+                        ssim_loss= 1 - ms_ssim( gt_rgb_tensor, out_tensor, win_size=3, data_range=1.0, size_average=True )
+                        loss=rgb_loss*0.5 + ssim_loss*0.5
+                        # loss=rgb_loss
                       
 
                       
@@ -369,7 +369,7 @@ def run():
                         loss.backward()
                         TIME_END("backward")
                         cb.after_backward_pass()
-                        grad_clip=0.01
+                        grad_clip=0.001
                         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                         # torch.nn.utils.clip_grad_norm_(uv_regressor.parameters(), grad_clip)
                         # summary(model)
