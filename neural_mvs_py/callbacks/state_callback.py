@@ -49,4 +49,4 @@ class StateCallback(Callback):
 
     def phase_ended(self, phase, **kwargs):
         pass
-        # phase.loader.reset()
+        phase.loader.reset()
