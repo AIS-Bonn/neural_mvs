@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="41_pacrgb"
+    experiment_name="43_less"
 
     use_ray_compression=False
 

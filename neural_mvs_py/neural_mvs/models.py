@@ -719,7 +719,7 @@ class SpatialEncoder2D(torch.nn.Module):
 
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
-        for i in range(5):
+        for i in range(1): #IF I use less layer it seems better, I think that using more layer gets more and more of a global feature and therefore is blurier. Optimally, I want the feature fron this module to change quite fast when going to one pixel to another one. So it should be quite high frequency, 
             #having no norm here is better than having a batchnorm. Maybe its because we use a batch of 1
             #also PAC works better than a conv
             #using norm with GroupNorm seems to work as good as no normalization but probably a bit more stable so we keep it with GN
@@ -1349,16 +1349,21 @@ class SpatialLNNFixed(torch.nn.Module):
 
 
         #a bit more control
-        # self.model_params=model_params
-        self.nr_downsamples=4
+        # self.nr_downsamples=4
         # self.nr_blocks_down_stage= [2,2,2,2,2]
+        # self.nr_blocks_bottleneck=1
+        # self.nr_blocks_up_stage= [2,2,2,2,2]
+        # self.nr_levels_down_with_normal_resnet=5
+        # self.nr_levels_up_with_normal_resnet=5
+
+        #less
+        self.nr_downsamples=0
         self.nr_blocks_down_stage= [2,2,2,2,2]
-        self.nr_blocks_bottleneck=1
-        # self.nr_blocks_up_stage= [1,1,1,1,1]
+        self.nr_blocks_bottleneck=0
         self.nr_blocks_up_stage= [2,2,2,2,2]
         self.nr_levels_down_with_normal_resnet=5
         self.nr_levels_up_with_normal_resnet=5
-        # compression_factor=model_params.compression_factor()
+
         dropout_last_layer=False
         experiment="none"
         #check that the experiment has a valid string
@@ -1560,7 +1565,7 @@ class SpatialLNNFixed(torch.nn.Module):
         ls.set_values(lv)
         #conv to get it to 64 or so
         if self.conv_start==None: 
-            self.conv_start=ConvLatticeModule(nr_filters=64, neighbourhood_size=1, dilation=1, bias=True) #disable the bias becuse it is followed by a gn
+            self.conv_start=ConvLatticeModule(nr_filters=128, neighbourhood_size=1, dilation=1, bias=True) #disable the bias becuse it is followed by a gn
         lv, ls = self.conv_start(lv,ls)
 
         
@@ -2892,17 +2897,17 @@ class Net(torch.nn.Module):
             mesh.add( cur_cloud )
             img_features=self.spatial_2d(frames_for_encoding[i].rgb_tensor, frames_for_encoding[i] )
             #DO PCA
-            # if i==0:
-            #     #show the features 
-            #     height=img_features.shape[2]
-            #     width=img_features.shape[3]
-            #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-            #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
-            #     pca=PCA.apply(img_features_for_pca)
-            #     pca=pca.view(height, width, 3)
-            #     pca=pca.permute(2,0,1).unsqueeze(0)
-            #     pca_mat=tensor2mat(pca)
-            #     Gui.show(pca_mat, "pca_mat")
+            if i==0:
+                #show the features 
+                height=img_features.shape[2]
+                width=img_features.shape[3]
+                img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+                img_features_for_pca=img_features_for_pca.view(height*width, -1)
+                pca=PCA.apply(img_features_for_pca)
+                pca=pca.view(height, width, 3)
+                pca=pca.permute(2,0,1).unsqueeze(0)
+                pca_mat=tensor2mat(pca)
+                Gui.show(pca_mat, "pca_mat")
 
 
 
