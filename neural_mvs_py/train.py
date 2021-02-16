@@ -166,16 +166,21 @@ def run():
     #get the frames into a vector
     # selected_frame_idx=[0,4] #two cameras at like 45 degrees
     # selected_frame_idx=[3,5] #also at 45 but probably a bit better
-    selected_frame_idx=[8,9] #also at 45 but probably a bit better
+    # selected_frame_idx=[8,9] #also at 45 but probably a bit better
+    # frames_train=[]
+    # while len(frames_train)<2:
+    #     if(loader_train.has_data() ): 
+    #         frame=loader_train.get_next_frame()
+    #         if frame.frame_idx in selected_frame_idx:
+    #             frames_train.append(frame)
+    #     if loader_train.is_finished():
+    #         loader_train.reset()
+    #         break
+
     frames_train=[]
-    while len(frames_train)<2:
-        if(loader_train.has_data() ): 
-            frame=loader_train.get_next_frame()
-            if frame.frame_idx in selected_frame_idx:
-                frames_train.append(frame)
-        if loader_train.is_finished():
-            loader_train.reset()
-            break
+    frame_0=loader_train.get_frame_at_idx(0) 
+    frames_train.append( frame_0 )
+    frames_train.append( loader_train.get_closest_frame(frame_0) )
     
     #compute 3D 
     sfm=SFM.create()

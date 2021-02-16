@@ -69,6 +69,7 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const std::vector<
         // auto orb = cv::ORB::create(1000);
         //akaze
         auto feat_extractor = cv::AKAZE::create();
+        // feat_extractor->setThreshold(0.00001);
         feat_extractor->detectAndCompute( frame.gray_8u, cv::noArray(), keypoints, descriptors);
 
         //for using flannbased matcher we need to conver the descriptor to float 32 
@@ -87,8 +88,13 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const std::vector<
     }
 
 
+    //make a simple cross check 
+    // https://gist.github.com/cashiwamochi/8ac3f8bab9bf00e247a01f63075fedeb
+
+
     //for each image match against the others  https://github.com/opencv/opencv/blob/2.4/samples/cpp/matching_to_many_images.cpp
-    for(size_t i=0; i<frames.size(); i++){
+    // for(size_t i=0; i<frames.size(); i++){
+    for(size_t i=0; i<1; i++){ //ONLY go for the first frame
         const easy_pbr::Frame& frame_query=frames[i];
         std::vector<cv::KeyPoint> query_keypoints=keypoints_per_frame[i]; 
         cv::Mat query_descriptors=descriptors_per_frame[i]; 
@@ -98,12 +104,14 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const std::vector<
             if(i==j){
                 continue;
             }
+            VLOG(1) << "i and j are "<< i << " " << j;
 
             const easy_pbr::Frame& frame_target=frames[j];
             std::vector<cv::KeyPoint> target_keypoints=keypoints_per_frame[j]; 
             cv::Mat target_descriptors=descriptors_per_frame[j]; 
 
-            auto matcher = cv::DescriptorMatcher::create("FlannBased");
+            // auto matcher = cv::DescriptorMatcher::create("FlannBased");
+            auto matcher = cv::DescriptorMatcher::create("BruteForce");
             std::vector<cv::DMatch> matches;
             matcher->add( target_descriptors );
             matcher->train();
@@ -153,7 +161,7 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const std::vector<
             for(size_t m_idx=0; m_idx<matches.size(); m_idx++){
                 cv::DMatch match=matches[m_idx];
                 int query_idx=match.queryIdx;
-                int target_idx=match.queryIdx;
+                int target_idx=match.trainIdx;
 
                 cam_0_points.at<double>(0, m_idx)= query_keypoints[query_idx].pt.x;
                 cam_0_points.at<double>(1, m_idx)= query_keypoints[query_idx].pt.y;
@@ -198,7 +206,7 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const std::vector<
             //put the points to V 
             int nr_points=points_3d.cols;
             mesh->V.resize( nr_points, 3 );
-            for(size_t p_idx=0; p_idx<nr_points; p_idx++){
+            for(int p_idx=0; p_idx<nr_points; p_idx++){
                 mesh->V(p_idx, 0) = points_3d.at<double>(0, p_idx);
                 mesh->V(p_idx, 1) = points_3d.at<double>(1, p_idx);
                 mesh->V(p_idx, 2) = points_3d.at<double>(2, p_idx);
