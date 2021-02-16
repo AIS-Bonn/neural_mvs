@@ -10,6 +10,7 @@
 // #include "easy_pbr/LabelMngr.h"
 // #include "lattice_net/HashTable.cuh"
 #include "neural_mvs/NeuralMVS.cuh"
+#include "neural_mvs/SFM.h"
 #include "neural_mvs/TrainParams.h"
 #include "neural_mvs/ModelParams.h"
 #include "neural_mvs/EvalParams.h"
@@ -182,6 +183,13 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def("get_frame", &TinyLoader::get_frame ) 
     .def("nr_frames", &TinyLoader::nr_frames ) 
     ;
+
+    //SFM
+    py::class_<SFM, std::shared_ptr<SFM>   > (m, "SFM")
+    .def_static("create", &SFM::create<> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
+    .def("compute_3D_keypoints_from_frames", &SFM::compute_3D_keypoints_from_frames)
+    ;
+
     
 
 

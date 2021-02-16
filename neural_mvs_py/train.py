@@ -162,6 +162,24 @@ def run():
     # show_every=39
     show_every=100
 
+    
+    #get the frames into a vector
+    # selected_frame_idx=[0,4] #two cameras at like 45 degrees
+    selected_frame_idx=[3,5] #also at 45 but probably a bit better
+    frames_train=[]
+    while len(frames_train)<2:
+        if(loader_train.has_data() ): 
+            frame=loader_train.get_next_frame()
+            if frame.frame_idx in selected_frame_idx:
+                frames_train.append(frame)
+        if loader_train.is_finished():
+            loader_train.reset()
+            break
+    
+    #compute 3D 
+    sfm=SFM.create()
+    mesh_sparse=sfm.compute_3D_keypoints_from_frames(frames_train)
+
 
     
 

@@ -4,3 +4,9 @@
 [submodule "deps/EasyCuda"]
 	path = deps/EasyCuda
 	url = https://github.com/RaduAlexandru/EasyCuda.git
+[submodule "deps/opencv_contrib"]
+	path = deps/opencv_contrib
+	url = https://github.com/opencv/opencv_contrib.git
+[submodule "deps/libmv"]
+	path = deps/libmv
+	url = https://github.com/RaduAlexandru/libmv.git

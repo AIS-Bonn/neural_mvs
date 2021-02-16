@@ -32,14 +32,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 ######   PACKAGES   ############################################################
 # find_package(catkin REQUIRED)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-# find_package(OpenCV REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs features2d )
 find_package(EasyPBR REQUIRED)
 find_package(DataLoaders REQUIRED)
 find_package(Torch REQUIRED)
 find_package(CUDA REQUIRED)
+# find_package(Ceres REQUIRED)
 # find_package(LIBIGL REQUIRED)
 # add_subdirectory(${PROJECT_SOURCE_DIR}/deps/pybind11)
 # find_package(catkin REQUIRED COMPONENTS roscpp std_msgs cv_bridge pcl_ros image_transport )
+#opencv contrib things
+# set(HAVE_EIGEN TRUE)
+# add_subdirectory( ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm )
 
 add_subdirectory( ${EASYPBR_SRC_PATH}/deps/pybind11 ./../../build/pybind11 EXCLUDE_FROM_ALL)
 pybind11_add_module(neuralmvs ${PROJECT_SOURCE_DIR}/src/PyBridge.cxx )
@@ -104,12 +108,42 @@ install(FILES "${PROJECT_SOURCE_DIR}/include/neural_mvs/jitify_helper/jitify_opt
 
 add_library( neuralmvs_cu SHARED
                                         ${CMAKE_SOURCE_DIR}/src/NeuralMVS.cxx
+                                        ${CMAKE_SOURCE_DIR}/src/SFM.cxx
                                         # ${CMAKE_SOURCE_DIR}/include/neural_mvs/kernels/NeuralMVSGPU.cuh
                                         ${CMAKE_SOURCE_DIR}/src/ModelParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/TrainParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/EvalParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/TinyLoader.cxx
                                         )
+
+
+
+
+########### NEW modules  
+#png required by libmv 
+# find_package(PNG REQUIRED)
+include_directories(${PNG_INCLUDE_DIR})
+#libmv which is needed by the sfm module in opencv_contrib
+# set(WITH_SYSTEM_CERES TRUE)
+set(BUILD_SHARED_LIBS TRUE)
+add_subdirectory(${PROJECT_SOURCE_DIR}/deps/libmv/src)
+include_directories(${PROJECT_SOURCE_DIR}/deps/libmv/src )
+#Make the SFM module from the opencv_contrib that we added as a submodule in deps
+include_directories(${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/ )
+# message(" including ------------------------------------------------------- " ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/ )
+FILE(GLOB OPENCV_SFM_SRC ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/src/*.cpp)
+# FILE(GLOB OPENCV_SFM_HDRS 
+                            # ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/opencv2/sfm.hpp 
+                            # ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/opencv2/sfm/*.hpp)
+add_library ( opencv_sfm SHARED 
+                                ${OPENCV_SFM_SRC}
+            )
+
+
+################### 
+
+
+
 
 
 ##pybind
@@ -127,7 +161,7 @@ if(TORCH_PYTHON_LIBRARY)
     message(STATUS "Linking to torch_python_library")
     set(LIBS ${LIBS} ${TORCH_PYTHON_LIBRARY} )
 endif()
-set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS})
+set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} )
 
 
 
