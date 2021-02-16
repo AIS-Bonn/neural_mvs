@@ -178,14 +178,17 @@ def run():
     #         break
 
     frames_train=[]
-    frame_0=loader_train.get_frame_at_idx(0) 
-    frames_train.append( frame_0 )
-    frames_train.append( loader_train.get_closest_frame(frame_0) )
+    # frames_train.append( frame_0 )
+    # frames_train.append( loader_train.get_closest_frame(frame_0) )
     
     #compute 3D 
     sfm=SFM.create()
-    mesh_sparse=sfm.compute_3D_keypoints_from_frames(frames_train)
-    Scene.show(mesh_sparse, "mesh_sparse")
+    # mesh_sparse=sfm.compute_3D_keypoints_from_frames(frames_train)
+    # for i in range(loader_train.nr_samples()):
+    for i in range(1 ):
+        frame_0=loader_train.get_frame_at_idx(i) 
+        mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_0,  loader_train.get_closest_frame(frame_0)  )
+        Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
 
 
     
@@ -216,6 +219,7 @@ def run():
                         Gui.show(frame.rgb_32f, "rgb")
                     
                    
+    
 
 
                     #forward
