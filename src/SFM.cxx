@@ -29,6 +29,7 @@ using namespace configuru;
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/sfm/triangulation.hpp"
+#include <opencv2/core/eigen.hpp>
 
 
 //boost
@@ -113,10 +114,44 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const std::vector<
             cv::drawMatches (frame_query.gray_8u, query_keypoints, frame_target.gray_8u, target_keypoints, matches, matches_img);
             easy_pbr::Gui::show(matches_img, "matches" );
 
-            //triangulate
+            //triangulate https://stackoverflow.com/a/16299909
             VLOG(1) << "traingulate";
+            //fill the matrices of 2d points
+            // cv::Mat cam_0_points(2, query_keypoints.size(), CV_64FC2);
+            // cv::Mat cam_1_points(2, target_keypoints.size(), CV_64FC2);
+            std::vector<cv::Point2f> cam_0_points;
+            std::vector<cv::Point2f> cam_1_points;
+            for(size_t p_idx=0; p_idx<query_keypoints.size(); p_idx++){
+                // cam_0_points.at<dobule>(0, p_idx)= query_keypoints[p_idx].pt.x;
+                // cam_0_points.at<dobule>(1, p_idx)= query_keypoints[p_idx].pt.y;
+                cam_0_points.push_back(query_keypoints[p_idx].pt);
+            }
+            for(size_t p_idx=0; p_idx<target_keypoints.size(); p_idx++){
+                // cam_1_points.at<dobule>(0, p_idx)= target_keypoints[p_idx].pt.x;
+                // cam_1_points.at<dobule>(1, p_idx)= target_keypoints[p_idx].pt.y;
+                cam_1_points.push_back(target_keypoints[p_idx].pt);
+            }
+            //matrices of each cam
+            cv::Mat cam_0_matrix;
+            cv::Mat cam_1_matrix;
+            Eigen::MatrixXf cam_0_matrix_eigen= frame_query.K * frame_query.tf_cam_world.matrix().block<3,3>(0,0);
+            Eigen::MatrixXf cam_1_matrix_eigen= frame_target.K * frame_target.tf_cam_world.matrix().block<3,3>(0,0);
+            cv::eigen2cv(cam_0_matrix_eigen, cam_0_matrix);
+            cv::eigen2cv(cam_1_matrix_eigen, cam_1_matrix);
+            VLOG(1) << "cam eigen is " << cam_0_matrix;
+            VLOG(1) << "cam mat is " << cam_0_matrix;
+            std::vector<cv::Mat> cam_matrices;
+            cam_matrices.push_back(cam_0_matrix);
+            cam_matrices.push_back(cam_1_matrix);
+
+            std::vector<std::vector<cv::Point2f>> points2d_for_each_frame;
+            points2d_for_each_frame.push_back(cam_0_points);
+            points2d_for_each_frame.push_back(cam_1_points);
+
+            // cv::sfm::triangulatePoints(dummy, dummy, dummy);
             cv::Mat dummy;
-            cv::sfm::triangulatePoints(dummy, dummy, dummy);
+            std::vector<cv::Point3f> points_3d;
+            cv::sfm::triangulatePoints(points2d_for_each_frame, cam_matrices, points_3d);
 
 
         }
