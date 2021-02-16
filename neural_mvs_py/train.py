@@ -165,7 +165,8 @@ def run():
     
     #get the frames into a vector
     # selected_frame_idx=[0,4] #two cameras at like 45 degrees
-    selected_frame_idx=[3,5] #also at 45 but probably a bit better
+    # selected_frame_idx=[3,5] #also at 45 but probably a bit better
+    selected_frame_idx=[8,9] #also at 45 but probably a bit better
     frames_train=[]
     while len(frames_train)<2:
         if(loader_train.has_data() ): 
@@ -179,6 +180,7 @@ def run():
     #compute 3D 
     sfm=SFM.create()
     mesh_sparse=sfm.compute_3D_keypoints_from_frames(frames_train)
+    Scene.show(mesh_sparse, "mesh_sparse")
 
 
     
