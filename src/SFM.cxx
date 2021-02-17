@@ -5,6 +5,7 @@
 
 //easypbr
 #include "easy_pbr/Gui.h"
+#include "easy_pbr/Scene.h"
 
 
 //opencv 
@@ -153,7 +154,7 @@ std::pair< std::vector<cv::KeyPoint>,   cv::Mat > SFM::compute_keypoints_and_des
     // auto orb = cv::ORB::create(1000);
     //akaze
     auto feat_extractor = cv::AKAZE::create();
-    feat_extractor->setThreshold(0.00001);
+    // feat_extractor->setThreshold(0.00001);
     feat_extractor->setNOctaveLayers(2);
     feat_extractor->setNOctaves(2);
     feat_extractor->detectAndCompute( frame.gray_8u, cv::noArray(), keypoints, descriptors);
@@ -392,11 +393,65 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
 
     //attempt 3 using ceres
-    ceres::Problem problem;
+    // ceres::Problem problem;
 
-    std::vector<double> points_3d( matches.size()*3, 0); 
+    // std::vector<double> points_3d( matches.size()*3, 0); 
+
+    // for(size_t m_idx=0; m_idx<matches.size(); m_idx++){
+    //     cv::DMatch match=matches[m_idx];
+    //     int query_idx=match.queryIdx;
+    //     int target_idx=match.trainIdx;
+
+    //     Eigen::Vector2d query_observed;
+    //     query_observed << query_keypoints[query_idx].pt.x, query_keypoints[query_idx].pt.y;
+    //     // query_observed << target_keypoints[target_idx].pt.x, target_keypoints[target_idx].pt.y;
+
+    //     Eigen::Vector2d target_observed;
+    //     target_observed <<  target_keypoints[target_idx].pt.x, target_keypoints[target_idx].pt.y;
+    //     // target_observed << query_keypoints[query_idx].pt.x, query_keypoints[query_idx].pt.y;
+
+    //     ceres::CostFunction* cost_function_query = ReprojectionError::Create( query_observed, frame_query.K.cast<double>(), frame_query.tf_cam_world.cast<double>() );
+    //     ceres::CostFunction* cost_function_target = ReprojectionError::Create( target_observed, frame_target.K.cast<double>(), frame_target.tf_cam_world.cast<double>() );
+
+    //     problem.AddResidualBlock(cost_function_query,
+    //                            NULL /* squared loss */,
+    //                         // loss_function,
+    //                         points_3d.data()+m_idx*3
+    //                         );
+    //     problem.AddResidualBlock(cost_function_target,
+    //                            NULL /* squared loss */,
+    //                         // loss_function,
+    //                         points_3d.data()+m_idx*3
+    //                         );
+
+    // }
+
+    // //solve
+    // ceres::Solver::Options options;
+    // options.linear_solver_type = ceres::DENSE_SCHUR;
+    // options.minimizer_progress_to_stdout = true;
+    // options.max_num_iterations=400;
+    // // options.max_num_iterations=1;
+    // ceres::Solver::Summary summary;
+    // ceres::Solve(options, &problem, &summary);
+    // std::cout << summary.FullReport() << "\n";
+    // VLOG_S(1) << summary.FullReport();
+
+    // //put the points to V 
+    // int nr_points=matches.size();
+    // mesh->V.resize( nr_points, 3 );
+    // for(int p_idx=0; p_idx<nr_points; p_idx++){
+    //     mesh->V(p_idx, 0) = points_3d[p_idx*3+0];
+    //     mesh->V(p_idx, 1) = points_3d[p_idx*3+1];
+    //     mesh->V(p_idx, 2) = points_3d[p_idx*3+2];
+    // }
 
 
+
+    //attempt 4 using ray intersection 
+    int nr_points=matches.size();
+    mesh->V.resize( nr_points, 3 );
+    // https://stackoverflow.com/questions/29188686/finding-the-intersect-location-of-two-rays
     for(size_t m_idx=0; m_idx<matches.size(); m_idx++){
         cv::DMatch match=matches[m_idx];
         int query_idx=match.queryIdx;
@@ -404,58 +459,55 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
         Eigen::Vector2d query_observed;
         query_observed << query_keypoints[query_idx].pt.x, query_keypoints[query_idx].pt.y;
-        // query_observed << target_keypoints[target_idx].pt.x, target_keypoints[target_idx].pt.y;
-
         Eigen::Vector2d target_observed;
         target_observed <<  target_keypoints[target_idx].pt.x, target_keypoints[target_idx].pt.y;
-        // target_observed << query_keypoints[query_idx].pt.x, query_keypoints[query_idx].pt.y;
 
-        ceres::CostFunction* cost_function_query = ReprojectionError::Create( query_observed, frame_query.K.cast<double>(), frame_query.tf_cam_world.cast<double>() );
-        ceres::CostFunction* cost_function_target = ReprojectionError::Create( target_observed, frame_target.K.cast<double>(), frame_target.tf_cam_world.cast<double>() );
+        //calculate the directions
+        Eigen::Vector3f dir_query = compute_direction_from_2d_point(query_observed, frame_query);
+        Eigen::Vector3f dir_target = compute_direction_from_2d_point(target_observed, frame_target);
+        Eigen::Vector3f origin_query=frame_query.tf_cam_world.inverse().translation();
+        Eigen::Vector3f origin_target=frame_target.tf_cam_world.inverse().translation();
 
-        problem.AddResidualBlock(cost_function_query,
-                               NULL /* squared loss */,
-                            // loss_function,
-                            points_3d.data()+m_idx*3
-                            );
-        problem.AddResidualBlock(cost_function_target,
-                               NULL /* squared loss */,
-                            // loss_function,
-                            points_3d.data()+m_idx*3
-                            );
+        // if (m_idx==0){
+        //     //show ray 
+        //     easy_pbr::MeshSharedPtr ray_query = easy_pbr::Mesh::create();
+        //     ray_query->V.resize(2,3);
+        //     ray_query->V.row(0) = origin_query.cast<double>();
+        //     ray_query->V.row(1) = origin_query.cast<double>()  +dir_query.cast<double>()*10;
+        //     ray_query->E.resize(1,2);
+        //     ray_query->E.row(0) << 0,1;
+        //     ray_query->m_vis.m_show_lines=true;
+        //     easy_pbr::Scene::show(ray_query, "ray_query");
+        //     //ray target 
+        //     easy_pbr::MeshSharedPtr ray_target = easy_pbr::Mesh::create();
+        //     ray_target->V.resize(2,3);
+        //     ray_target->V.row(0) = origin_target.cast<double>();
+        //     ray_target->V.row(1) = origin_target.cast<double>()  +dir_target.cast<double>()*10;
+        //     ray_target->E.resize(1,2);
+        //     ray_target->E.row(0) << 0,1;
+        //     ray_target->m_vis.m_show_lines=true;
+        //     easy_pbr::Scene::show(ray_target, "ray_target");
+        // }
 
+
+        // https://stackoverflow.com/questions/29188686/finding-the-intersect-location-of-two-rays
+        Eigen::Vector3f point_intersection;
+        Eigen::Vector3f d3= dir_query.cross(dir_target);
+        if (d3.norm()<0.00001){
+            std::cout<< "lines are in the same direction. Cannot compute intersection" << std::endl;
+            point_intersection.setZero();
+        }else{
+            point_intersection=intersect_rays(origin_query, dir_query, origin_target, dir_target);
+        }
+
+        mesh->V.row(m_idx) = point_intersection.cast<double>();
 
     }
-
-
-    //solve
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.minimizer_progress_to_stdout = true;
-    options.max_num_iterations=400;
-    // options.max_num_iterations=1;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << "\n";
-    VLOG_S(1) << summary.FullReport();
+    
+    
 
 
 
-    //debug
-    // for(int i=0; i<points_3d.size(); i++){
-    //     std::cout << points_3d[i] << std::endl;
-    // }
-
-    //put the points to V 
-    int nr_points=matches.size();
-    mesh->V.resize( nr_points, 3 );
-    for(int p_idx=0; p_idx<nr_points; p_idx++){
-        mesh->V(p_idx, 0) = points_3d[p_idx*3+0];
-        mesh->V(p_idx, 1) = points_3d[p_idx*3+1];
-        mesh->V(p_idx, 2) = points_3d[p_idx*3+2];
-    }
-
-    // std::cout << "Mesh v is " << mesh->V;
     
 
 
@@ -493,6 +545,70 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
 
     return mesh;
+}
+
+
+Eigen::Vector3f SFM::compute_direction_from_2d_point(const Eigen::Vector2d& point_2d,  const easy_pbr::Frame& frame){
+
+    //calculate the directions
+    Eigen::Vector3f point_screen;
+    point_screen << point_2d.x(), frame.height - point_2d.y(),1.0;  //the point is not at x,y but at x, heght-y. That's because we got the depth from the depth map at x,y and we have to take into account that opencv mat has origin at the top left. However the camera coordinate system actually has origin at the bottom left (same as the origin of the uv space in opengl) So the point in screen coordinates will be at x, height-y
+    Eigen::Vector3f point_cam_coords;
+    point_cam_coords=frame.K.inverse()*point_screen;
+    Eigen::Vector3f point_world_coords;
+    point_world_coords=frame.tf_cam_world.inverse()*point_cam_coords;
+    Eigen::Vector3f dir=(point_world_coords-frame.tf_cam_world.inverse().translation()).normalized();
+
+    return dir;
+
+}
+
+
+Eigen::Vector3f SFM::intersect_rays( const Eigen::Vector3f& origin_query, const Eigen::Vector3f& dir_query, const Eigen::Vector3f& origin_target, const Eigen::Vector3f& dir_target){
+
+
+    // Matrix32 A; A << T_search_ref.linear() * f_ref, f_cur;
+    // const Matrix2 AtA = A.transpose()*A;
+    // if(AtA.determinant() < 0.000001)
+    //     return false;
+    // const Vector2 depth2 = - AtA.inverse()*A.transpose()*T_search_ref.translation();
+    // depth = fabs(depth2[0]);
+    // if ( ! std::isfinite( depth ) ) throw std::runtime_error("hickup");
+    // return true;
+
+    Eigen::Vector3f point_intersection;
+
+    Eigen::Vector3f origin_diff = origin_query - origin_target;
+
+    // https://stackoverflow.com/a/34604574
+    float a = dir_query.dot(dir_query);
+    float b = dir_query.dot(dir_target);
+    float c = dir_target.dot(dir_target);
+    float d = dir_query.dot(origin_diff);
+    float e = dir_target.dot(origin_diff);
+
+    //find discriminant
+    float discriminant = a * c- b * b;
+    if( std::fabs(discriminant)<1e-5 ){
+        point_intersection.setZero(); //INVALID
+    }else{
+        float tt = (b * e - c * d) / discriminant;
+        float uu = (a * e - b * d) / discriminant;
+
+        Eigen::Vector3f intersection_along_query= origin_query + tt * dir_query;
+        Eigen::Vector3f intersection_along_target= origin_target + uu * dir_target;
+        float dist = (intersection_along_query-intersection_along_target).norm();
+        if(dist>0.001){
+            point_intersection.setZero(); //INVALID, the distance is too great
+        }else{
+            //middle point between the two points along the ray
+            point_intersection= (intersection_along_query+intersection_along_target)/2.0;
+        }
+    }
+
+
+    return point_intersection;
+
 }
 
 
