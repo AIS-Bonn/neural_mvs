@@ -7,6 +7,18 @@
 #include "easy_pbr/Gui.h"
 
 
+//opencv 
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/features2d/features2d.hpp"
+// #include "opencv2/sfm/triangulation.hpp"
+#include <opencv2/core/eigen.hpp>
+
+
+//ceres 
+#include "ceres/ceres.h"
+#include "ceres/rotation.h"
+using namespace ceres;
+
 
 //loguru
 #define LOGURU_REPLACE_GLOG 1
@@ -28,21 +40,12 @@ using namespace configuru;
 #include "easy_pbr/Mesh.h"
 #include "easy_pbr/Gui.h"
 
-//opencv 
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/features2d/features2d.hpp"
-// #include "opencv2/sfm/triangulation.hpp"
-#include <opencv2/core/eigen.hpp>
 
 
 //boost
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
-//ceres 
-#include "ceres/ceres.h"
-#include "ceres/rotation.h"
-using namespace ceres;
 
 
 //in this contructor we put the things that are not going to be optimized
@@ -96,11 +99,15 @@ struct ReprojectionError {
 
     //project the 3d into 2D 
     Vec3 point_cam=tf_cam_world*point_world;
-    point_cam.x()/=point_cam.z();
-    point_cam.y()/=point_cam.z();
-    point_cam.z()=T(1.0);
+    // point_cam.x()/=point_cam.z();
+    // point_cam.y()/=point_cam.z();
+    // point_cam.z()=T(1.0);
     Vec3 point_2d = K*point_cam;
+    point_2d.x()/=point_2d.z();
+    point_2d.y()/=point_2d.z();
+    point_2d.z()=T(1.0);
 
+    // std::cout << "m_point observed is at "  << m_point_observed << " point 2d projected is " <<point_2d.x() << " " << point_2d.y() << " point world is "<< point_world.transpose() << std::endl;
     T error_x= T(m_point_observed.x()) - point_2d.x();
     T error_y= T(m_point_observed.y()) - point_2d.y();
 
@@ -146,7 +153,9 @@ std::pair< std::vector<cv::KeyPoint>,   cv::Mat > SFM::compute_keypoints_and_des
     // auto orb = cv::ORB::create(1000);
     //akaze
     auto feat_extractor = cv::AKAZE::create();
-    // feat_extractor->setThreshold(0.00001);
+    feat_extractor->setThreshold(0.00001);
+    feat_extractor->setNOctaveLayers(2);
+    feat_extractor->setNOctaves(2);
     feat_extractor->detectAndCompute( frame.gray_8u, cv::noArray(), keypoints, descriptors);
 
     //for using flannbased matcher we need to conver the descriptor to float 32 
@@ -395,9 +404,11 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
         Eigen::Vector2d query_observed;
         query_observed << query_keypoints[query_idx].pt.x, query_keypoints[query_idx].pt.y;
+        // query_observed << target_keypoints[target_idx].pt.x, target_keypoints[target_idx].pt.y;
 
         Eigen::Vector2d target_observed;
         target_observed <<  target_keypoints[target_idx].pt.x, target_keypoints[target_idx].pt.y;
+        // target_observed << query_keypoints[query_idx].pt.x, query_keypoints[query_idx].pt.y;
 
         ceres::CostFunction* cost_function_query = ReprojectionError::Create( query_observed, frame_query.K.cast<double>(), frame_query.tf_cam_world.cast<double>() );
         ceres::CostFunction* cost_function_target = ReprojectionError::Create( target_observed, frame_target.K.cast<double>(), frame_target.tf_cam_world.cast<double>() );
@@ -422,20 +433,29 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.minimizer_progress_to_stdout = true;
     options.max_num_iterations=400;
+    // options.max_num_iterations=1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
     VLOG_S(1) << summary.FullReport();
 
 
-     //put the points to V 
+
+    //debug
+    // for(int i=0; i<points_3d.size(); i++){
+    //     std::cout << points_3d[i] << std::endl;
+    // }
+
+    //put the points to V 
     int nr_points=matches.size();
     mesh->V.resize( nr_points, 3 );
     for(int p_idx=0; p_idx<nr_points; p_idx++){
         mesh->V(p_idx, 0) = points_3d[p_idx*3+0];
-        mesh->V(p_idx, 1) = -points_3d[p_idx*3+1];
+        mesh->V(p_idx, 1) = points_3d[p_idx*3+1];
         mesh->V(p_idx, 2) = points_3d[p_idx*3+2];
     }
+
+    // std::cout << "Mesh v is " << mesh->V;
     
 
 
@@ -447,14 +467,14 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
 
     mesh->m_vis.m_show_points=true;
-    mesh->set_model_matrix( frame_query.tf_cam_world.inverse().cast<double>() );
-    mesh->apply_model_matrix_to_cpu(false);
+    // mesh->set_model_matrix( frame_query.tf_cam_world.inverse().cast<double>() );
+    // mesh->apply_model_matrix_to_cpu(false);
 
 
     //DEBUG by projecting the 3d points into the frame
     //project in query img 
-    debug_by_projecting(frame_query, mesh, "debug_query");
-    debug_by_projecting(frame_target, mesh, "debug_target");
+    debug_by_projecting(frame_query, mesh, query_keypoints, "debug_query");
+    debug_by_projecting(frame_target, mesh, target_keypoints, "debug_target");
     // cv::Mat img =frame_query.rgb_32f;
     // Eigen::Affine3d trans=frame_query.tf_cam_world.cast<double>();
     // Eigen::Matrix3d K=frame_query.K.cast<double>();
@@ -477,22 +497,32 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
 
 
-void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy_pbr::Mesh> mesh, const std::string name){
+void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy_pbr::Mesh> mesh, std::vector<cv::KeyPoint>& keypoints,  const std::string name){
 
     cv::Mat img =frame.rgb_32f;
-    Eigen::Affine3d trans=frame.tf_cam_world.cast<double>();
+    // Eigen::Affine3d trans=frame.tf_cam_world.cast<double>();
     Eigen::Matrix3d K=frame.K.cast<double>();
     for (int i = 0; i < mesh->V.rows(); i++){
         Eigen::Vector3d point_world= Eigen::Vector3d(mesh->V.row(i));
-        Eigen::Vector3d point_cam = trans.linear()*point_world + trans.translation();
-        point_cam.y()=-point_cam.y();
+        // Eigen::Vector3d point_cam = trans.linear()*point_world + trans.translation();
+        Eigen::Vector3d point_cam = frame.tf_cam_world.cast<double>()*point_world;
+        point_cam.y()=point_cam.y();
         Eigen::Vector3d point_img=K*point_cam;
-        int x= point_img.x()/ point_img.z();
-        int y= point_img.y()/ point_img.z();
+        float x= point_img.x()/ point_img.z();
+        float y= point_img.y()/ point_img.z();
 
-        cv::Point pt = cv::Point(x, y);
-        cv::circle(img, pt, 1, cv::Scalar(0, 255, 0));
+        // std::cout << " Point2d is " << x << " " << y << " point3d is " << point_world.transpose() << std::endl;
+
+        cv::Point pt = cv::Point( std::round(x), std::round(y) );
+        cv::circle(img, pt, 4, cv::Scalar(0, 0, 255), 3); //projected in red
     }
+
+    for (int i = 0; i < keypoints.size(); i++){
+        cv::Point pt = keypoints[i].pt;
+        cv::circle(img, pt, 1, cv::Scalar(0, 255, 0)); //keypoints in blue
+    }
+
+
     easy_pbr::Gui::show(img, name);
 
 }

@@ -184,7 +184,7 @@ def run():
     #compute 3D 
     sfm=SFM.create()
     # selected_frame_idx=[0,3] 
-    selected_frame_idx=[0] 
+    selected_frame_idx=[1] 
     for i in range(loader_train.nr_samples()):
     # for i in range(1 ):
         # frame_0=loader_train.get_frame_at_idx(i+3) 
