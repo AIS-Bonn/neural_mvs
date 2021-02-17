@@ -37,7 +37,7 @@ find_package(EasyPBR REQUIRED)
 find_package(DataLoaders REQUIRED)
 find_package(Torch REQUIRED)
 find_package(CUDA REQUIRED)
-# find_package(Ceres REQUIRED)
+find_package(Ceres REQUIRED)
 # find_package(LIBIGL REQUIRED)
 # add_subdirectory(${PROJECT_SOURCE_DIR}/deps/pybind11)
 # find_package(catkin REQUIRED COMPONENTS roscpp std_msgs cv_bridge pcl_ros image_transport )
@@ -57,6 +57,7 @@ include_directories(${EASYPBR_INCLUDE_DIR})
 include_directories(${DATALOADERS_INCLUDE_DIR})
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${TORCH_INCLUDE_DIRS})
+include_directories(${CERES_INCLUDE_DIRS})
 # include_directories(${LIBIGL_INCLUDE_DIR})
 # catkin_package( INCLUDE_DIRS include  CATKIN_DEPENDS roscpp std_msgs cv_bridge pcl_ros image_transport )
 
@@ -120,29 +121,26 @@ add_library( neuralmvs_cu SHARED
 
 
 ########### NEW modules  
-#png required by libmv 
-# find_package(PNG REQUIRED)
-include_directories(${PNG_INCLUDE_DIR})
-#libmv which is needed by the sfm module in opencv_contrib
-# set(WITH_SYSTEM_CERES TRUE)
-set(BUILD_SHARED_LIBS TRUE)
-add_subdirectory(${PROJECT_SOURCE_DIR}/deps/libmv/src)
-include_directories(${PROJECT_SOURCE_DIR}/deps/libmv/src )
-set(LIBMV_LIBS autotrack base camera correspondence descriptor detector image multiview numeric reconstruction simple_pipeline tools tracking)
-#Make the SFM module from the opencv_contrib that we added as a submodule in deps
-include_directories(${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/ )
-# message(" including ------------------------------------------------------- " ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/ )
-FILE(GLOB OPENCV_SFM_SRC ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/src/*.cpp)
-# FILE(GLOB OPENCV_SFM_HDRS 
-                            # ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/opencv2/sfm.hpp 
-                            # ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/opencv2/sfm/*.hpp)
-add_library ( opencv_sfm SHARED 
-                                ${OPENCV_SFM_SRC}
-            )
-target_link_libraries(opencv_sfm ${LIBMV_LIBS} )
-
-
-
+# #png required by libmv 
+# # find_package(PNG REQUIRED)
+# include_directories(${PNG_INCLUDE_DIR})
+# #libmv which is needed by the sfm module in opencv_contrib
+# # set(WITH_SYSTEM_CERES TRUE)
+# set(BUILD_SHARED_LIBS TRUE)
+# add_subdirectory(${PROJECT_SOURCE_DIR}/deps/libmv/src)
+# include_directories(${PROJECT_SOURCE_DIR}/deps/libmv/src )
+# set(LIBMV_LIBS autotrack base camera correspondence descriptor detector image multiview numeric reconstruction simple_pipeline tools tracking)
+# #Make the SFM module from the opencv_contrib that we added as a submodule in deps
+# include_directories(${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/ )
+# # message(" including ------------------------------------------------------- " ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/ )
+# FILE(GLOB OPENCV_SFM_SRC ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/src/*.cpp)
+# # FILE(GLOB OPENCV_SFM_HDRS 
+#                             # ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/opencv2/sfm.hpp 
+#                             # ${PROJECT_SOURCE_DIR}/deps/opencv_contrib/modules/sfm/include/opencv2/sfm/*.hpp)
+# add_library ( opencv_sfm SHARED 
+#                                 ${OPENCV_SFM_SRC}
+#             )
+# target_link_libraries(opencv_sfm ${LIBMV_LIBS} )
 ################### 
 
 
@@ -164,7 +162,8 @@ if(TORCH_PYTHON_LIBRARY)
     message(STATUS "Linking to torch_python_library")
     set(LIBS ${LIBS} ${TORCH_PYTHON_LIBRARY} )
 endif()
-set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_sfm )
+# set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_sfm )
+set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}  )
 
 
 
