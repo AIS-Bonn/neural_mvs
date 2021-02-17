@@ -155,9 +155,9 @@ std::pair< std::vector<cv::KeyPoint>,   cv::Mat > SFM::compute_keypoints_and_des
     //akaze
     auto feat_extractor = cv::AKAZE::create();
     // feat_extractor->setThreshold(0.00001);
-    feat_extractor->setNOctaveLayers(2);
-    feat_extractor->setNOctaves(2);
-    feat_extractor->detectAndCompute( frame.gray_8u, cv::noArray(), keypoints, descriptors);
+    // feat_extractor->setNOctaveLayers(2);
+    // feat_extractor->setNOctaves(2);
+    feat_extractor->detectAndCompute( frame.rgb_8u, cv::noArray(), keypoints, descriptors);
 
     //for using flannbased matcher we need to conver the descriptor to float 32 
     descriptors.convertTo(descriptors, CV_32F);
@@ -513,7 +513,8 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
 
 
-
+    mesh=frame_query.assign_color(mesh);
+    mesh->m_vis.set_color_pervertcolor();
 
 
 
@@ -615,14 +616,14 @@ Eigen::Vector3f SFM::intersect_rays( const Eigen::Vector3f& origin_query, const 
 
 void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy_pbr::Mesh> mesh, std::vector<cv::KeyPoint>& keypoints,  const std::string name){
 
-    cv::Mat img =frame.rgb_32f;
+    cv::Mat img =frame.rgb_32f.clone();
     // Eigen::Affine3d trans=frame.tf_cam_world.cast<double>();
     Eigen::Matrix3d K=frame.K.cast<double>();
     for (int i = 0; i < mesh->V.rows(); i++){
         Eigen::Vector3d point_world= Eigen::Vector3d(mesh->V.row(i));
         // Eigen::Vector3d point_cam = trans.linear()*point_world + trans.translation();
         Eigen::Vector3d point_cam = frame.tf_cam_world.cast<double>()*point_world;
-        point_cam.y()=point_cam.y();
+        point_cam.y()=-point_cam.y();
         Eigen::Vector3d point_img=K*point_cam;
         float x= point_img.x()/ point_img.z();
         float y= point_img.y()/ point_img.z();

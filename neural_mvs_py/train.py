@@ -184,16 +184,15 @@ def run():
     #compute 3D 
     sfm=SFM.create()
     # selected_frame_idx=[0,3] 
+    selected_frame_idx=[0] 
     # selected_frame_idx=[1] 
-    selected_frame_idx=[0,1,2,3] 
+    # selected_frame_idx=[0,1,2,3] 
     for i in range(loader_train.nr_samples()):
     # for i in range(1 ):
         # frame_0=loader_train.get_frame_at_idx(i+3) 
         # if i in selected_frame_idx:
         frame_0=loader_train.get_frame_at_idx(i) 
         mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_0,  loader_train.get_closest_frame(frame_0)  )
-        # mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_0,  loader_train.get_frame_at_idx(10)   )
-        # mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_0,  loader_train.get_frame_at_idx(12)   )
         Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
 
 
