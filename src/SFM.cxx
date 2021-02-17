@@ -3,6 +3,9 @@
 //c++
 #include <string>
 
+//easypbr
+#include "easy_pbr/Gui.h"
+
 
 
 //loguru
@@ -60,7 +63,7 @@ std::pair< std::vector<cv::KeyPoint>,   cv::Mat > SFM::compute_keypoints_and_des
     // auto orb = cv::ORB::create(1000);
     //akaze
     auto feat_extractor = cv::AKAZE::create();
-    feat_extractor->setThreshold(0.00001);
+    // feat_extractor->setThreshold(0.00001);
     feat_extractor->detectAndCompute( frame.gray_8u, cv::noArray(), keypoints, descriptors);
 
     //for using flannbased matcher we need to conver the descriptor to float 32 
@@ -92,6 +95,42 @@ std::vector<bool> SFM::filter_matches_lowe_ratio ( std::vector< std::vector<cv::
             // good_matches.push_back(knn_matches[i][0]);
             is_match_good[i] = true;
         }
+    }
+
+    return is_match_good;
+
+}
+
+std::vector<bool> SFM::filter_min_max_movement (  const std::vector< std::vector<cv::DMatch> >& knn_query_matches, const std::vector< std::vector<cv::DMatch> >& knn_target_matches, std::vector<cv::KeyPoint>& query_keypoints, 
+std::vector<cv::KeyPoint>& target_keypoints, const int img_size, std::vector<bool>& is_query_match_good_prev  ){
+
+    // https://docs.opencv.org/3.4/d5/d6f/tutorial_feature_flann_matcher.html
+    const float max_movement_ratio = 0.1f;
+    // const float min_movement_ratio = 0.01f;
+    const float min_movement_ratio = 0.0f;
+    std::vector<bool> is_match_good(knn_query_matches.size(), false);
+    for (size_t i = 0; i < knn_query_matches.size(); i++){
+        if(is_query_match_good_prev[i]){
+            int query_idx=knn_query_matches[i][0].queryIdx;
+            int target_idx= knn_target_matches[ knn_query_matches[i][0].trainIdx ][0].queryIdx;
+
+            cv::Point2f point_query = query_keypoints[query_idx].pt;
+            cv::Point2f point_target = target_keypoints[target_idx].pt;
+
+            Eigen::Vector2f pt1, pt2;
+            pt1 <<point_query.x, point_query.y;
+            pt2 <<point_target.x, point_target.y;
+
+            float dist= (pt1-pt2).norm();
+            float dist_ratio= dist/img_size;
+
+            if(dist_ratio>max_movement_ratio || dist_ratio<min_movement_ratio){
+                //it's too far away or the points are too close together for a good triangulation in the other image os it;s a bad match
+            }else{
+                is_match_good[i]=true;
+            }
+        }
+
     }
 
     return is_match_good;
@@ -161,6 +200,10 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
     std::vector<bool> is_query_match_good = filter_matches_lowe_ratio ( knn_matches_query_towards_target );
     std::vector<bool> is_target_match_good = filter_matches_lowe_ratio ( knn_matches_target_towards_query );
 
+    int img_size=std::max(frame_query.width, frame_query.height); 
+    is_query_match_good=filter_min_max_movement(knn_matches_query_towards_target, knn_matches_target_towards_query, query_keypoints, target_keypoints,  img_size, is_query_match_good);
+    is_target_match_good=filter_min_max_movement(knn_matches_target_towards_query, knn_matches_query_towards_target, query_keypoints, target_keypoints, img_size, is_target_match_good);
+
     is_query_match_good = filter_cross_check( knn_matches_query_towards_target, knn_matches_target_towards_query, is_query_match_good );
 
 
@@ -212,12 +255,19 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
     //matrices of each cam
     cv::Mat cam_0_matrix;
     cv::Mat cam_1_matrix;
-    Eigen::MatrixXd cam_0_matrix_eigen= ( frame_query.K * frame_query.tf_cam_world.matrix().block<3,4>(0,0) ).cast<double>();
-    Eigen::MatrixXd cam_1_matrix_eigen= ( frame_target.K * frame_target.tf_cam_world.matrix().block<3,4>(0,0) ).cast<double>();
+    // Eigen::MatrixXd cam_0_matrix_eigen= ( frame_query.K * frame_query.tf_cam_world.matrix().block<3,4>(0,0) ).cast<double>();
+    // Eigen::MatrixXd cam_1_matrix_eigen= ( frame_target.K * frame_target.tf_cam_world.matrix().block<3,4>(0,0) ).cast<double>();
+
+    //with cma query being at identity
+    Eigen::Affine3f tf_cam_query_target=  frame_query.tf_cam_world* frame_target.tf_cam_world.inverse(); //target to world and world to query
+    Eigen::Affine3f id=tf_cam_query_target;
+    id.setIdentity();
+    Eigen::MatrixXd cam_0_matrix_eigen= ( frame_query.K * id.matrix().block<3,4>(0,0) ).cast<double>();
+    Eigen::MatrixXd cam_1_matrix_eigen= ( frame_target.K * tf_cam_query_target.matrix().block<3,4>(0,0) ).cast<double>();
     cv::eigen2cv(cam_0_matrix_eigen, cam_0_matrix);
     cv::eigen2cv(cam_1_matrix_eigen, cam_1_matrix);
-    VLOG(1) << "cam eigen is " << cam_0_matrix;
-    VLOG(1) << "cam mat is " << cam_0_matrix;
+    // VLOG(1) << "cam eigen is " << cam_0_matrix;
+    // VLOG(1) << "cam mat is " << cam_0_matrix;
     std::vector<cv::Mat> cam_matrices;
     cam_matrices.push_back(cam_0_matrix);
     cam_matrices.push_back(cam_1_matrix);
@@ -242,7 +292,7 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
     mesh->V.resize( nr_points, 3 );
     for(int p_idx=0; p_idx<nr_points; p_idx++){
         mesh->V(p_idx, 0) = points_3d.at<double>(0, p_idx);
-        mesh->V(p_idx, 1) = points_3d.at<double>(1, p_idx);
+        mesh->V(p_idx, 1) = -points_3d.at<double>(1, p_idx);
         mesh->V(p_idx, 2) = points_3d.at<double>(2, p_idx);
     }
 
@@ -250,137 +300,93 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
 
 
-
-
-
-
-
-    // //for each image match against the others  https://github.com/opencv/opencv/blob/2.4/samples/cpp/matching_to_many_images.cpp
-    // // for(size_t i=0; i<frames.size(); i++){
-    // for(size_t i=0; i<1; i++){ //ONLY go for the first frame
-    //     const easy_pbr::Frame& frame_query=frames[i];
-    //     std::vector<cv::KeyPoint> query_keypoints=keypoints_per_frame[i]; 
-    //     cv::Mat query_descriptors=descriptors_per_frame[i]; 
-
-
-    //     for(size_t j=0; j<frames.size(); j++){
-    //         if(i==j){
-    //             continue;
-    //         }
-    //         VLOG(1) << "i and j are "<< i << " " << j;
-
-    //         const easy_pbr::Frame& frame_target=frames[j];
-    //         std::vector<cv::KeyPoint> target_keypoints=keypoints_per_frame[j]; 
-    //         cv::Mat target_descriptors=descriptors_per_frame[j]; 
-
-    //         // auto matcher = cv::DescriptorMatcher::create("FlannBased");
-    //         auto matcher = cv::DescriptorMatcher::create("BruteForce");
-    //         std::vector<cv::DMatch> matches;
-    //         matcher->add( target_descriptors );
-    //         matcher->train();
-    //         matcher->match( query_descriptors, matches );
-
-    //         //draw matches 
-    //         cv::Mat matches_img;
-    //         cv::drawMatches (frame_query.gray_8u, query_keypoints, frame_target.gray_8u, target_keypoints, matches, matches_img);
-    //         easy_pbr::Gui::show(matches_img, "matches" );
-
-    //         //triangulate https://stackoverflow.com/a/16299909
-    //         // https://answers.opencv.org/question/171898/sfm-triangulatepoints-input-array-assertion-failed/
-    //         VLOG(1) << "traingulate";
-    //         //fill the matrices of 2d points
-    //         // cv::Mat cam_0_points(2, query_keypoints.size(), CV_64FC1);
-    //         // cv::Mat cam_1_points(2, target_keypoints.size(), CV_64FC1);
-    //         // cv::Mat cam_0_points( query_keypoints.size(), 2, CV_64FC1);
-    //         // cv::Mat cam_1_points( target_keypoints.size(), 2, CV_64FC1);
-    //         // std::vector<cv::Point2f> cam_0_points;
-    //         // std::vector<cv::Point2f> cam_1_points;
-
-    //         // cv::Mat points1Mat = (cv::Mat_<double>(2,1) << 1, 1);
-    //         // cv::Mat points2Mat = (cv::Mat_<double>(2,1) << 1, 1);
-    //         // for(size_t p_idx=0; p_idx<query_keypoints.size(); p_idx++){
-    //             // cam_0_points.at<double>(0, p_idx)= query_keypoints[p_idx].pt.x;
-    //             // cam_0_points.at<double>(1, p_idx)= query_keypoints[p_idx].pt.y;
-    //             // cam_0_points.push_back(query_keypoints[p_idx].pt);
-    //             // cam_0_points.at<double>(p_idx, 0)= query_keypoints[p_idx].pt.x;
-    //             // cam_0_points.at<double>(p_idx, 1)= query_keypoints[p_idx].pt.y;
-
-    //             // cv::Point2f myPoint1 = query_keypoints[p_idx].pt;
-    //             // cv::Mat matPoint1 = (cv::Mat_<double>(2,1) << myPoint1.x, myPoint1.y);
-    //             // cv::hconcat(points1Mat, matPoint1, points1Mat);
-    //         // }
-    //         // for(size_t p_idx=0; p_idx<target_keypoints.size(); p_idx++){
-    //             // cam_1_points.at<double>(0, p_idx)= target_keypoints[p_idx].pt.x;
-    //             // cam_1_points.at<double>(1, p_idx)= target_keypoints[p_idx].pt.y;
-    //             // cam_1_points.push_back(target_keypoints[p_idx].pt);
-    //             // cam_1_points.at<double>(p_idx, 0)= target_keypoints[p_idx].pt.x;
-    //             // cam_1_points.at<double>(p_idx, 1)= target_keypoints[p_idx].pt.y;
-    //         // }
-
-
-    //         //attempt 2
-    //         cv::Mat cam_0_points(2, matches.size(), CV_64FC1);
-    //         cv::Mat cam_1_points(2, matches.size(), CV_64FC1);
-    //         for(size_t m_idx=0; m_idx<matches.size(); m_idx++){
-    //             cv::DMatch match=matches[m_idx];
-    //             int query_idx=match.queryIdx;
-    //             int target_idx=match.trainIdx;
-
-    //             cam_0_points.at<double>(0, m_idx)= query_keypoints[query_idx].pt.x;
-    //             cam_0_points.at<double>(1, m_idx)= query_keypoints[query_idx].pt.y;
-
-    //             cam_1_points.at<double>(0, m_idx)= target_keypoints[target_idx].pt.x;
-    //             cam_1_points.at<double>(1, m_idx)= target_keypoints[target_idx].pt.y;
-
-    //         }
-            
-
-
-    //         // VLOG(1) << points1Mat.rows << " x " << points1Mat.cols;
-    //         // VLOG(1) << "cam_0_points " << cam_0_points;
-    //         //matrices of each cam
-    //         cv::Mat cam_0_matrix;
-    //         cv::Mat cam_1_matrix;
-    //         Eigen::MatrixXd cam_0_matrix_eigen= ( frame_query.K * frame_query.tf_cam_world.matrix().block<3,4>(0,0) ).cast<double>();
-    //         Eigen::MatrixXd cam_1_matrix_eigen= ( frame_target.K * frame_target.tf_cam_world.matrix().block<3,4>(0,0) ).cast<double>();
-    //         cv::eigen2cv(cam_0_matrix_eigen, cam_0_matrix);
-    //         cv::eigen2cv(cam_1_matrix_eigen, cam_1_matrix);
-    //         VLOG(1) << "cam eigen is " << cam_0_matrix;
-    //         VLOG(1) << "cam mat is " << cam_0_matrix;
-    //         std::vector<cv::Mat> cam_matrices;
-    //         cam_matrices.push_back(cam_0_matrix);
-    //         cam_matrices.push_back(cam_1_matrix);
-
-    //         // std::vector<std::vector<cv::Point2f>> points2d_for_each_frame;
-    //         std::vector<cv::Mat> points2d_for_each_frame;
-    //         points2d_for_each_frame.push_back(cam_0_points);
-    //         points2d_for_each_frame.push_back(cam_1_points);
-    //         //DEBUG 
-    //         // points2d_for_each_frame.push_back(points1Mat);
-    //         // points2d_for_each_frame.push_back(points1Mat);
-
-
-    //         // cv::sfm::triangulatePoints(dummy, dummy, dummy);
-    //         cv::Mat dummy;
-    //         // std::vector<cv::Point3d> points_3d;
-    //         cv::Mat points_3d;
-    //         cv::sfm::triangulatePoints(points2d_for_each_frame, cam_matrices, points_3d);
-
-    //         //put the points to V 
-    //         int nr_points=points_3d.cols;
-    //         mesh->V.resize( nr_points, 3 );
-    //         for(int p_idx=0; p_idx<nr_points; p_idx++){
-    //             mesh->V(p_idx, 0) = points_3d.at<double>(0, p_idx);
-    //             mesh->V(p_idx, 1) = points_3d.at<double>(1, p_idx);
-    //             mesh->V(p_idx, 2) = points_3d.at<double>(2, p_idx);
-    //         }
-
-
-    //     }
-    // }
-
-
     mesh->m_vis.m_show_points=true;
+    mesh->set_model_matrix( frame_query.tf_cam_world.inverse().cast<double>() );
+    mesh->apply_model_matrix_to_cpu(false);
+
+
+    //DEBUG by projecting the 3d points into the frame
+    //project in query img 
+    debug_by_projecting(frame_query, mesh, "debug_query");
+    debug_by_projecting(frame_target, mesh, "debug_target");
+    // cv::Mat img =frame_query.rgb_32f;
+    // Eigen::Affine3d trans=frame_query.tf_cam_world.cast<double>();
+    // Eigen::Matrix3d K=frame_query.K.cast<double>();
+    // for (int i = 0; i < mesh->V.rows(); i++){
+    //     Eigen::Vector3d point_world= Eigen::Vector3d(mesh->V.row(i));
+    //     Eigen::Vector3d point_cam = trans.linear()*point_world + trans.translation();
+    //     point_cam.y()=-point_cam.y();
+    //     Eigen::Vector3d point_img=K*point_cam;
+    //     int x= point_img.x()/ point_img.z();
+    //     int y= point_img.y()/ point_img.z();
+
+    //     cv::Point pt = cv::Point(x, y);
+    //     cv::circle(img, pt, 1, cv::Scalar(0, 255, 0));
+    // }
+    // easy_pbr::Gui::show(img, "img_debug");
+
 
     return mesh;
 }
+
+
+
+void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy_pbr::Mesh> mesh, const std::string name){
+
+    cv::Mat img =frame.rgb_32f;
+    Eigen::Affine3d trans=frame.tf_cam_world.cast<double>();
+    Eigen::Matrix3d K=frame.K.cast<double>();
+    for (int i = 0; i < mesh->V.rows(); i++){
+        Eigen::Vector3d point_world= Eigen::Vector3d(mesh->V.row(i));
+        Eigen::Vector3d point_cam = trans.linear()*point_world + trans.translation();
+        point_cam.y()=-point_cam.y();
+        Eigen::Vector3d point_img=K*point_cam;
+        int x= point_img.x()/ point_img.z();
+        int y= point_img.y()/ point_img.z();
+
+        cv::Point pt = cv::Point(x, y);
+        cv::circle(img, pt, 1, cv::Scalar(0, 255, 0));
+    }
+    easy_pbr::Gui::show(img, name);
+
+}
+
+
+
+//attempt 2 
+// compute_3D_keypoints_from_frames
+// {
+
+    //for each frame compute keypoints and descriptors
+
+    //for each frame, get the potential mathing ones, which are the ones that have a frustum that points in a somewhat similar direction
+
+    //for each frame, compute the matches towards the potential frames
+
+    //for each frame 
+    //  for each keypoint in the frame 
+    //      if keypoint_has_no_3d associated{
+    //        instantiate a 3D point at origin
+    //        record that this keypoint for this frame has a 3D associated
+    //        associate a reprojection error function for this 3D point
+    //      }
+    //      for each match 
+    //          frame_target=frame_in which the match was found
+    //          record that this keypoint for this frame has a 3D associated
+    //          associate a reprojection error function for this 3D point
+    //
+    //bundle adjust with known poses          
+
+
+// }
+
+
+
+//attempt 3 with colmap 
+//compute_3D_keypoints_from_frames 
+// {
+    
+    //run colmap
+
+// }
+
