@@ -30,6 +30,35 @@ def map_range( input_val, input_start, input_end,  output_start,  output_end):
     input_clamped=torch.clamp(input_val, input_start, input_end)
     return output_start + ((output_end - output_start) / (input_end - input_start)) * (input_clamped - input_start)
 
+def compute_uv(frame, points_3D_world):
+    if points_3D_world.shape[1] != 3:
+        print("expecting the points3d to be Nx3 but it is ", points_3D_world.shape)
+        exit(1)
+    if len(points_3D_world.shape) != 2:
+        print("expecting the points3d to have 2 dimensions corresponding to Nx3 but it is ", points_3D_world.shape)
+        exit(1)
+
+    R=torch.from_numpy( frame.tf_cam_world.linear().copy() ).to("cuda")
+    t=torch.from_numpy( frame.tf_cam_world.translation().copy() ).to("cuda")
+    K = torch.from_numpy( frame.K.copy() ).to("cuda")
+
+    points_3D_cam=torch.matmul(R, points_3D_world.transpose(0,1) ).transpose(0,1)  + t.view(1,3)
+    points_screen = torch.matmul(K, points_3D_cam.transpose(0,1) ).transpose(0,1)  
+    points_2d = points_screen[:, 0:2] / ( points_screen[:, 2:3] +0.00001 )
+
+    points_2d[:,1] = frame.height- points_2d[:,1] 
+
+    #get in range 0,1
+    points_2d[:,0]  = points_2d[:,0]/frame.width 
+    points_2d[:,1]  = points_2d[:,1]/frame.height 
+    uv_tensor = points_2d
+
+    #may be needed 
+    uv_tensor= uv_tensor*2 -1 #get in range [-1,1]
+    uv_tensor[:,1]=-uv_tensor[:,1] #flip
+
+
+    return uv_tensor
 
 
 

@@ -152,8 +152,8 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def_static("create", &ModelParams::create<const std::string> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
     .def("positions_mode",  &ModelParams::positions_mode )
     .def("values_mode",  &ModelParams::values_mode )
-    // .def("pointnet_layers",  &ModelParams::pointnet_layers )
-    // .def("pointnet_start_nr_channels",  &ModelParams::pointnet_start_nr_channels )
+    .def("pointnet_layers",  &ModelParams::pointnet_layers )
+    .def("pointnet_start_nr_channels",  &ModelParams::pointnet_start_nr_channels )
     .def("nr_downsamples",  &ModelParams::nr_downsamples )
     .def("nr_blocks_down_stage",  &ModelParams::nr_blocks_down_stage )
     .def("nr_blocks_bottleneck",  &ModelParams::nr_blocks_bottleneck )

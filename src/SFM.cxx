@@ -635,7 +635,7 @@ void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy
         cv::circle(img, pt, 4, cv::Scalar(0, 0, 255), 3); //projected in red
     }
 
-    for (int i = 0; i < keypoints.size(); i++){
+    for (size_t i = 0; i < keypoints.size(); i++){
         cv::Point pt = keypoints[i].pt;
         cv::circle(img, pt, 1, cv::Scalar(0, 255, 0)); //keypoints in blue
     }
@@ -683,4 +683,6 @@ void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy
     //run colmap
 
 // }
+
+
 

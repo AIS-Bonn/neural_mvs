@@ -836,6 +836,50 @@ class SpatialEncoderDense2D(torch.nn.Module):
         return x
 
 
+class UNet(torch.nn.Module):
+    def __init__(self, nr_channels_output):
+        super(UNet, self).__init__()
+
+
+        self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
+
+        self.start_nr_channels=nr_channels_output
+        # self.first_conv = torch.nn.Conv2d(6, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        #DELAYED creation 
+        self.first_conv=None
+
+        cur_nr_channels=self.start_nr_channels
+        
+
+        #cnn for encoding
+        self.resnet_list=torch.nn.ModuleList([])
+        for i in range(6): 
+            self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
+
+        self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+
+        self.relu=torch.nn.ReLU(inplace=False)
+        self.concat_coord=ConcatCoord() 
+
+
+    def forward(self, x):
+        if self.first_conv==None:
+            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+
+        #run through the net 
+        x=self.first_conv(x)
+
+        for layer in self.resnet_list:
+            x=layer(x,x)
+        
+        x=self.last_conv(x)
+        
+        return x
+            
+
+
+
+
 
 
 
@@ -3206,6 +3250,52 @@ class Net(torch.nn.Module):
 
 
         return x
+
+
+
+class DepthPredictor(torch.nn.Module):
+    def __init__(self, model_params):
+        super(DepthPredictor, self).__init__()
+
+        self.lnn=LNN(128, model_params)
+        self.lattice=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
+        self.cnn_2d=UNet(1)
+
+    def forward(self, frame, mesh):
+
+        #pass the mesh_full through a lnn to get features OR maybse pass only the mesh_sparse which correpsonds to this frame_query
+        positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
+        values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
+        values=torch.cat([positions,values],1)
+        logsoftmax, sv=self.lnn(self.lattice, positions, values)
+
+        #splat the features of the point onto the frame_query tensor
+        uv=frame.compute_uv(mesh) #uv for projecting this cloud into this frame
+        uv_tensor=torch.from_numpy(uv).float().to("cuda")
+        uv_tensor= uv_tensor*2 -1
+        uv_tensor[:,1]=-uv_tensor[:,1] #flip
+        texture= self.splat_texture(sv, uv_tensor, frame.height) #we assume that the height is the same as the weight
+        #divide by the homogeneous coords
+        val_dim=texture.shape[2]-1
+        texture=texture[:,:,0:val_dim] / (texture[:,:,val_dim:val_dim+1] +0.0001)
+        if frame.height!=frame.width:
+            print("The splat texture only can create square textures but the frames doesnt have a square size, so in order to create a depth map, we need to resize the image or improve the splat_texture function")
+            exit(1)
+
+
+        #Run a CNN to produce a depth map of this frame_query
+        texture=texture.unsqueeze(0) #N,H,W,C
+        texture=texture.permute(0,3,1,2) #converts to N,C,H,W
+        depth=self.cnn_2d(texture)
+
+        #if we predict depth, we know it has to be be positive
+        # depth=torch.relu(depth)
+
+        #####----Another option is to return the Z coordinate, but the one relative to the original of the world instead of the depth which is relative to the camera
+
+        return depth
 
 
 
