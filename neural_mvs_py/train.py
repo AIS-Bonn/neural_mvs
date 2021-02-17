@@ -184,16 +184,21 @@ def run():
     #compute 3D 
     sfm=SFM.create()
     # selected_frame_idx=[0,3] 
-    selected_frame_idx=[0] 
+    # selected_frame_idx=[0] 
     # selected_frame_idx=[1] 
     # selected_frame_idx=[0,1,2,3] 
+    selected_frame_idx=np.arange(7)
+    frames_selected=[]
     for i in range(loader_train.nr_samples()):
     # for i in range(1 ):
         # frame_0=loader_train.get_frame_at_idx(i+3) 
-        # if i in selected_frame_idx:
-        frame_0=loader_train.get_frame_at_idx(i) 
-        mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_0,  loader_train.get_closest_frame(frame_0)  )
-        Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
+        if i in selected_frame_idx:
+            frame_0=loader_train.get_frame_at_idx(i) 
+            frames_selected.append(frame_0)
+            frames_selected.append(loader_train.get_closest_frame(frame_0))
+            mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_0,  loader_train.get_closest_frame(frame_0)  )
+            Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
+
 
 
     
@@ -210,11 +215,12 @@ def run():
             if True: #for nerf
 
                 # if phase.loader.has_data() and loader_test.has_data():
-                if phase.loader.has_data(): #for nerf
+                # if phase.loader.has_data(): #for nerf
                 # if True: #Shapenet IMg always had ata at this point 
+                for frame in frames_selected:
 
 
-                    frame=phase.loader.get_next_frame()
+                    # frame=phase.loader.get_next_frame()
                     frustum_mesh=frame.create_frustum_mesh(0.2)
                     frustum_mesh.m_vis.m_line_width=1
                     Scene.show(frustum_mesh, "frustum_"+str(frame.frame_idx) )

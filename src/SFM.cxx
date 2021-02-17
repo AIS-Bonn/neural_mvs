@@ -154,7 +154,7 @@ std::pair< std::vector<cv::KeyPoint>,   cv::Mat > SFM::compute_keypoints_and_des
     // auto orb = cv::ORB::create(1000);
     //akaze
     auto feat_extractor = cv::AKAZE::create();
-    // feat_extractor->setThreshold(0.00001);
+    feat_extractor->setThreshold(0.00001);
     // feat_extractor->setNOctaveLayers(2);
     // feat_extractor->setNOctaves(2);
     feat_extractor->detectAndCompute( frame.rgb_8u, cv::noArray(), keypoints, descriptors);
@@ -526,8 +526,8 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
     //DEBUG by projecting the 3d points into the frame
     //project in query img 
-    debug_by_projecting(frame_query, mesh, query_keypoints, "debug_query");
-    debug_by_projecting(frame_target, mesh, target_keypoints, "debug_target");
+    // debug_by_projecting(frame_query, mesh, query_keypoints, "debug_query");
+    // debug_by_projecting(frame_target, mesh, target_keypoints, "debug_target");
     // cv::Mat img =frame_query.rgb_32f;
     // Eigen::Affine3d trans=frame_query.tf_cam_world.cast<double>();
     // Eigen::Matrix3d K=frame_query.K.cast<double>();
@@ -590,7 +590,7 @@ Eigen::Vector3f SFM::intersect_rays( const Eigen::Vector3f& origin_query, const 
 
     //find discriminant
     float discriminant = a * c- b * b;
-    if( std::fabs(discriminant)<1e-5 ){
+    if( std::fabs(discriminant)<1e-5 ){ //lines are parallel so there is no intersection
         point_intersection.setZero(); //INVALID
     }else{
         float tt = (b * e - c * d) / discriminant;
@@ -599,10 +599,11 @@ Eigen::Vector3f SFM::intersect_rays( const Eigen::Vector3f& origin_query, const 
         Eigen::Vector3f intersection_along_query= origin_query + tt * dir_query;
         Eigen::Vector3f intersection_along_target= origin_target + uu * dir_target;
         float dist = (intersection_along_query-intersection_along_target).norm();
-        if(dist>0.001){
+        float dist_thresh=0.1;
+        if(dist>dist_thresh){
             point_intersection.setZero(); //INVALID, the distance is too great
         }else{
-            //middle point between the two points along the ray
+            // middle point between the two points along the ray
             point_intersection= (intersection_along_query+intersection_along_target)/2.0;
         }
     }
