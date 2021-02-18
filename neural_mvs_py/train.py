@@ -356,7 +356,7 @@ def run():
 
                         rgb_query_for_slicing= rgb_query.clone().to("cuda")
                         rgb_target_for_slicing= rgb_target.clone().to("cuda")
-                        for i in range(6):
+                        for i in range(7):
                             if i>0:
                                 rgb_query_for_slicing= NeuralMVS.subsample(rgb_query_for_slicing, 2, "area").to("cuda") # downsample once with AREA interpolation like in opencV
                                 rgb_target_for_slicing= NeuralMVS.subsample(rgb_target_for_slicing, 2, "area").to("cuda")
@@ -385,7 +385,8 @@ def run():
 
                             mask=mask.view(-1,1)
                             #RGB loss
-                            diff_rgb=((predicted_query -predicted_target)**2)*mask
+                            # diff_rgb=((predicted_query -predicted_target)**2)*mask
+                            diff_rgb=((predicted_query -predicted_target)**2)
                             rgb_loss = diff_rgb.mean()
 
                             loss+=rgb_loss
