@@ -44,7 +44,7 @@ torch.manual_seed(0)
 random.seed(0)
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = True
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 # torch.set_printoptions(edgeitems=5)
 
 # #initialize the parameters used for training
@@ -242,6 +242,12 @@ def run():
                     if frame_idx!=0:
                         continue
 
+                    #DEBUG, do only one iter 
+                    # if phase.iter_nr>0 and phase.grad:
+                    #     continue
+
+
+
 
                     #forward
                     with torch.set_grad_enabled(is_training):
@@ -252,24 +258,56 @@ def run():
 
                         # print("depth is ", depth)
 
+                        #DEBUG depth map
+                        depth=depth*7
+                        print("depth minmax", depth.min().item(), " max ", depth.max().item())
+                        depth_mat=tensor2mat(depth)
+                        Gui.show(depth_mat, "depth_mat")
+                        frame_query.depth=depth_mat
+                        reprojected_mesh=frame_query.depth2world_xyz_mesh()
+                        Scene.show(reprojected_mesh, "reprojected_mesh")
+
+
+
+                        #DEBUG WTF is happening with the tf matrix 
+                        print("frame_query frame idx s  ",frame_query.frame_idx)
+                        print("frame_query.tf_cam_world is ", frame_query.tf_cam_world.matrix())
+                        print("frame_query.tf_cam_worldlinear is ", frame_query.tf_cam_world.linear() )
+                        print("frame_query.tf_cam_worldinverse is ", frame_query.tf_cam_world.inverse().matrix())
+                        print("frame_query.tf_cam_worldinverse linear is ", frame_query.tf_cam_world.inverse().linear() )
+                        tf_world_cam=frame_query.tf_cam_world.inverse()
+                        print("AGAIN frame_query.tf_cam_worldinverse linear is ", tf_world_cam.linear() )
+                        # exit(1)
+
+
                         #put the depth in 3D 
-                        R=torch.from_numpy( frame_query.tf_cam_world.inverse().linear().copy() ).to("cuda")
-                        t=torch.from_numpy( frame_query.tf_cam_world.inverse().translation().copy() ).to("cuda")
-                        K = torch.from_numpy( frame_query.K.copy() ).to("cuda")
+                        tf_world_cam=frame_query.tf_cam_world.inverse() # APARENTLY THERE'S A BUG that happens when chaining eigne transforms like inverse() and linear() in which the results is completely crazy like e+24. The solution seems to be to not chain them but rather save the inverse sand then do linear on it
+                        R=torch.from_numpy( tf_world_cam.linear() ).to("cuda")
+                        t=torch.from_numpy( tf_world_cam.translation() ).to("cuda")
+                        K = torch.from_numpy( frame_query.K ).to("cuda")
                         K_inv = torch.from_numpy( np.linalg.inv(frame_query.K) ).to("cuda")
+                        print("K is ", K, "K inv is ", K_inv)
                         ones=torch.ones([1,1,frame_query.height, frame_query.width], dtype=torch.float32).to("cuda")
                         points_screen=concat_coord(ones) 
-                        points_screen[:, 0:1, :,:]  #get it from [-1.1] to the [0,height]
-                        points_screen[:, 1:2, :,:]  #get it from [-1.1] to the [0,width]
+                        print("points_screen minmax", points_screen.min().item(), " max ", points_screen.max().item())
+                        points_screen[:, 0:1, :,:]= (points_screen[:, 0:1, :,:]+1)*0.5*frame_query.height  #get it from [-1.1] to the [0,height]
+                        points_screen[:, 1:2, :,:]= (points_screen[:, 1:2, :,:]+1)*0.5*frame_query.width  #get it from [-1.1] to the [0,width]
+                        print("points_screen after ranging minmax", points_screen.min().item(), " max ", points_screen.max().item())
                         points_screen=points_screen.permute(0,2,3,1) #go from N,C,H,W to N,H,W,C
                         points_screen=points_screen.view(-1,3) # Nx3
+                        print("points_screen after view minmax", points_screen.min().item(), " max ", points_screen.max().item())
                         points_3D_cam= ( torch.matmul(K_inv,points_screen.transpose(0,1))  ).transpose(0,1) #the points 3D are now Nx3
+                        print("points_3D_cam minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
                         depth=depth.permute(0,2,3,1) #go from N,C,H,W to N,H,W,C
                         depth=depth.view(-1,1)
                         points_3D_cam=points_3D_cam*depth
+                        print("points_3D_cam after depth minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
+                        print("R is ", R, "direct R is ", frame_query.tf_cam_world.inverse().linear() )
+                        print("t is ", t)
                         points_3D_world=torch.matmul(R, points_3D_cam.transpose(0,1) ).transpose(0,1)  + t.view(1,3)
 
-                        # print("points_3D_world", points_3D_world)
+                        print("points_3D_world", points_3D_world)
+                        print("points_3D_world", points_3D_world.min().item(), " max ", points_3D_world.max().item())
 
                         #attempt 2, we don;t need to actually use the GPU to get the thing in 3D, because we only need to compute the uv tensors which we know that it can be done correctly on CPU
                         #THIS WILL NOT WORK BECAUSE WE cannot backrpopagate through this UV tensor
@@ -301,6 +339,7 @@ def run():
                         rgb_target=rgb_target.permute(0,2,3,1).squeeze() #N,3,H,W to N,H,W,C
                         # print("uv query is ". uv_query)
                         # print("rgb_query is ". rgb_query)
+                        # print("uv_query is ", uv_query.min(), " ", uv_query.max())
                         # print("uv_query is ", uv_query)
                         _,_, predicted_query =model.slice_texture(rgb_query, uv_query)
                         _,_, predicted_target=model.slice_texture(rgb_target, uv_target)
@@ -308,11 +347,29 @@ def run():
                         # print("predicted_query is ", predicted_query)
 
                         #predicted query is actually just the original RGB image
-                        predicted_query= rgb_query.view(-1,3)
+                        # predicted_query_direct= rgb_query.view(-1,3)
+                        # predicted_query= rgb_query.view(-1,3)
+
+                        #DEBUG 
+                        # thepredicted_query_direct should eb same as predicted_query
+                        # diff= ((predicted_query -predicted_query_direct)**2).mean() 
+                        # print("diff is ", diff)
+                        predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width, 3)
+                        predicted_query_vis=predicted_query_vis.permute(0,3,1,2)
+                        predicted_query_vis_mat=tensor2mat(predicted_query_vis)
+                        Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat")
+                        #show predicted target 
+                        predicted_target_vis=predicted_target.view(1, frame_query.height, frame_query.width, 3)
+                        predicted_target_vis=predicted_target_vis.permute(0,3,1,2)
+                        predicted_target_vis_mat=tensor2mat(predicted_target_vis)
+                        Gui.show(predicted_target_vis_mat,"predicted_target_vis_mat")
+
+
+
 
                         rgb_loss = ((predicted_query -predicted_target)**2).mean()
                         loss=rgb_loss
-                        print("loss is ", loss)
+                        # print("loss is ", loss)
                     
                     
 

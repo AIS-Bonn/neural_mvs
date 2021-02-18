@@ -3291,7 +3291,7 @@ class DepthPredictor(torch.nn.Module):
         depth=self.cnn_2d(texture)
 
         #if we predict depth, we know it has to be be positive
-        # depth=torch.relu(depth)
+        depth=torch.relu(depth)
 
         #####----Another option is to return the Z coordinate, but the one relative to the original of the world instead of the depth which is relative to the camera
 
