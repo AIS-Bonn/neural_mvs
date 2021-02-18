@@ -732,11 +732,11 @@ class ConcatCoord(torch.nn.Module):
         #concat the coordinates in x an y as in coordconv https://github.com/Wizaron/coord-conv-pytorch/blob/master/coord_conv.py
         image_height=x.shape[2]
         image_width=x.shape[3]
-        y_coords = 2.0 * torch.arange(image_height).unsqueeze(
-            1).expand(image_height, image_width) / (image_height - 1.0) - 1.0
         x_coords = 2.0 * torch.arange(image_width).unsqueeze(
             0).expand(image_height, image_width) / (image_width - 1.0) - 1.0
-        coords = torch.stack((y_coords, x_coords), dim=0).float()
+        y_coords = 2.0 * torch.arange(image_height).unsqueeze(
+            1).expand(image_height, image_width) / (image_height - 1.0) - 1.0
+        coords = torch.stack((x_coords, y_coords), dim=0).float()
         coords=coords.unsqueeze(0)
         coords=coords.repeat(x.shape[0],1,1,1)
         # print("coords have size ", coords.size())

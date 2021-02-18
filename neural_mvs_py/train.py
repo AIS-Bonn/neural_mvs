@@ -237,14 +237,15 @@ def run():
                 for frame_idx, frame_query in enumerate(frames_query_selected):
                     frame_target=frames_target_selected[frame_idx]
                     # mesh_sparse=meshes_for_query_frames[frame_idx]
+                    mask_tensor=mat2tensor(frame_query.mask, False).to("cuda").repeat(1,1,1,1)
 
                     #DEBUG
                     if frame_idx!=0:
                         continue
 
-                    #DEBUG, do only one iter 
-                    # if phase.iter_nr>0 and phase.grad:
-                    #     continue
+                    # DEBUG, do only one iter 
+                    if phase.iter_nr>0 and phase.grad:
+                        continue
 
 
 
@@ -349,6 +350,29 @@ def run():
                         #predicted query is actually just the original RGB image
                         # predicted_query_direct= rgb_query.view(-1,3)
                         # predicted_query= rgb_query.view(-1,3)
+
+                        #Debug the uv_query why is it flipped
+                        ones=torch.ones([uv_query.shape[0],1], dtype=torch.float32).to("cuda")
+                        uv_query_vis=torch.cat([uv_query, ones], 1)
+                        uv_query_vis=uv_query_vis.view(frame_query.height, frame_query.width, -1)
+                        mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
+                        uv_query_vis=uv_query_vis*mask 
+                        uv_query_vis=uv_query_vis.view(-1,3)
+                        # print("uv_query_vis ha shape ", uv_query_vis.shape)
+                        uv_query_cpu=uv_query_vis.detach().cpu().numpy()
+                        uv_query_mesh=Mesh()
+                        uv_query_mesh.V=uv_query_cpu 
+                        uv_query_mesh.m_vis.m_show_points=True
+                        Scene.show(uv_query_mesh, " uv_query_mesh ")
+
+
+                        #DEbug the points3d world
+                        points_3d_mesh=Mesh()
+                        points_3d_mesh.V=points_3D_world.detach().cpu().numpy() 
+                        points_3d_mesh.m_vis.m_show_points=True
+                        Scene.show(points_3d_mesh, " points_3d_mesh ")
+
+
 
                         #DEBUG 
                         # thepredicted_query_direct should eb same as predicted_query
