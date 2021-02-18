@@ -7,8 +7,9 @@
 //c++
 #include <string>
 
-// #include "EasyPytorch/UtilsPytorch.h" //contains torch so it has to be added BEFORE any other include because the other ones might include loguru which gets screwed up if torch was included before it
+#include "UtilsPytorch.h" //contains torch so it has to be added BEFORE any other include because the other ones might include loguru which gets screwed up if torch was included before it
 #include "EasyCuda/UtilsCuda.h"
+// #include "EasyPytorch/UtilsPytorch.h"
 #include "string_utils.h"
 #include "numerical_utils.h"
 #include "eigen_utils.h"
@@ -333,4 +334,30 @@ std::tuple<torch::Tensor, torch::Tensor> NeuralMVS::slice_texture_backward( torc
 
 }
 
+torch::Tensor NeuralMVS::subsample( const torch::Tensor& tensor, const int subsample_factor, const std::string subsample_type ){
+
+    if( subsample_type!="area" && subsample_type!="nearest"){
+        LOG(FATAL) << " Subsample type " << subsample_type << " is not a known type";
+    }
+    
+    torch::Tensor tensor_in=tensor.permute({2, 0, 1}).unsqueeze(0).contiguous(); //from H,W,C to N,C,H,W
+
+    cv::Mat img= tensor2mat(tensor_in);
+    cv::Mat img_resized;
+    if(subsample_type=="area"){
+        cv::resize(img, img_resized, cv::Size(), 1.0/subsample_factor, 1.0/subsample_factor, cv::INTER_AREA);
+    }else if(subsample_type=="nearest"){
+        cv::resize(img, img_resized, cv::Size(), 1.0/subsample_factor, 1.0/subsample_factor, cv::INTER_NEAREST);
+    }
+
+    torch::Tensor tensor_out=mat2tensor(img_resized, false);
+
+    //permute from N,C,H,W to H,W,C
+    tensor_out=tensor_out.squeeze(0).permute({1,2,0});
+
+    return tensor_out;
+
+
+
+}
 

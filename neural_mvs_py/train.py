@@ -261,7 +261,7 @@ def run():
                         # print("depth is ", depth)
 
                         #DEBUG depth map
-                        depth=depth*7
+                        depth=depth*6
                         # print("depth minmax", depth.min().item(), " max ", depth.max().item())
                         depth_mat=tensor2mat(depth)
                         Gui.show(depth_mat, "depth_mat")
@@ -351,8 +351,49 @@ def run():
                         # print("rgb_query is ". rgb_query)
                         # print("uv_query is ", uv_query.min(), " ", uv_query.max())
                         # print("uv_query is ", uv_query)
-                        _,_, predicted_query =model.slice_texture(rgb_query, uv_query)
-                        _,_, predicted_target=model.slice_texture(rgb_target, uv_target)
+
+                        loss=0
+
+                        rgb_query_for_slicing= rgb_query.clone().to("cuda")
+                        rgb_target_for_slicing= rgb_target.clone().to("cuda")
+                        for i in range(6):
+                            if i>0:
+                                rgb_query_for_slicing= NeuralMVS.subsample(rgb_query_for_slicing, 2, "area").to("cuda") # downsample once with AREA interpolation like in opencV
+                                rgb_target_for_slicing= NeuralMVS.subsample(rgb_target_for_slicing, 2, "area").to("cuda")
+
+                            # print("at level ", i, "slicing from ", rgb_query_for_slicing.shape)
+                            _,_, predicted_query =model.slice_texture(rgb_query_for_slicing, uv_query)
+                            _,_, predicted_target=model.slice_texture(rgb_target_for_slicing, uv_target)
+
+                            #DEBUG 
+                            subsampled_height= int(frame_query.height *  1.0/pow(2,i))
+                            subsampled_width= int(frame_query.width *  1.0/pow(2,i))
+                            # print("frame heigth and width is ", frame_query.height, " ", frame_query.width, " subsampled_height ", subsampled_height, " subsampled_width ", subsampled_width)
+                            # print("predicted_query has shape ", predicted_query.shape)
+                            # predicted_query_vis=predicted_query.view(1, subsampled_height, subsampled_width, 3)
+                            predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width , 3)
+                            predicted_query_vis=predicted_query_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
+                            predicted_query_vis_mat=tensor2mat(predicted_query_vis)
+                            Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat_"+str(i) )
+                            #show predicted target 
+                            # predicted_target_vis=predicted_target.view(1, subsampled_height, subsampled_width, 3)
+                            predicted_target_vis=predicted_target.view(1, frame_query.height, frame_query.width, 3)
+                            predicted_target_vis=predicted_target_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
+                            predicted_target_vis_mat=tensor2mat(predicted_target_vis)
+                            Gui.show(predicted_target_vis_mat,"predicted_target_vis_mat_"+str(i))
+
+
+                            mask=mask.view(-1,1)
+                            #RGB loss
+                            diff_rgb=((predicted_query -predicted_target)**2)*mask
+                            rgb_loss = diff_rgb.mean()
+
+                            loss+=rgb_loss
+
+
+
+                        # _,_, predicted_query =model.slice_texture(rgb_query, uv_query)
+                        # _,_, predicted_target=model.slice_texture(rgb_target, uv_target)
 
                         # print("predicted_query is ", predicted_query)
 
@@ -383,36 +424,33 @@ def run():
 
 
 
-                        #DEBUG 
-                        # thepredicted_query_direct should eb same as predicted_query
-                        # diff= ((predicted_query -predicted_query_direct)**2).mean() 
-                        # print("diff is ", diff)
-                        predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width, 3)
-                        predicted_query_vis=predicted_query_vis.permute(0,3,1,2)
-                        predicted_query_vis_mat=tensor2mat(predicted_query_vis)
-                        Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat")
-                        #show predicted target 
-                        predicted_target_vis=predicted_target.view(1, frame_query.height, frame_query.width, 3)
-                        predicted_target_vis=predicted_target_vis.permute(0,3,1,2)
-                        predicted_target_vis_mat=tensor2mat(predicted_target_vis)
-                        Gui.show(predicted_target_vis_mat,"predicted_target_vis_mat")
+                        # #DEBUG 
+                        # predicted_query_vis=predicted_query.view(0, frame_query.height, frame_query.width, 3)
+                        # predicted_query_vis=predicted_query_vis.permute(-1,3,1,2)
+                        # predicted_query_vis_mat=tensor1mat(predicted_query_vis)
+                        # Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat")
+                        # #show predicted target 
+                        # predicted_target_vis=predicted_target.view(0, frame_query.height, frame_query.width, 3)
+                        # predicted_target_vis=predicted_target_vis.permute(-1,3,1,2)
+                        # predicted_target_vis_mat=tensor1mat(predicted_target_vis)
+                        # Gui.show(predicted_target_vis_mat,"predicted_target_vis_mat")
 
 
 
-                        # mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
-                        mask=mask.view(-1,1)
-                        #RGB loss
-                        diff_rgb=((predicted_query -predicted_target)**2)*mask
-                        rgb_loss = diff_rgb.mean()
-                        #depth_average loss
-                        depth_mean=depth.mean() 
-                        depth_loss= ((depth_mean-2.0)**2).mean()
-                        #depth std
-                        depth_std_loss=depth.std()
-                        # loss=rgb_loss + depth_loss
-                        # loss= depth_loss + depth_std_loss
-                        # loss=rgb_loss + depth_loss + depth_std_loss*0.1
-                        loss=rgb_loss
+                        # # mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
+                        # mask=mask.view(-1,1)
+                        # #RGB loss
+                        # diff_rgb=((predicted_query -predicted_target)**2)*mask
+                        # rgb_loss = diff_rgb.mean()
+                        # #depth_average loss
+                        # depth_mean=depth.mean() 
+                        # depth_loss= ((depth_mean-2.0)**2).mean()
+                        # #depth std
+                        # depth_std_loss=depth.std()
+                        # # loss=rgb_loss + depth_loss
+                        # # loss= depth_loss + depth_std_loss
+                        # # loss=rgb_loss + depth_loss + depth_std_loss*0.1
+                        # loss=rgb_loss
                         print("loss is ", loss)
                     
                     

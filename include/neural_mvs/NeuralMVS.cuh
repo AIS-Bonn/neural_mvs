@@ -48,6 +48,8 @@ public:
     static std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(torch::Tensor& grad_texture, torch::Tensor& values_tensor, torch::Tensor& uv_tensor );
     static std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(torch::Tensor& grad_values, torch::Tensor& texture, torch::Tensor& uv_tensor );
 
+    static torch::Tensor subsample( const torch::Tensor& tensor, const int subsample_factor, const std::string subsample_type ); //assumes the tensor input is in format H,W,C
+
 
 private:
     NeuralMVS();

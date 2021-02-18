@@ -175,6 +175,7 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def_static("slice_texture", &NeuralMVS::slice_texture)
     .def_static("splat_texture_backward", &NeuralMVS::splat_texture_backward)
     .def_static("slice_texture_backward", &NeuralMVS::slice_texture_backward)
+    .def_static("subsample", &NeuralMVS::subsample)
     ;
 
     //TinyLoader
