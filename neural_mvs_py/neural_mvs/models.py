@@ -837,13 +837,13 @@ class SpatialEncoderDense2D(torch.nn.Module):
 
 
 class UNet(torch.nn.Module):
-    def __init__(self, nr_channels_output):
+    def __init__(self, nr_channels_start, nr_channels_output):
         super(UNet, self).__init__()
 
 
         self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
 
-        self.start_nr_channels=nr_channels_output
+        self.start_nr_channels=nr_channels_start
         # self.first_conv = torch.nn.Conv2d(6, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         #DELAYED creation 
         self.first_conv=None
@@ -854,6 +854,7 @@ class UNet(torch.nn.Module):
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
         for i in range(6): 
+            # print("creating curnnrchannels, ", cur_nr_channels)
             self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
         self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
@@ -3261,29 +3262,29 @@ class DepthPredictor(torch.nn.Module):
         self.lattice=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
-        self.cnn_2d=UNet(1)
+        self.cnn_2d=UNet(16,1)
         self.concat_coord=ConcatCoord() 
 
     def forward(self, frame, mesh):
 
-        #pass the mesh_full through a lnn to get features OR maybse pass only the mesh_sparse which correpsonds to this frame_query
-        positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
-        values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
-        values=torch.cat([positions,values],1)
-        logsoftmax, sv=self.lnn(self.lattice, positions, values)
+        # #pass the mesh_full through a lnn to get features OR maybse pass only the mesh_sparse which correpsonds to this frame_query
+        # positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
+        # values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
+        # values=torch.cat([positions,values],1)
+        # logsoftmax, sv=self.lnn(self.lattice, positions, values)
 
-        #splat the features of the point onto the frame_query tensor
-        uv=frame.compute_uv(mesh) #uv for projecting this cloud into this frame
-        uv_tensor=torch.from_numpy(uv).float().to("cuda")
-        uv_tensor= uv_tensor*2 -1
-        uv_tensor[:,1]=-uv_tensor[:,1] #flip
-        texture= self.splat_texture(sv, uv_tensor, frame.height) #we assume that the height is the same as the weight
-        #divide by the homogeneous coords
-        val_dim=texture.shape[2]-1
-        texture=texture[:,:,0:val_dim] / (texture[:,:,val_dim:val_dim+1] +0.0001)
-        if frame.height!=frame.width:
-            print("The splat texture only can create square textures but the frames doesnt have a square size, so in order to create a depth map, we need to resize the image or improve the splat_texture function")
-            exit(1)
+        # #splat the features of the point onto the frame_query tensor
+        # uv=frame.compute_uv(mesh) #uv for projecting this cloud into this frame
+        # uv_tensor=torch.from_numpy(uv).float().to("cuda")
+        # uv_tensor= uv_tensor*2 -1
+        # uv_tensor[:,1]=-uv_tensor[:,1] #flip
+        # texture= self.splat_texture(sv, uv_tensor, frame.height) #we assume that the height is the same as the weight
+        # #divide by the homogeneous coords
+        # val_dim=texture.shape[2]-1
+        # texture=texture[:,:,0:val_dim] / (texture[:,:,val_dim:val_dim+1] +0.0001)
+        # if frame.height!=frame.width:
+        #     print("The splat texture only can create square textures but the frames doesnt have a square size, so in order to create a depth map, we need to resize the image or improve the splat_texture function")
+        #     exit(1)
 
 
         #Run a CNN to produce a depth map of this frame_query
@@ -3296,7 +3297,6 @@ class DepthPredictor(torch.nn.Module):
         cnn_input=self.concat_coord(rgb_query)
         # coords=cnn_input[:,0:2, :, :] 
         # coords_encoded=positional_encoding(coords)
-        # print("coords_encoded is ", coords_encoded.shape)
         # cnn_input=torch.cat([coords_encoded, rgb_query],1)
         depth=self.cnn_2d(cnn_input)
 

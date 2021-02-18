@@ -254,6 +254,13 @@ def run():
                     # if phase.iter_nr>0 and phase.grad:
                         # continue
 
+                    #alternate between optimizing frame_query and frame_target
+                    # if phase.iter_nr%2==0:
+                    #     temp = frame_query
+                    #     frame_query = frame_target
+                    #     frame_target = temp
+                    
+
 
 
 
@@ -275,7 +282,7 @@ def run():
                         depth=depth*2
                         # print("depth minmax", depth.min().item(), " max ", depth.max().item())
                         depth_mat=tensor2mat(depth)
-                        depth_vis=map_range(depth_original, 1, 3, 0, 1)
+                        depth_vis=map_range(depth_original, 0.6, 2, 0, 1)
                         depth_mat_vis=tensor2mat(depth_vis)
                         Gui.show(depth_mat_vis, "depth_mat")
                         frame_query.depth=depth_mat
@@ -349,10 +356,14 @@ def run():
                         # uv_target_tensor= uv_target_tensor*2 -1
                         # uv_target_tensor[:,1]=-uv_target_tensor[:,1] #flip
 
+                    
 
                         #get the uv tensor for query and target
                         uv_query=compute_uv(frame_query, points_3D_world)
                         uv_target=compute_uv(frame_target, points_3D_world)
+
+                       
+
 
 
                         #slice the detph from query and from target colors and compare them
@@ -376,12 +387,12 @@ def run():
                                 rgb_target_for_slicing= NeuralMVS.subsample(rgb_target_for_slicing, 2, "area").to("cuda")
 
                             # print("at level ", i, "slicing from ", rgb_query_for_slicing.shape)
-                            _,_, predicted_query =model.slice_texture(rgb_query_for_slicing, uv_query)
-                            _,_, predicted_target=model.slice_texture(rgb_target_for_slicing, uv_target)
+                            # _,_, predicted_query =model.slice_texture(rgb_query_for_slicing, uv_query)
+                            _,_, predicted_query=model.slice_texture(rgb_target_for_slicing, uv_target) ##slices the right view and with this we try to reconstruct the query
 
                             #splat the points onto the target 
                             rgb_query= rgb_query.view(-1,3)
-                            texture_target= model.splat_texture(rgb_query, uv_target, frame_target.height) 
+                            texture_target= model.splat_texture(rgb_query, uv_target, rgb_query_for_slicing.shape[0]) 
                             val_dim=texture_target.shape[2]-1
                             texture_target=texture_target[:,:,0:val_dim] / (texture_target[:,:,val_dim:val_dim+1] +0.0001)
                             # texture_target=texture_target[:,:,0:val_dim] 
@@ -419,11 +430,23 @@ def run():
 
 
                             mask=mask.view(-1,1)
+                            # rgb_query=rgb_query_for_slicing.view(-1,3)
                             #RGB loss
                             # diff_rgb=((predicted_query -predicted_target)**2)*mask
-                            diff_rgb=((predicted_query -predicted_target)**2)
-                            # diff_rgb=((texture_target -rgb_target.squeeze())**2)
+                            # diff_rgb=((predicted_query -predicted_target)**2)
+                            diff_rgb=(( rgb_query-predicted_query)**2)
+                            diff_rgb_2=((texture_target -rgb_target_for_slicing.squeeze())**2)
                             rgb_loss = diff_rgb.mean() 
+                            # rgb_loss =  diff_rgb_2.mean()
+                            # rgb_loss = diff_rgb.mean() + diff_rgb_2.mean()*phase.iter_nr*0.0001
+                            # rgb_loss = diff_rgb.mean()*0.5 +  diff_rgb_2.mean()*0.5
+
+                            # #debug diff 
+                            # diff_rgb_vis=diff_rgb_2.view(1, frame_query.height, frame_query.width, 3)
+                            # diff_rgb_vis= diff_rgb_vis.permute(0,3,1,2)
+                            # diff_rgb_vis=diff_rgb_vis*10 #increase power
+                            # diff_rgb_vis_mat=tensor2mat(diff_rgb_vis)
+                            # Gui.show(diff_rgb_vis_mat, "diff_rgb_vis_mat")
 
                             # weight=1.0/(float(i)+1)
                             # rgb_loss=rgb_loss*weight
@@ -434,7 +457,7 @@ def run():
                         rgb_query=mat2tensor(frame_query.rgb_32f, False).to("cuda")
                         smooth_loss= smooth(depth_original, rgb_query) 
                         # loss+=smooth_loss* (0.1 + phase.iter_nr*0.0001 )
-                        # loss+=smooth_loss* 0.1
+                        loss+=smooth_loss* 0.3
 
 
 
