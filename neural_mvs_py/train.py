@@ -255,6 +255,7 @@ def run():
 
                         depth=model(frame_query, mesh_full)
                         # print("depth has shape ", depth.shape)
+                        depth=depth*mask_tensor
 
 
                         # print("depth is ", depth)
@@ -357,7 +358,7 @@ def run():
 
                         #predicted query is actually just the original RGB image
                         # predicted_query_direct= rgb_query.view(-1,3)
-                        predicted_query= rgb_query.view(-1,3)
+                        # predicted_query= rgb_query.view(-1,3)
 
                         # #Debug the uv_query why is it flipped
                         # ones=torch.ones([uv_query.shape[0],1], dtype=torch.float32).to("cuda")
@@ -398,10 +399,19 @@ def run():
 
 
 
-                        mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
+                        # mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
                         mask=mask.view(-1,1)
+                        #RGB loss
                         diff_rgb=((predicted_query -predicted_target)**2)*mask
                         rgb_loss = diff_rgb.mean()
+                        #depth_average loss
+                        depth_mean=depth.mean() 
+                        depth_loss= ((depth_mean-2.0)**2).mean()
+                        #depth std
+                        depth_std_loss=depth.std()
+                        # loss=rgb_loss + depth_loss
+                        # loss= depth_loss + depth_std_loss
+                        # loss=rgb_loss + depth_loss + depth_std_loss*0.1
                         loss=rgb_loss
                         print("loss is ", loss)
                     

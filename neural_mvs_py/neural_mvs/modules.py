@@ -51,6 +51,9 @@ def compute_uv(frame, points_3D_world):
     points_2d[:,1] = frame.height- points_2d[:,1] 
     # print("points_2d ", points_2d)
 
+    #shift by half a pixel 
+    # points_2d[:,1]=points_2d[:,1]+0.5
+
     #get in range 0,1
     points_2d[:,0]  = points_2d[:,0]/frame.width 
     points_2d[:,1]  = points_2d[:,1]/frame.height 
