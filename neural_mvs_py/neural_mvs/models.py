@@ -3286,12 +3286,16 @@ class DepthPredictor(torch.nn.Module):
 
 
         #Run a CNN to produce a depth map of this frame_query
-        texture=texture.unsqueeze(0) #N,H,W,C
-        texture=texture.permute(0,3,1,2) #converts to N,C,H,W
-        depth=self.cnn_2d(texture)
+        # texture=texture.unsqueeze(0) #N,H,W,C
+        # texture=texture.permute(0,3,1,2) #converts to N,C,H,W
+        # depth=self.cnn_2d(texture)
+
+        #DEBUG put the rgb in there 
+        rgb_query=mat2tensor(frame.rgb_32f, False).to("cuda")
+        depth=self.cnn_2d(rgb_query)
 
         #if we predict depth, we know it has to be be positive
-        depth=torch.relu(depth) + 0.001 #added a tiny epsilon because depth of 0 gets an invalid uv tensor afterwards and it just get a black color
+        depth=torch.relu(depth) + 0.01 #added a tiny epsilon because depth of 0 gets an invalid uv tensor afterwards and it just get a black color
 
         #####----Another option is to return the Z coordinate, but the one relative to the original of the world instead of the depth which is relative to the camera
 

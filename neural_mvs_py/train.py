@@ -160,6 +160,7 @@ def run():
     loss_fn=torch.nn.MSELoss()
     scheduler=None
     concat_coord=ConcatCoord() 
+    smooth = InverseDepthSmoothnessLoss()
 
     # show_every=39
     show_every=100
@@ -209,6 +210,12 @@ def run():
             frustum_mesh.m_vis.m_line_width=1
             Scene.show(frustum_mesh, "frustum_"+str(frame_query.frame_idx) )
 
+            frustum_mesh=frame_target.create_frustum_mesh(0.2)
+            frustum_mesh.m_vis.m_line_width=1
+            frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0]
+            Scene.show(frustum_mesh, "frustum_T_"+str(frame_target.frame_idx) )
+
+
     #fuse all the meshes into one
     mesh_full=Mesh()
     for mesh in meshes_for_query_frames:
@@ -254,17 +261,23 @@ def run():
                     with torch.set_grad_enabled(is_training):
 
                         depth=model(frame_query, mesh_full)
+                        depth_original=depth
                         # print("depth has shape ", depth.shape)
-                        depth=depth*mask_tensor
+                        # depth=depth*mask_tensor
+
+                        # depth= depth+ 0.3 #added a tiny epsilon because depth of 0 gets an invalid uv tensor afterwards and it just get a black color
+                        depth= depth+ 0.8 #added a tiny epsilon because depth of 0 gets an invalid uv tensor afterwards and it just get a black color
 
 
                         # print("depth is ", depth)
 
                         #DEBUG depth map
-                        depth=depth*6
+                        depth=depth*2
                         # print("depth minmax", depth.min().item(), " max ", depth.max().item())
                         depth_mat=tensor2mat(depth)
-                        Gui.show(depth_mat, "depth_mat")
+                        depth_vis=map_range(depth_original, 1, 3, 0, 1)
+                        depth_mat_vis=tensor2mat(depth_vis)
+                        Gui.show(depth_mat_vis, "depth_mat")
                         frame_query.depth=depth_mat
                         reprojected_mesh=frame_query.depth2world_xyz_mesh()
                         mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
@@ -365,31 +378,61 @@ def run():
                             _,_, predicted_query =model.slice_texture(rgb_query_for_slicing, uv_query)
                             _,_, predicted_target=model.slice_texture(rgb_target_for_slicing, uv_target)
 
-                            #DEBUG 
-                            subsampled_height= int(frame_query.height *  1.0/pow(2,i))
-                            subsampled_width= int(frame_query.width *  1.0/pow(2,i))
-                            # print("frame heigth and width is ", frame_query.height, " ", frame_query.width, " subsampled_height ", subsampled_height, " subsampled_width ", subsampled_width)
-                            # print("predicted_query has shape ", predicted_query.shape)
-                            # predicted_query_vis=predicted_query.view(1, subsampled_height, subsampled_width, 3)
-                            predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width , 3)
-                            predicted_query_vis=predicted_query_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
-                            predicted_query_vis_mat=tensor2mat(predicted_query_vis)
-                            Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat_"+str(i) )
-                            #show predicted target 
-                            # predicted_target_vis=predicted_target.view(1, subsampled_height, subsampled_width, 3)
-                            predicted_target_vis=predicted_target.view(1, frame_query.height, frame_query.width, 3)
-                            predicted_target_vis=predicted_target_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
-                            predicted_target_vis_mat=tensor2mat(predicted_target_vis)
-                            Gui.show(predicted_target_vis_mat,"predicted_target_vis_mat_"+str(i))
+                            #splat the points onto the target 
+                            rgb_query= rgb_query.view(-1,3)
+                            texture_target= model.splat_texture(rgb_query, uv_target, frame_target.height) 
+                            val_dim=texture_target.shape[2]-1
+                            texture_target=texture_target[:,:,0:val_dim] / (texture_target[:,:,val_dim:val_dim+1] +0.0001)
+
+                            #debug, see the texture target 
+                            texture_target_vis= texture_target.permute(2,0,1).unsqueeze(0) #from H,W,C to C,H,W
+                            texture_target_mat_vis=tensor2mat(texture_target_vis)
+                            Gui.show(texture_target_mat_vis, "texture_target_mat_vis")
+
+
+
+                            #debug the two images 
+                            # rgb_query_for_slicing_vis=rgb_query_for_slicing.unsqueeze(0).permute(0,3,1,2) # N,H,W,C to N,C,H,W
+                            # rgb_target_for_slicing_vis=rgb_target_for_slicing.unsqueeze(0).permute(0,3,1,2) # N,H,W,C to N,C,H,W
+                            # Gui.show( tensor2mat(rgb_query_for_slicing_vis) ,"rgb_query"+str(i) )
+                            # Gui.show( tensor2mat(rgb_target_for_slicing_vis) ,"rgb_target"+str(i) )
+
+
+                            # #DEBUG 
+                            # subsampled_height= int(frame_query.height *  1.0/pow(2,i))
+                            # subsampled_width= int(frame_query.width *  1.0/pow(2,i))
+                            # # print("frame heigth and width is ", frame_query.height, " ", frame_query.width, " subsampled_height ", subsampled_height, " subsampled_width ", subsampled_width)
+                            # # print("predicted_query has shape ", predicted_query.shape)
+                            # # predicted_query_vis=predicted_query.view(1, subsampled_height, subsampled_width, 3)
+                            # predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width , 3)
+                            # predicted_query_vis=predicted_query_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
+                            # predicted_query_vis_mat=tensor2mat(predicted_query_vis)
+                            # Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat_"+str(i) )
+                            # #show predicted target 
+                            # # predicted_target_vis=predicted_target.view(1, subsampled_height, subsampled_width, 3)
+                            # predicted_target_vis=predicted_target.view(1, frame_query.height, frame_query.width, 3)
+                            # predicted_target_vis=predicted_target_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
+                            # predicted_target_vis_mat=tensor2mat(predicted_target_vis)
+                            # Gui.show(predicted_target_vis_mat,"predicted_target_vis_mat_"+str(i))
 
 
                             mask=mask.view(-1,1)
                             #RGB loss
                             # diff_rgb=((predicted_query -predicted_target)**2)*mask
                             diff_rgb=((predicted_query -predicted_target)**2)
-                            rgb_loss = diff_rgb.mean()
+                            # diff_rgb=((texture_target -rgb_target.squeeze())**2)
+                            rgb_loss = diff_rgb.mean() 
 
+                            # weight=1.0/(float(i)+1)
+                            # rgb_loss=rgb_loss*weight
+                            # if i==0:
                             loss+=rgb_loss
+
+                        #smoothnes loss 
+                        rgb_query=mat2tensor(frame_query.rgb_32f, False).to("cuda")
+                        smooth_loss= smooth(depth_original, rgb_query) 
+                        # loss+=smooth_loss* (0.1 + phase.iter_nr*0.0001 )
+                        # loss+=smooth_loss* 0.1
 
 
 
