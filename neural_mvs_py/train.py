@@ -317,6 +317,7 @@ def run():
                         points_screen=points_screen.view(-1,3) # Nx3
                         # print("points_screen after view minmax", points_screen.min().item(), " max ", points_screen.max().item())
                         points_3D_cam= ( torch.matmul(K_inv,points_screen.transpose(0,1))  ).transpose(0,1) #the points 3D are now Nx3
+                        points_3D_cam[:,1]=-points_3D_cam[:,1] #flip
                         # print("points_3D_cam minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
                         depth=depth.permute(0,2,3,1) #go from N,C,H,W to N,H,W,C
                         depth=depth.view(-1,1)
@@ -383,6 +384,7 @@ def run():
                             texture_target= model.splat_texture(rgb_query, uv_target, frame_target.height) 
                             val_dim=texture_target.shape[2]-1
                             texture_target=texture_target[:,:,0:val_dim] / (texture_target[:,:,val_dim:val_dim+1] +0.0001)
+                            # texture_target=texture_target[:,:,0:val_dim] 
 
                             #debug, see the texture target 
                             texture_target_vis= texture_target.permute(2,0,1).unsqueeze(0) #from H,W,C to C,H,W
@@ -460,11 +462,11 @@ def run():
                         # Scene.show(uv_query_mesh, " uv_query_mesh ")
 
 
-                        # #DEbug the points3d world
-                        # points_3d_mesh=Mesh()
-                        # points_3d_mesh.V=points_3D_world.detach().cpu().numpy() 
-                        # points_3d_mesh.m_vis.m_show_points=True
-                        # Scene.show(points_3d_mesh, " points_3d_mesh ")
+                        #DEbug the points3d world
+                        points_3d_mesh=Mesh()
+                        points_3d_mesh.V=points_3D_world.detach().cpu().numpy() 
+                        points_3d_mesh.m_vis.m_show_points=True
+                        Scene.show(points_3d_mesh, " points_3d_mesh ")
 
 
 

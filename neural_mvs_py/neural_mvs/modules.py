@@ -63,7 +63,7 @@ def compute_uv(frame, points_3D_world):
 
     #may be needed 
     uv_tensor= uv_tensor*2 -1 #get in range [-1,1]
-    uv_tensor[:,1]=-uv_tensor[:,1] #flip
+    # uv_tensor[:,1]=-uv_tensor[:,1] #flip
 
 
     return uv_tensor

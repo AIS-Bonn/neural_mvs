@@ -181,7 +181,7 @@ def positional_encoding(
     if len(encoding) == 1:
         return encoding[0]
     else:
-        return torch.cat(encoding, dim=-1)
+        return torch.cat(encoding, dim=1)
 
 
 def get_embedding_function(

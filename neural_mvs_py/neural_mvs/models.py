@@ -3262,6 +3262,7 @@ class DepthPredictor(torch.nn.Module):
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
         self.cnn_2d=UNet(1)
+        self.concat_coord=ConcatCoord() 
 
     def forward(self, frame, mesh):
 
@@ -3292,7 +3293,12 @@ class DepthPredictor(torch.nn.Module):
 
         #DEBUG put the rgb in there 
         rgb_query=mat2tensor(frame.rgb_32f, False).to("cuda")
-        depth=self.cnn_2d(rgb_query)
+        cnn_input=self.concat_coord(rgb_query)
+        # coords=cnn_input[:,0:2, :, :] 
+        # coords_encoded=positional_encoding(coords)
+        # print("coords_encoded is ", coords_encoded.shape)
+        # cnn_input=torch.cat([coords_encoded, rgb_query],1)
+        depth=self.cnn_2d(cnn_input)
 
         #if we predict depth, we know it has to be be positive
         depth=torch.relu(depth) + 0.01 #added a tiny epsilon because depth of 0 gets an invalid uv tensor afterwards and it just get a black color
