@@ -244,8 +244,8 @@ def run():
                         continue
 
                     # DEBUG, do only one iter 
-                    if phase.iter_nr>0 and phase.grad:
-                        continue
+                    # if phase.iter_nr>0 and phase.grad:
+                        # continue
 
 
 
@@ -261,24 +261,29 @@ def run():
 
                         #DEBUG depth map
                         depth=depth*7
-                        print("depth minmax", depth.min().item(), " max ", depth.max().item())
+                        # print("depth minmax", depth.min().item(), " max ", depth.max().item())
                         depth_mat=tensor2mat(depth)
                         Gui.show(depth_mat, "depth_mat")
                         frame_query.depth=depth_mat
                         reprojected_mesh=frame_query.depth2world_xyz_mesh()
+                        mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
+                        mask=mask.view(-1,1)
+                        reprojected_points_py=torch.from_numpy( reprojected_mesh.V ).to("cuda")
+                        reprojected_points_py=reprojected_points_py*mask
+                        reprojected_mesh.V=reprojected_points_py.detach().cpu().numpy()
                         Scene.show(reprojected_mesh, "reprojected_mesh")
 
 
 
                         #DEBUG WTF is happening with the tf matrix 
-                        print("frame_query frame idx s  ",frame_query.frame_idx)
-                        print("frame_query.tf_cam_world is ", frame_query.tf_cam_world.matrix())
-                        print("frame_query.tf_cam_worldlinear is ", frame_query.tf_cam_world.linear() )
-                        print("frame_query.tf_cam_worldinverse is ", frame_query.tf_cam_world.inverse().matrix())
-                        print("frame_query.tf_cam_worldinverse linear is ", frame_query.tf_cam_world.inverse().linear() )
-                        tf_world_cam=frame_query.tf_cam_world.inverse()
-                        print("AGAIN frame_query.tf_cam_worldinverse linear is ", tf_world_cam.linear() )
-                        # exit(1)
+                        # print("frame_query frame idx s  ",frame_query.frame_idx)
+                        # print("frame_query.tf_cam_world is ", frame_query.tf_cam_world.matrix())
+                        # print("frame_query.tf_cam_worldlinear is ", frame_query.tf_cam_world.linear() )
+                        # print("frame_query.tf_cam_worldinverse is ", frame_query.tf_cam_world.inverse().matrix())
+                        # print("frame_query.tf_cam_worldinverse linear is ", frame_query.tf_cam_world.inverse().linear() )
+                        # tf_world_cam=frame_query.tf_cam_world.inverse()
+                        # print("AGAIN frame_query.tf_cam_worldinverse linear is ", tf_world_cam.linear() )
+                        # # exit(1)
 
 
                         #put the depth in 3D 
@@ -287,28 +292,31 @@ def run():
                         t=torch.from_numpy( tf_world_cam.translation() ).to("cuda")
                         K = torch.from_numpy( frame_query.K ).to("cuda")
                         K_inv = torch.from_numpy( np.linalg.inv(frame_query.K) ).to("cuda")
-                        print("K is ", K, "K inv is ", K_inv)
+                        # print("K is ", K, "K inv is ", K_inv)
                         ones=torch.ones([1,1,frame_query.height, frame_query.width], dtype=torch.float32).to("cuda")
                         points_screen=concat_coord(ones) 
-                        print("points_screen minmax", points_screen.min().item(), " max ", points_screen.max().item())
+                        # print("points_screen minmax", points_screen.min().item(), " max ", points_screen.max().item())
                         points_screen[:, 0:1, :,:]= (points_screen[:, 0:1, :,:]+1)*0.5*frame_query.height  #get it from [-1.1] to the [0,height]
                         points_screen[:, 1:2, :,:]= (points_screen[:, 1:2, :,:]+1)*0.5*frame_query.width  #get it from [-1.1] to the [0,width]
-                        print("points_screen after ranging minmax", points_screen.min().item(), " max ", points_screen.max().item())
+                        # print("points_screen after ranging minmax", points_screen.min().item(), " max ", points_screen.max().item())
                         points_screen=points_screen.permute(0,2,3,1) #go from N,C,H,W to N,H,W,C
                         points_screen=points_screen.view(-1,3) # Nx3
-                        print("points_screen after view minmax", points_screen.min().item(), " max ", points_screen.max().item())
+                        # print("points_screen after view minmax", points_screen.min().item(), " max ", points_screen.max().item())
                         points_3D_cam= ( torch.matmul(K_inv,points_screen.transpose(0,1))  ).transpose(0,1) #the points 3D are now Nx3
-                        print("points_3D_cam minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
+                        # print("points_3D_cam minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
                         depth=depth.permute(0,2,3,1) #go from N,C,H,W to N,H,W,C
                         depth=depth.view(-1,1)
                         points_3D_cam=points_3D_cam*depth
-                        print("points_3D_cam after depth minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
-                        print("R is ", R, "direct R is ", frame_query.tf_cam_world.inverse().linear() )
-                        print("t is ", t)
+                        # print("points_3D_cam after depth minmax", points_3D_cam.min().item(), " max ", points_3D_cam.max().item())
+                        # print("R is ", R, "direct R is ", frame_query.tf_cam_world.inverse().linear() )
+                        # print("t is ", t)
                         points_3D_world=torch.matmul(R, points_3D_cam.transpose(0,1) ).transpose(0,1)  + t.view(1,3)
 
-                        print("points_3D_world", points_3D_world)
-                        print("points_3D_world", points_3D_world.min().item(), " max ", points_3D_world.max().item())
+                        #points 3d world are masked
+                        points_3D_world=points_3D_world*mask
+
+                        # print("points_3D_world", points_3D_world)
+                        # print("points_3D_world", points_3D_world.min().item(), " max ", points_3D_world.max().item())
 
                         #attempt 2, we don;t need to actually use the GPU to get the thing in 3D, because we only need to compute the uv tensors which we know that it can be done correctly on CPU
                         #THIS WILL NOT WORK BECAUSE WE cannot backrpopagate through this UV tensor
@@ -349,28 +357,28 @@ def run():
 
                         #predicted query is actually just the original RGB image
                         # predicted_query_direct= rgb_query.view(-1,3)
-                        # predicted_query= rgb_query.view(-1,3)
+                        predicted_query= rgb_query.view(-1,3)
 
-                        #Debug the uv_query why is it flipped
-                        ones=torch.ones([uv_query.shape[0],1], dtype=torch.float32).to("cuda")
-                        uv_query_vis=torch.cat([uv_query, ones], 1)
-                        uv_query_vis=uv_query_vis.view(frame_query.height, frame_query.width, -1)
-                        mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
-                        uv_query_vis=uv_query_vis*mask 
-                        uv_query_vis=uv_query_vis.view(-1,3)
-                        # print("uv_query_vis ha shape ", uv_query_vis.shape)
-                        uv_query_cpu=uv_query_vis.detach().cpu().numpy()
-                        uv_query_mesh=Mesh()
-                        uv_query_mesh.V=uv_query_cpu 
-                        uv_query_mesh.m_vis.m_show_points=True
-                        Scene.show(uv_query_mesh, " uv_query_mesh ")
+                        # #Debug the uv_query why is it flipped
+                        # ones=torch.ones([uv_query.shape[0],1], dtype=torch.float32).to("cuda")
+                        # uv_query_vis=torch.cat([uv_query, ones], 1)
+                        # uv_query_vis=uv_query_vis.view(frame_query.height, frame_query.width, -1)
+                        # mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
+                        # uv_query_vis=uv_query_vis*mask 
+                        # uv_query_vis=uv_query_vis.view(-1,3)
+                        # # print("uv_query_vis ha shape ", uv_query_vis.shape)
+                        # uv_query_cpu=uv_query_vis.detach().cpu().numpy()
+                        # uv_query_mesh=Mesh()
+                        # uv_query_mesh.V=uv_query_cpu 
+                        # uv_query_mesh.m_vis.m_show_points=True
+                        # Scene.show(uv_query_mesh, " uv_query_mesh ")
 
 
-                        #DEbug the points3d world
-                        points_3d_mesh=Mesh()
-                        points_3d_mesh.V=points_3D_world.detach().cpu().numpy() 
-                        points_3d_mesh.m_vis.m_show_points=True
-                        Scene.show(points_3d_mesh, " points_3d_mesh ")
+                        # #DEbug the points3d world
+                        # points_3d_mesh=Mesh()
+                        # points_3d_mesh.V=points_3D_world.detach().cpu().numpy() 
+                        # points_3d_mesh.m_vis.m_show_points=True
+                        # Scene.show(points_3d_mesh, " points_3d_mesh ")
 
 
 
@@ -390,10 +398,12 @@ def run():
 
 
 
-
-                        rgb_loss = ((predicted_query -predicted_target)**2).mean()
+                        mask=mask_tensor.permute(0,2,3,1).squeeze(0).float() #mask goes from N,C,H,W to N,H,W,C
+                        mask=mask.view(-1,1)
+                        diff_rgb=((predicted_query -predicted_target)**2)*mask
+                        rgb_loss = diff_rgb.mean()
                         loss=rgb_loss
-                        # print("loss is ", loss)
+                        print("loss is ", loss)
                     
                     
 

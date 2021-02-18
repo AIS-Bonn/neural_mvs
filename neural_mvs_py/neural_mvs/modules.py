@@ -44,18 +44,18 @@ def compute_uv(frame, points_3D_world):
 
     points_3D_cam=torch.matmul(R, points_3D_world.transpose(0,1) ).transpose(0,1)  + t.view(1,3)
     points_screen = torch.matmul(K, points_3D_cam.transpose(0,1) ).transpose(0,1)  
-    print("points_screen ", points_screen)
+    # print("points_screen ", points_screen)
     points_2d = points_screen[:, 0:2] / ( points_screen[:, 2:3] +0.0001 )
-    print("points_2d before flip ", points_2d)
+    # print("points_2d before flip ", points_2d)
 
     points_2d[:,1] = frame.height- points_2d[:,1] 
-    print("points_2d ", points_2d)
+    # print("points_2d ", points_2d)
 
     #get in range 0,1
     points_2d[:,0]  = points_2d[:,0]/frame.width 
     points_2d[:,1]  = points_2d[:,1]/frame.height 
     uv_tensor = points_2d
-    print("uv_tensor is ", uv_tensor)
+    # print("uv_tensor is ", uv_tensor)
     # exit(1)
 
     #may be needed 
