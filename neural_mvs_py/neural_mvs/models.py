@@ -1689,6 +1689,200 @@ class SpatialLNNFixed(torch.nn.Module):
         return lv, ls
 
 
+class LNN_2(torch.nn.Module):
+    def __init__(self, nr_classes, model_params):
+        super(LNN_2, self).__init__()
+        self.nr_classes=nr_classes
+
+        #a bit more control
+        self.model_params=model_params
+        self.nr_downsamples=model_params.nr_downsamples()
+        self.nr_blocks_down_stage=model_params.nr_blocks_down_stage()
+        self.nr_blocks_bottleneck=model_params.nr_blocks_bottleneck()
+        self.nr_blocks_up_stage=model_params.nr_blocks_up_stage()
+        self.nr_levels_down_with_normal_resnet=model_params.nr_levels_down_with_normal_resnet()
+        self.nr_levels_up_with_normal_resnet=model_params.nr_levels_up_with_normal_resnet()
+        compression_factor=model_params.compression_factor()
+        dropout_last_layer=model_params.dropout_last_layer()
+        experiment=model_params.experiment()
+        #check that the experiment has a valid string
+        valid_experiment=["none", "slice_no_deform", "pointnet_no_elevate", "pointnet_no_local_mean", "pointnet_no_elevate_no_local_mean", "splat", "attention_pool"]
+        if experiment not in valid_experiment:
+            err = "Experiment " + experiment + " is not valid"
+            sys.exit(err)
+
+
+
+
+
+        self.distribute=DistributeLatticeModule(experiment) 
+        self.pointnet_layers=model_params.pointnet_layers()
+        self.start_nr_filters=model_params.pointnet_start_nr_channels()
+        print("pointnet layers is ", self.pointnet_layers)
+        self.point_net=PointNetModule( self.pointnet_layers, self.start_nr_filters, experiment)  
+
+
+
+
+        #####################
+        # Downsampling path #
+        #####################
+        self.resnet_blocks_per_down_lvl_list=torch.nn.ModuleList([])
+        self.coarsens_list=torch.nn.ModuleList([])
+        self.maxpool_list=torch.nn.ModuleList([])
+        corsenings_channel_counts = []
+        skip_connection_channel_counts = []
+        cur_channels_count=self.start_nr_filters
+        for i in range(self.nr_downsamples):
+            
+            #create the resnet blocks
+            self.resnet_blocks_per_down_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_down_stage[i]):
+                if i<self.nr_levels_down_with_normal_resnet:
+                    print("adding down_resnet_block with nr of filters", cur_channels_count )
+                    should_use_dropout=False
+                    print("adding down_resnet_block with dropout", should_use_dropout )
+                    self.resnet_blocks_per_down_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,False], should_use_dropout) )
+                else:
+                    print("adding down_bottleneck_block with nr of filters", cur_channels_count )
+                    self.resnet_blocks_per_down_lvl_list[i].append( BottleneckBlock(cur_channels_count, [False,False,False]) )
+            skip_connection_channel_counts.append(cur_channels_count)
+            nr_channels_after_coarsening=int(cur_channels_count*2*compression_factor)
+            print("adding bnReluCorsen which outputs nr of channels ", nr_channels_after_coarsening )
+            self.coarsens_list.append( GnReluCoarsen(nr_channels_after_coarsening)) #is still the best one because it can easily learn the versions of Avg and Blur. and the Max version is the worse for some reason
+            cur_channels_count=nr_channels_after_coarsening
+            corsenings_channel_counts.append(cur_channels_count)
+
+        #####################
+        #     Bottleneck    #
+        #####################
+        self.resnet_blocks_bottleneck=torch.nn.ModuleList([])
+        for j in range(self.nr_blocks_bottleneck):
+                print("adding bottleneck_resnet_block with nr of filters", cur_channels_count )
+                self.resnet_blocks_bottleneck.append( BottleneckBlock(cur_channels_count, [False,False,False]) )
+
+        self.do_concat_for_vertical_connection=True
+        #######################
+        #   Upsampling path   #
+        #######################
+        self.finefy_list=torch.nn.ModuleList([])
+        self.up_activation_list=torch.nn.ModuleList([])
+        self.up_match_dim_list=torch.nn.ModuleList([])
+        self.up_bn_match_dim_list=torch.nn.ModuleList([])
+        self.resnet_blocks_per_up_lvl_list=torch.nn.ModuleList([])
+        for i in range(self.nr_downsamples):
+            nr_chanels_skip_connection=skip_connection_channel_counts.pop()
+
+            # if the finefy is the deepest one int the network then it just divides by 2 the nr of channels because we know it didnt get as input two concatet tensors
+            nr_chanels_finefy=int(cur_channels_count/2)
+
+            #do it with finefy
+            print("adding bnReluFinefy which outputs nr of channels ", nr_chanels_finefy )
+            self.finefy_list.append( GnReluFinefy(nr_chanels_finefy ))
+
+            #after finefy we do a concat with the skip connection so the number of channels doubles
+            if self.do_concat_for_vertical_connection:
+                cur_channels_count=nr_chanels_skip_connection+nr_chanels_finefy
+            else:
+                cur_channels_count=nr_chanels_skip_connection
+
+            self.resnet_blocks_per_up_lvl_list.append( torch.nn.ModuleList([]) )
+            for j in range(self.nr_blocks_up_stage[i]):
+                is_last_conv=j==self.nr_blocks_up_stage[i]-1 and i==self.nr_downsamples-1 #the last conv of the last upsample is followed by a slice and not a bn, therefore we need a bias
+                if i>=self.nr_downsamples-self.nr_levels_up_with_normal_resnet:
+                    print("adding up_resnet_block with nr of filters", cur_channels_count ) 
+                    self.resnet_blocks_per_up_lvl_list[i].append( ResnetBlock(cur_channels_count, [1,1], [False,is_last_conv], False) )
+                else:
+                    print("adding up_bottleneck_block with nr of filters", cur_channels_count ) 
+                    self.resnet_blocks_per_up_lvl_list[i].append( BottleneckBlock(cur_channels_count, [False,False,is_last_conv] ) )
+
+        # self.slice_fast_cuda=SliceFastCUDALatticeModule(nr_classes=nr_classes, dropout_prob=dropout_last_layer, experiment=experiment)
+        # self.slice=SliceLatticeModule()
+        # self.classify=Conv1x1(out_channels=nr_classes, bias=True)
+       
+        self.logsoftmax=torch.nn.LogSoftmax(dim=1)
+
+
+        if experiment!="none":
+            warn="USING EXPERIMENT " + experiment
+            print(colored("-------------------------------", 'yellow'))
+            print(colored(warn, 'yellow'))
+            print(colored("-------------------------------", 'yellow'))
+
+    def forward(self, ls, positions, values):
+
+        with torch.set_grad_enabled(False):
+            ls, distributed, indices, weights=self.distribute(ls, positions, values)
+
+        lv, ls=self.point_net(ls, distributed, indices)
+
+
+        
+        fine_structures_list=[]
+        fine_values_list=[]
+        # TIME_START("down_path")
+        for i in range(self.nr_downsamples):
+
+            #resnet blocks
+            for j in range(self.nr_blocks_down_stage[i]):
+                # print("start downsample stage ", i , " resnet block ", j, "lv has shape", lv.shape, " ls has val dim", ls.val_dim() )
+                lv, ls = self.resnet_blocks_per_down_lvl_list[i][j] ( lv, ls) 
+
+            #saving them for when we do finefy so we can concat them there
+            fine_structures_list.append(ls) 
+            fine_values_list.append(lv)
+
+            #now we do a downsample
+            # print("start coarsen stage ", i, "lv has shape", lv.shape, "ls has val_dim", ls.val_dim() )
+            lv, ls = self.coarsens_list[i] ( lv, ls)
+            # print( "finished coarsen stage ", i, "lv has shape", lv.shape, "ls has val_dim", ls.val_dim() )
+
+        # TIME_END("down_path")
+
+        # #bottleneck
+        for j in range(self.nr_blocks_bottleneck):
+            # print("bottleneck stage", j,  "lv has shape", lv.shape, "ls has val_dim", ls.val_dim()  )
+            lv, ls = self.resnet_blocks_bottleneck[j] ( lv, ls) 
+
+
+        #upsample (we start from the bottom of the U-net, so the upsampling that is closest to the blottlenck)
+        # TIME_START("up_path")
+        for i in range(self.nr_downsamples):
+
+            fine_values=fine_values_list.pop()
+            fine_structure=fine_structures_list.pop()
+
+
+            #finefy
+            # print("start finefy stage", i,  "lv has shape", lv.shape, "ls has val_dim ", ls.val_dim(),  "fine strcture has val dim ", fine_structure.val_dim() )
+            lv, ls = self.finefy_list[i] ( lv, ls, fine_structure  )
+
+            #concat or adding for the vertical connection
+            if self.do_concat_for_vertical_connection: 
+                lv=torch.cat((lv, fine_values ),1)
+            else:
+                lv+=fine_values
+
+            #resnet blocks
+            for j in range(self.nr_blocks_up_stage[i]):
+                # print("start resnet block in upstage", i, "lv has shape", lv.shape, "ls has val dim" , ls.val_dim() )
+                lv, ls = self.resnet_blocks_per_up_lvl_list[i][j] ( lv, ls) 
+        # TIME_END("up_path")
+
+
+
+        # sv =self.slice_fast_cuda(lv, ls, positions, indices, weights)
+        # sv =self.slice(lv, ls, positions, indices, weights)
+        # sv=self.classify(sv)
+
+
+        # logsoftmax=self.logsoftmax(sv)
+
+
+        return lv, ls
+
+
+
 
 
 class SirenNetwork(MetaModule):
@@ -2515,8 +2709,10 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=4
-        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        self.nr_layers=3
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
+        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
      
 
         cur_nr_channels=in_channels
@@ -2533,7 +2729,7 @@ class SirenNetworkDirectPE_Simple(MetaModule):
         #concat also the encoded features 
         reduce_feat_channels=16
         encoding_feat=6
-        self.conv_reduce_feat=BlockSiren(activ=torch.relu, in_channels=128, out_channels=reduce_feat_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
+        self.conv_reduce_feat=BlockSiren(activ=torch.relu, in_channels=32, out_channels=reduce_feat_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
         self.learned_pe_features=LearnedPE(in_channels=reduce_feat_channels, num_encoding_functions=encoding_feat, logsampling=True)
         feat_enc_channels=reduce_feat_channels+ reduce_feat_channels*encoding_feat*2
         cur_nr_channels+=feat_enc_channels
@@ -3308,7 +3504,240 @@ class DepthPredictor(torch.nn.Module):
 
         return depth
 
+class Net2(torch.nn.Module):
+    def __init__(self, model_params):
+        super(Net2, self).__init__()
 
+        self.first_time=True
+
+        #models
+        self.lnn=LNN_2(128, model_params)
+        self.lattice=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
+
+        #activ
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
+
+        #params 
+        self.siren_out_channels=4
+
+
+        
+        self.slice=SliceLatticeModule()
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
+
+       
+        self.siren_net = SirenNetworkDirectPE_Simple(in_channels=3, out_channels=self.siren_out_channels)
+
+      
+    def forward(self, frame, mesh, depth_min, depth_max):
+
+ 
+
+        #compute psitions and values
+        positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
+        values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
+       
+        #pass the mesh through the lattice 
+        TIME_START("spatial_lnn")
+        lv, ls = self.lnn(self.lattice, positions, values)
+        TIME_END("spatial_lnn")
+       
+
+
+
+
+
+        TIME_START("full_siren")
+        #siren has to receive some 3d points as query, The 3d points are located along rays so we can volume render and compare with the image itself
+        #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
+        height=frame.height
+        width=frame.width
+        K= torch.from_numpy( frame.K )
+        fx=K[0,0] ### 
+        fy=K[1,1] ### 
+        cx=K[0,2] ### 
+        cy=K[1,2] ### 
+        tf_world_cam =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
+        near_thresh=depth_min
+        far_thresh=depth_max
+        depth_samples_per_ray=1
+        # chunksize=400*400
+
+        # Get the "bundle" of rays through all image pixels.
+        TIME_START("ray_bundle")
+        ray_origins, ray_directions = get_ray_bundle(
+            height, width, fx,fy,cx,cy, tf_world_cam, novel=False
+        )
+        TIME_END("ray_bundle")
+
+        TIME_START("sample")
+      
+
+        #just set the two tensors to the min and max 
+        near_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        far_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        near_thresh_tensor.fill_(depth_min)
+        far_thresh_tensor.fill_(depth_max)
+
+        query_points, depth_values = compute_query_points_from_rays2(
+            ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
+        )
+        # print("query_points", query_points.shape)
+        # print("depth_values", depth_values.shape)
+
+        TIME_END("sample")
+
+        # "Flatten" the query points.
+        # print("query points is ", query_points.shape)
+        flattened_query_points = query_points.reshape((-1, 3))
+        # print("flattened_query_points is ", flattened_query_points.shape)
+
+        # TIME_START("pos_encode")
+        # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
+        # flattened_query_points=self.leaned_pe(flattened_query_points.to("cuda") )
+        # print("flattened_query_points after pe", flattened_query_points.shape)
+        flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
+        # print("flatened_query_pointss is ", flatened_query_pointss.shape)
+        # TIME_END("pos_encode")
+
+
+        #slice from lattice 
+        flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
+        TIME_START("slice")
+        # multires_sliced=[]
+        # for i in range(len(multi_res_lattice)):
+        #     lv=multi_res_lattice[i][0]
+        #     ls=multi_res_lattice[i][1]
+        #     point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+        #     # print("sliced at res i", i, " is ", point_features.shape)
+        #     multires_sliced.append(point_features.unsqueeze(2) )
+        point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+        TIME_END("slice")
+        #aggregate all the features 
+        # aggregated_point_features=multires_sliced[0]
+        # for i in range(len(multi_res_lattice)-1):
+            # aggregated_point_features=aggregated_point_features+ multires_sliced[i+1]
+        # aggregated_point_features=aggregated_point_features/ len(multi_res_lattice)
+        #attemopt 2 aggegare with maxpool
+        # aggregated_point_features=torch.cat(multires_sliced,2)
+        # aggregated_point_features, _=aggregated_point_features.max(dim=2)
+        #attemopt 2 aggegare with ,ean
+        # aggregated_point_features=torch.cat(multires_sliced,2)
+        # aggregated_point_features =aggregated_point_features.mean(dim=2)
+        #attempt 3 start at the coarser one and then replace parts of it with the finer ones
+        # aggregated_point_features=multires_sliced[0] #coarsers sliced features
+        # for i in range(len(multi_res_lattice)-1):
+        #     cur_sliced_features= multires_sliced[i+1]
+        #     cur_valid_features_mask= cur_sliced_features!=0.0
+        #     # aggregated_point_features[cur_valid_features_mask] =  cur_sliced_features[cur_valid_features_mask]
+        #     aggregated_point_features.masked_scatter(cur_valid_features_mask, cur_sliced_features)
+        #attempt 4, just get the finest one
+        # aggregated_point_features=multires_sliced[ len(multi_res_lattice)-1  ]
+        aggregated_point_features=point_features.contiguous()
+
+        #having a good feature for a point in the ray should somehow conver information to the other points in the ray so we need to pass some information between all of them
+        #for each ray we get the maximum feature
+        # aggregated_point_features_img=aggregated_point_features.view(height,width,depth_samples_per_ray,-1 )
+        # aggregated_point_features_img_max, _=aggregated_point_features_img.max(dim=2, keepdim=True)
+        # aggregated_point_features_img=aggregated_point_features_img+ aggregated_point_features_img_max
+        # aggregated_point_features= aggregated_point_features_img.view( height*width*depth_samples_per_ray, -1)
+
+        ##aggregate by summing the max over all resolutions
+        # aggregated_point_features_all=torch.cat(multires_sliced,2)
+        # aggregated_point_features_max, _=aggregated_point_features_all.max(dim=2)
+        # aggregated_point_features=aggregated_point_features.squeeze(2)+ aggregated_point_features_max
+
+
+
+
+
+
+        # print("self, iter is ",self.iter, )
+
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda") )-3.0 
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda") )
+        # flattened_query_points/=2.43
+        # print("flattened_query_points ", flattened_query_points.shape)
+        TIME_START("just_siren")
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, aggregated_point_features ) #radiance field has shape height,width, nr_samples,4
+        TIME_END("just_siren")
+        # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
+        # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )
+        # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda") ) 
+        # radiance_field_flattened = self.nerf_net(flattened_query_points.to("cuda"), params=siren_params ) 
+
+        # #debug
+        # if not novel and self.iter%100==0:
+        #     rays_mesh=Mesh()
+        #     # rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
+        #     # rays_mesh.m_vis.m_show_points=True
+        #     # #color based on sigma 
+        #     # sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+        #     # rays_mesh.C=sigma_a.cpu().numpy()
+        #     # Scene.show(rays_mesh, "rays_mesh_novel")
+        # if not novel:
+        #     self.iter+=1
+
+
+        rays_mesh=Mesh()
+        rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
+        rays_mesh.m_vis.m_show_points=True
+        #color based on sigma 
+        sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+        rays_mesh.C=sigma_a.cpu().numpy()
+        Scene.show(rays_mesh, "rays_mesh_novel")
+
+
+    
+        radiance_field_flattened=radiance_field_flattened.view(-1,self.siren_out_channels)
+
+
+        # "Unflatten" to obtain the radiance field.
+        unflattened_shape = list(query_points.shape[:-1]) + [self.siren_out_channels]
+        radiance_field = torch.reshape(radiance_field_flattened, unflattened_shape)
+
+        # Perform differentiable volume rendering to re-synthesize the RGB image.
+        TIME_START("render_volume")
+        rgb_predicted, depth_map, acc_map = render_volume_density(
+        # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
+        # rgb_predicted, depth_map, acc_map = render_volume_density2(
+            # radiance_field, ray_origins.to("cuda"), depth_values.to("cuda"), self.siren_out_channels
+            radiance_field, ray_origins, depth_values, self.siren_out_channels
+        )
+        TIME_END("render_volume")
+
+        # print("rgb predicted has shpae ", rgb_predicted.shape)
+        # rgb_predicted=rgb_predicted.view(1,3,height,width)
+        rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        # print("depth map size is ", depth_map.shape)
+        depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
+        # depth_map_mat=tensor2mat(depth_map)
+        TIME_END("full_siren")
+
+        # print("rgb_predicted is ", rgb_predicted.shape)
+
+
+
+
+        # #NEW LOSSES
+        new_loss=0
+       
+
+
+
+
+        return rgb_predicted,  depth_map, acc_map, new_loss
+        # return img_directly_after_decoding
+
+
+
+
+
+
+        return x
 
 class PCA(Function):
     # @staticmethod
