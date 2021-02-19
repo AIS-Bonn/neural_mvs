@@ -259,6 +259,8 @@ def run():
                     #     temp = frame_query
                     #     frame_query = frame_target
                     #     frame_target = temp
+
+
                     
 
 
@@ -417,10 +419,10 @@ def run():
                             # # print("frame heigth and width is ", frame_query.height, " ", frame_query.width, " subsampled_height ", subsampled_height, " subsampled_width ", subsampled_width)
                             # # print("predicted_query has shape ", predicted_query.shape)
                             # # predicted_query_vis=predicted_query.view(1, subsampled_height, subsampled_width, 3)
-                            # predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width , 3)
-                            # predicted_query_vis=predicted_query_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
-                            # predicted_query_vis_mat=tensor2mat(predicted_query_vis)
-                            # Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat_"+str(i) )
+                            predicted_query_vis=predicted_query.view(1, frame_query.height, frame_query.width , 3)
+                            predicted_query_vis=predicted_query_vis.permute(0,3,1,2) #from N,H,W,3 to N,C,H,W
+                            predicted_query_vis_mat=tensor2mat(predicted_query_vis)
+                            Gui.show(predicted_query_vis_mat,"predicted_query_vis_mat_"+str(i) )
                             # #show predicted target 
                             # # predicted_target_vis=predicted_target.view(1, subsampled_height, subsampled_width, 3)
                             # predicted_target_vis=predicted_target.view(1, frame_query.height, frame_query.width, 3)
@@ -457,7 +459,7 @@ def run():
                         rgb_query=mat2tensor(frame_query.rgb_32f, False).to("cuda")
                         smooth_loss= smooth(depth_original, rgb_query) 
                         # loss+=smooth_loss* (0.1 + phase.iter_nr*0.0001 )
-                        loss+=smooth_loss* 0.3
+                        loss+=smooth_loss* 0.1
 
 
 
