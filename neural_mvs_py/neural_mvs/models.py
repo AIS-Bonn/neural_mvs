@@ -2709,29 +2709,29 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=4
+        self.nr_layers=5
         # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
-        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
-        self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
      
 
         cur_nr_channels=in_channels
         self.net=torch.nn.ModuleList([])
         
-        #gaussian encoding
+        # gaussian encoding
         # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
         # cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         num_encodings=11
         self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
         cur_nr_channels = in_channels + 3*num_encodings*2
-        #dir encoding
-        num_encoding_directions=4
-        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
-        dirs_channels=3+ 3*num_encoding_directions*2
-        cur_nr_channels+=dirs_channels
+        # #dir encoding
+        # num_encoding_directions=4
+        # self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        # dirs_channels=3+ 3*num_encoding_directions*2
+        # cur_nr_channels+=dirs_channels
 
         #concat also the encoded features 
         # reduce_feat_channels=16
@@ -2753,12 +2753,31 @@ class SirenNetworkDirectPE_Simple(MetaModule):
             self.net.append( MetaSequential( BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=is_first_layer).cuda() ) )
            
 
-        self.pred_sigma_and_rgb=MetaSequential(
+        # self.pred_sigma_and_rgb=MetaSequential(
+        #     # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=4, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     )
+
+
+        
+        self.pred_sigma_and_feat=MetaSequential(
             # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=4, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             )
-       
-       
+        num_encoding_directions=4
+        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        dirs_channels=3+ 3*num_encoding_directions*2
+        # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+        # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
+        # dirs_channels=64
+        cur_nr_channels=cur_nr_channels+dirs_channels
+        self.pred_rgb=MetaSequential( 
+            BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda()    
+            )
+
+
+
 
 
 
@@ -2808,7 +2827,7 @@ class SirenNetworkDirectPE_Simple(MetaModule):
             x=torch.cat([x,feat_enc],1)
 
 
-        x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
+        # x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
         x=self.first_conv(x)
 
         for i in range(len(self.net)):
@@ -2819,12 +2838,39 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
             # print("x has shape after resnet ", x.shape)
 
-        sigma_and_rgb=self.pred_sigma_and_rgb(x)
-        sigma_a=torch.relu( sigma_and_rgb[:,0:1, :, :] ) #first channel is the sigma
-        rgb=torch.sigmoid(  sigma_and_rgb[:, 1:4, :, :]  )
+        # sigma_and_rgb=self.pred_sigma_and_rgb(x)
+        # sigma_a=torch.relu( sigma_and_rgb[:,0:1, :, :] ) #first channel is the sigma
+        # rgb=torch.sigmoid(  sigma_and_rgb[:, 1:4, :, :]  )
+        # x=torch.cat([rgb, sigma_a],1)
+
+        # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+
+
+
+
+        #predict the sigma and a feature vector for the rest of things
+        sigma_and_feat=self.pred_sigma_and_feat(x,  params=get_subdict(params, 'pred_sigma_and_feat'))
+        #get the feature vector for the rest of things and concat it with the direction
+        sigma_a=torch.relu( sigma_and_feat[:,0:1, :, :] ) #first channel is the sigma
+        feat=torch.relu( sigma_and_feat[:,1:sigma_and_feat.shape[1], :, : ] )
+        # print("sigma and feat is ", sigma_and_feat.shape)
+        # print(" feat is ", feat.shape)
+        feat_and_dirs=torch.cat([feat, ray_directions], 1)
+        #predict rgb
+        # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
+        rgb=torch.sigmoid(  self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') )  )
+        #concat 
+        # print("rgb is", rgb.shape)
+        # print("sigma_a is", sigma_a.shape)
         x=torch.cat([rgb, sigma_a],1)
 
         x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+
+
+        
+      
+
+
 
        
         return  x
@@ -3540,7 +3586,7 @@ class Net2(torch.nn.Module):
         self.siren_net = SirenNetworkDirectPE_Simple(in_channels=3, out_channels=self.siren_out_channels)
 
       
-    def forward(self, frame, mesh, depth_min, depth_max):
+    def forward(self, frame, mesh, depth_min, depth_max, use_chunking):
 
         use_lattice_features=False
 
@@ -3583,21 +3629,34 @@ class Net2(torch.nn.Module):
         )
         TIME_END("ray_bundle")
 
+        ###TODO get only a subsample of the ray origin and ray_direction, maybe like in here https://discuss.pytorch.org/t/torch-equivalent-of-numpy-random-choice/16146/14
+        if use_chunking:
+            TIME_START("random_pixels")
+            chunck_size= min(50*50, height*width)
+            weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+            idxs=torch.multinomial(weights, chunck_size)
+            print("ray_origins ", ray_origins.shape)
+            ray_origins=ray_origins[idxs]
+            print("ray_origins after selecting ", ray_origins.shape)
+            ray_directions=ray_directions[idxs]
+            TIME_END("random_pixels")
+
         TIME_START("sample")
-      
+        # #just set the two tensors to the min and max 
+        # near_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        # far_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
+        # near_thresh_tensor.fill_(depth_min)
+        # far_thresh_tensor.fill_(depth_max)
 
-        #just set the two tensors to the min and max 
-        near_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
-        far_thresh_tensor= torch.ones([1,1,height,width], dtype=torch.float32, device=torch.device("cuda")) 
-        near_thresh_tensor.fill_(depth_min)
-        far_thresh_tensor.fill_(depth_max)
 
-        query_points, depth_values = compute_query_points_from_rays2(
-            ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
+        # query_points, depth_values = compute_query_points_from_rays2(
+            # ray_origins, ray_directions, near_thresh_tensor, far_thresh_tensor, depth_samples_per_ray, randomize=True
+        # )
+        query_points, depth_values = compute_query_points_from_rays(
+            ray_origins, ray_directions, depth_min, depth_max, depth_samples_per_ray, randomize=True
         )
         # print("query_points", query_points.shape)
         # print("depth_values", depth_values.shape)
-
         TIME_END("sample")
 
         # "Flatten" the query points.

@@ -238,7 +238,7 @@ def run():
     depth_max=5
     #depth min max for home photos
     depth_min=4.3
-    depth_max=11
+    depth_max=11.5
 
     new_frame=None
 
@@ -270,7 +270,7 @@ def run():
                     with torch.set_grad_enabled(is_training):
 
                         TIME_START("forward")
-                        rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max)
+                        rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max, use_chunking=False)
                         TIME_END("forward")
 
                         #VIS 
@@ -343,7 +343,7 @@ def run():
                             model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
                             #render new 
-                            rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max)
+                            rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max, use_chunking=False)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 
