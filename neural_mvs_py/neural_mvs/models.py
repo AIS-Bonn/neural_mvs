@@ -2712,16 +2712,22 @@ class SirenNetworkDirectPE_Simple(MetaModule):
         self.nr_layers=4
         # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
-        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
-        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
      
 
         cur_nr_channels=in_channels
         self.net=torch.nn.ModuleList([])
         
+        #gaussian encoding
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        # cur_nr_channels=256+in_channels
+        #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         num_encodings=11
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
-        cur_nr_channels=256+in_channels
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        cur_nr_channels = in_channels + 3*num_encodings*2
+        #dir encoding
         num_encoding_directions=4
         self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
         dirs_channels=3+ 3*num_encoding_directions*2
@@ -3559,7 +3565,7 @@ class Net2(torch.nn.Module):
         #most of it is from https://github.com/krrish94/nerf-pytorch/blob/master/tiny_nerf.py
         height=frame.height
         width=frame.width
-        K= torch.from_numpy( frame.K )
+        K= torch.from_numpy( frame.K.copy() )
         fx=K[0,0] ### 
         fy=K[1,1] ### 
         cx=K[0,2] ### 
@@ -3669,7 +3675,10 @@ class Net2(torch.nn.Module):
         # flattened_query_points/=2.43
         # print("flattened_query_points ", flattened_query_points.shape)
         TIME_START("just_siren")
+        # flattened_query_points=flattened_query_points.half()
+        # ray_directions=ray_directions.half()
         radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, aggregated_point_features ) #radiance field has shape height,width, nr_samples,4
+        # radiance_field_flattened=radiance_field_flattened.float()
         TIME_END("just_siren")
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )
         # radiance_field_flattened = self.siren_net(query_points.to("cuda"), params=siren_params )

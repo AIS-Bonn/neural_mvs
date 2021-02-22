@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="2"
+    experiment_name="5_pe"
 
     use_ray_compression=False
 
@@ -159,6 +159,7 @@ def run():
     # model=DepthPredictor(model_params).to("cuda")
     model=Net2(model_params).to("cuda")
     # model.train()
+    # model.half()
 
     loss_fn=torch.nn.MSELoss()
     scheduler=None
@@ -285,7 +286,9 @@ def run():
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                         if first_time:
                             first_time=False
-                            optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # model.half()
+                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
                             # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             # lambda1 = lambda epoch: 0.9999 ** phase.iter_nr
