@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="43_less"
+    experiment_name="2"
 
     use_ray_compression=False
 
@@ -138,10 +138,12 @@ def run():
     #create loaders
     # loader=TinyLoader.create(config_file)
     # loader_train=DataLoaderShapeNetImg(config_path)
-    loader_train=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderNerf(config_path)
+    loader_train=DataLoaderColmap(config_path)
     # loader=DataLoaderVolRef(config_path)
     # loader_test=DataLoaderShapeNetImg(config_path)
-    loader_test=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
+    loader_test=DataLoaderColmap(config_path)
     # loader_test=DataLoaderVolRef(config_path)
 
     #create phases
@@ -191,7 +193,8 @@ def run():
     # selected_frame_idx=[0] 
     # selected_frame_idx=[1] 
     # selected_frame_idx=[0,1,2,3] 
-    selected_frame_idx=np.arange(7)
+    # selected_frame_idx=np.arange(7) #For nerf
+    selected_frame_idx=np.arange(30) #For colmap
     frames_query_selected=[]
     frames_target_selected=[]
     frames_all_selected=[]
@@ -232,6 +235,10 @@ def run():
     #depth min max for nerf 
     depth_min=2
     depth_max=5
+    #depth min max for home photos
+    depth_min=4.3
+    depth_max=11
+
 
 
     while True:
@@ -248,8 +255,12 @@ def run():
                 # if phase.loader.has_data() and loader_test.has_data():
                 # if phase.loader.has_data(): #for nerf
                 # if True: #Shapenet IMg always had ata at this point 
-                for frame_idx, frame in enumerate(frames_all_selected):
-                    mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,1,1,1)
+                # for frame_idx, frame in enumerate(frames_all_selected):
+                for i in range(phase.loader.nr_samples()):
+                    frame=phase.loader.get_random_frame() 
+                    # pass
+                    TIME_START("all")
+                    # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,1,1,1)
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
 
 
@@ -257,7 +268,9 @@ def run():
                     #forward
                     with torch.set_grad_enabled(is_training):
 
+                        TIME_START("forward")
                         rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max)
+                        TIME_END("forward")
 
                         #VIS 
                         rgb_pred_mat=tensor2mat(rgb_pred)
@@ -279,8 +292,8 @@ def run():
                             # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1])
                             optimizer.zero_grad()
 
-                        # cb.after_forward_pass(loss=rgb_loss, phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                        cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the prediction 
+                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the prediction 
 
                     #backward
                     if is_training:
@@ -294,9 +307,10 @@ def run():
                         cb.after_backward_pass()
                         optimizer.step()
 
+                    TIME_END("all")
 
-                if train_params.with_viewer():
-                    view.update()
+                    if train_params.with_viewer():
+                        view.update()
 
             # finished all the images 
             # pbar.close()

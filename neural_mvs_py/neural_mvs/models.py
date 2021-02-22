@@ -2709,10 +2709,11 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=3
+        self.nr_layers=4
         # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
         self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
      
 
         cur_nr_channels=in_channels
@@ -2727,12 +2728,12 @@ class SirenNetworkDirectPE_Simple(MetaModule):
         cur_nr_channels+=dirs_channels
 
         #concat also the encoded features 
-        reduce_feat_channels=16
-        encoding_feat=6
-        self.conv_reduce_feat=BlockSiren(activ=torch.relu, in_channels=32, out_channels=reduce_feat_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
-        self.learned_pe_features=LearnedPE(in_channels=reduce_feat_channels, num_encoding_functions=encoding_feat, logsampling=True)
-        feat_enc_channels=reduce_feat_channels+ reduce_feat_channels*encoding_feat*2
-        cur_nr_channels+=feat_enc_channels
+        # reduce_feat_channels=16
+        # encoding_feat=6
+        # self.conv_reduce_feat=BlockSiren(activ=torch.relu, in_channels=32, out_channels=reduce_feat_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
+        # self.learned_pe_features=LearnedPE(in_channels=reduce_feat_channels, num_encoding_functions=encoding_feat, logsampling=True)
+        # feat_enc_channels=reduce_feat_channels+ reduce_feat_channels*encoding_feat*2
+        # cur_nr_channels+=feat_enc_channels
 
         #now we concatenate the positions and directions and pass them through the initial conv
         self.first_conv=BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0], kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
@@ -2786,26 +2787,27 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
 
         #skip to x the point_features
-        point_features=point_features.view(height, width, nr_points, -1 )
-        point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
+        if point_features!=None:
+            point_features=point_features.view(height, width, nr_points, -1 )
+            point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
 
-
-        #concat also encoded features
-        #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
-        feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
-        feat_reduced_channels=feat_reduce.shape[1]
-        feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
-        feat_enc=self.learned_pe_features(feat_reduce)
-        feat_enc=feat_enc.view(nr_points, height, width, -1)
-        feat_enc=feat_enc.permute(0,3,1,2).contiguous()
-        x=torch.cat([x,feat_enc],1)
+            #concat also encoded features
+            #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
+            feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
+            feat_reduced_channels=feat_reduce.shape[1]
+            feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
+            feat_enc=self.learned_pe_features(feat_reduce)
+            feat_enc=feat_enc.view(nr_points, height, width, -1)
+            feat_enc=feat_enc.permute(0,3,1,2).contiguous()
+            x=torch.cat([x,feat_enc],1)
 
 
         x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
         x=self.first_conv(x)
 
         for i in range(len(self.net)):
-            x=x+point_features
+            if point_features!=None:
+                x=x+point_features
             x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
             # x=x+point_features
 
@@ -3511,7 +3513,7 @@ class Net2(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.lnn=LNN_2(128, model_params)
+        # self.lnn=LNN_2(128, model_params)
         self.lattice=Lattice.create("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/config/train.cfg", "splated_lattice")
 
         #activ
@@ -3534,16 +3536,18 @@ class Net2(torch.nn.Module):
       
     def forward(self, frame, mesh, depth_min, depth_max):
 
- 
+        use_lattice_features=False
 
-        #compute psitions and values
-        positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
-        values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
-       
-        #pass the mesh through the lattice 
-        TIME_START("spatial_lnn")
-        lv, ls = self.lnn(self.lattice, positions, values)
-        TIME_END("spatial_lnn")
+
+        if use_lattice_features:
+            #compute psitions and values
+            positions=torch.from_numpy(mesh.V.copy() ).float().to("cuda")
+            values=torch.from_numpy(mesh.C.copy() ).float().to("cuda")
+        
+            #pass the mesh through the lattice 
+            TIME_START("spatial_lnn")
+            lv, ls = self.lnn(self.lattice, positions, values)
+            TIME_END("spatial_lnn")
        
 
 
@@ -3563,7 +3567,7 @@ class Net2(torch.nn.Module):
         tf_world_cam =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
         near_thresh=depth_min
         far_thresh=depth_max
-        depth_samples_per_ray=1
+        depth_samples_per_ray=70
         # chunksize=400*400
 
         # Get the "bundle" of rays through all image pixels.
@@ -3614,7 +3618,8 @@ class Net2(torch.nn.Module):
         #     point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
         #     # print("sliced at res i", i, " is ", point_features.shape)
         #     multires_sliced.append(point_features.unsqueeze(2) )
-        point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
+        if use_lattice_features:
+            point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
         TIME_END("slice")
         #aggregate all the features 
         # aggregated_point_features=multires_sliced[0]
@@ -3636,7 +3641,9 @@ class Net2(torch.nn.Module):
         #     aggregated_point_features.masked_scatter(cur_valid_features_mask, cur_sliced_features)
         #attempt 4, just get the finest one
         # aggregated_point_features=multires_sliced[ len(multi_res_lattice)-1  ]
-        aggregated_point_features=point_features.contiguous()
+        aggregated_point_features=None
+        if use_lattice_features:
+            aggregated_point_features=point_features.contiguous()
 
         #having a good feature for a point in the ray should somehow conver information to the other points in the ray so we need to pass some information between all of them
         #for each ray we get the maximum feature
@@ -3681,14 +3688,14 @@ class Net2(torch.nn.Module):
         # if not novel:
         #     self.iter+=1
 
-
-        rays_mesh=Mesh()
-        rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
-        rays_mesh.m_vis.m_show_points=True
-        #color based on sigma 
-        sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
-        rays_mesh.C=sigma_a.cpu().numpy()
-        Scene.show(rays_mesh, "rays_mesh_novel")
+        # #DEBUG 
+        # rays_mesh=Mesh()
+        # rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
+        # rays_mesh.m_vis.m_show_points=True
+        # #color based on sigma 
+        # sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+        # rays_mesh.C=sigma_a.cpu().numpy()
+        # Scene.show(rays_mesh, "rays_mesh_novel")
 
 
     
