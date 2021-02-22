@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="5_pe"
+    experiment_name="6"
 
     use_ray_compression=False
 
@@ -167,7 +167,7 @@ def run():
     smooth = InverseDepthSmoothnessLoss()
 
     # show_every=39
-    show_every=100
+    show_every=10
 
     
     #get the frames into a vector
@@ -240,7 +240,7 @@ def run():
     depth_min=4.3
     depth_max=11
 
-
+    new_frame=None
 
     while True:
 
@@ -274,8 +274,8 @@ def run():
                         TIME_END("forward")
 
                         #VIS 
-                        rgb_pred_mat=tensor2mat(rgb_pred)
-                        Gui.show(rgb_pred_mat, "rgb_pred")
+                        # rgb_pred_mat=tensor2mat(rgb_pred)
+                        # Gui.show(rgb_pred_mat, "rgb_pred")
            
 
                         loss=0
@@ -298,6 +298,11 @@ def run():
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the prediction 
 
+                    
+                  
+
+
+
                     #backward
                     if is_training:
                         if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
@@ -311,6 +316,45 @@ def run():
                         optimizer.step()
 
                     TIME_END("all")
+
+
+                    #novel views after computing gradients and so on
+                    #show a novel view 
+                    if phase.iter_nr%show_every==0:
+                        with torch.set_grad_enabled(is_training):
+                            #create novel view
+                            if new_frame==None:
+                                new_frame=Frame()
+                                frame_to_start=loader_train.get_frame_at_idx(0)
+                                new_frame.tf_cam_world=frame_to_start.tf_cam_world
+                                new_frame.K=frame_to_start.K.copy()
+                                new_frame.height=frame_to_start.height
+                                new_frame.width=frame_to_start.width
+                                # translate a bit at the beggining so it starts more centered
+                                # model_matrix = new_frame.tf_cam_world.inverse()
+                                # model_matrix=model_matrix.translate([1.0, 0.0, 0.0])
+                                # new_frame.tf_cam_world = model_matrix.inverse()
+                            #rotate a bit 
+                            # model_matrix = new_frame.tf_cam_world.inverse()
+                            # model_matrix=model_matrix.rotate_axis_angle([0,1,0], 10)
+                            # new_frame.tf_cam_world = model_matrix.inverse()
+                            #attempt 2 to rotate 
+                            model_matrix = new_frame.tf_cam_world.inverse()
+                            model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
+                            new_frame.tf_cam_world = model_matrix.inverse()
+                            #render new 
+                            rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max)
+                            rgb_pred_mat=tensor2mat(rgb_pred)
+                            Gui.show(rgb_pred_mat, "rgb_novel")
+                            #show new frustum 
+                            frustum_mesh=new_frame.create_frustum_mesh(0.2)
+                            frustum_mesh.m_vis.m_line_width=1
+                            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
+                            Scene.show(frustum_mesh, "frustum_novel" )
+
+
+
+
 
                     if train_params.with_viewer():
                         view.update()

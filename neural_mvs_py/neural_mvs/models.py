@@ -3573,7 +3573,7 @@ class Net2(torch.nn.Module):
         tf_world_cam =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
         near_thresh=depth_min
         far_thresh=depth_max
-        depth_samples_per_ray=70
+        depth_samples_per_ray=50
         # chunksize=400*400
 
         # Get the "bundle" of rays through all image pixels.
