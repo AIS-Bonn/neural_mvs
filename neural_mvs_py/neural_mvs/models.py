@@ -2959,8 +2959,8 @@ class NERF_original(MetaModule):
             params = OrderedDict(self.named_parameters())
 
 
-        if len(x.shape)!=4:
-            print("SirenDirectPE forward: x should be a H,W,nr_points,3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+        if len(x.shape)!=2:
+            print("Nerf_original forward: x should be a Nx3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
             exit(1)
 
         # height=x.shape[0]
@@ -3804,12 +3804,15 @@ class Net2(torch.nn.Module):
         ray_origins, ray_directions = get_ray_bundle(
             height, width, fx,fy,cx,cy, tf_world_cam, novel=False
         )
+        ray_origins=ray_origins.view(-1,3)
+        ray_directions=ray_directions.view(-1,3)
         TIME_END("ray_bundle")
 
         ###TODO get only a subsample of the ray origin and ray_direction, maybe like in here https://discuss.pytorch.org/t/torch-equivalent-of-numpy-random-choice/16146/14
+        idxs=None
         if use_chunking:
             TIME_START("random_pixels")
-            chunck_size= min(50*50, height*width)
+            chunck_size= min(100*100, height*width)
             weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
             idxs=torch.multinomial(weights, chunck_size)
             print("ray_origins ", ray_origins.shape)
@@ -3832,8 +3835,10 @@ class Net2(torch.nn.Module):
         query_points, depth_values = compute_query_points_from_rays(
             ray_origins, ray_directions, depth_min, depth_max, depth_samples_per_ray, randomize=True
         )
-        # print("query_points", query_points.shape)
-        # print("depth_values", depth_values.shape)
+        query_points=query_points.view(-1,3)
+        depth_values=depth_values.view(-1)
+        print("query_points", query_points.shape)
+        print("depth_values", depth_values.shape)
         TIME_END("sample")
 
         # "Flatten" the query points.
@@ -3845,13 +3850,12 @@ class Net2(torch.nn.Module):
         # flattened_query_points = positional_encoding(flattened_query_points, num_encoding_functions=self.num_encodings, log_sampling=True)
         # flattened_query_points=self.leaned_pe(flattened_query_points.to("cuda") )
         # print("flattened_query_points after pe", flattened_query_points.shape)
-        flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
+        # flattened_query_points=flattened_query_points.view(height,width,depth_samples_per_ray,-1 )
         # print("flatened_query_pointss is ", flatened_query_pointss.shape)
         # TIME_END("pos_encode")
 
 
         #slice from lattice 
-        flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
         TIME_START("slice")
         # multires_sliced=[]
         # for i in range(len(multi_res_lattice)):
@@ -3861,6 +3865,7 @@ class Net2(torch.nn.Module):
         #     # print("sliced at res i", i, " is ", point_features.shape)
         #     multires_sliced.append(point_features.unsqueeze(2) )
         if use_lattice_features:
+            flattened_query_points_for_slicing= flattened_query_points.view(-1,3)
             point_features=self.slice(lv, ls, flattened_query_points_for_slicing)
         TIME_END("slice")
         #aggregate all the features 
@@ -3954,6 +3959,11 @@ class Net2(torch.nn.Module):
 
         # Perform differentiable volume rendering to re-synthesize the RGB image.
         TIME_START("render_volume")
+        radiance_field=radiance_field.view(-1, depth_samples_per_ray, 4)
+        depth_values=depth_values.view(-1,depth_samples_per_ray)
+        print("radiance_field shapoe si ", radiance_field.shape)
+        print("ray_origins shapoe si ", ray_origins.shape)
+        print("depth_values shapoe si ", depth_values.shape)
         rgb_predicted, depth_map, acc_map = render_volume_density(
         # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
         # rgb_predicted, depth_map, acc_map = render_volume_density2(
@@ -3962,15 +3972,19 @@ class Net2(torch.nn.Module):
         )
         TIME_END("render_volume")
 
-        # print("rgb predicted has shpae ", rgb_predicted.shape)
+        print("rgb predicted has shpae ", rgb_predicted.shape)
         # rgb_predicted=rgb_predicted.view(1,3,height,width)
-        rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        # rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
         # print("depth map size is ", depth_map.shape)
-        depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
+        # depth_map=depth_map.unsqueeze(0).unsqueeze(0).contiguous()
         # depth_map_mat=tensor2mat(depth_map)
         TIME_END("full_siren")
 
         # print("rgb_predicted is ", rgb_predicted.shape)
+
+        if not use_chunking:
+            rgb_predicted=rgb_predicted.view(height,width,3)
+            rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
 
 
 
@@ -3982,7 +3996,7 @@ class Net2(torch.nn.Module):
 
 
 
-        return rgb_predicted,  depth_map, acc_map, new_loss
+        return rgb_predicted,  depth_map, acc_map, new_loss, idxs
         # return img_directly_after_decoding
 
 

@@ -270,15 +270,17 @@ def run():
                     with torch.set_grad_enabled(is_training):
 
                         TIME_START("forward")
-                        rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max, use_chunking=False)
+                        rgb_pred, depth_map, acc_map, new_loss, idxs =model(frame, mesh_full, depth_min, depth_max, use_chunking=False)
                         TIME_END("forward")
 
                         #VIS 
-                        rgb_pred_mat=tensor2mat(rgb_pred)
-                        Gui.show(rgb_pred_mat, "rgb_pred")
+                        # rgb_pred_mat=tensor2mat(rgb_pred)
+                        # Gui.show(rgb_pred_mat, "rgb_pred")
            
 
                         loss=0
+                        # rgb_gt=rgb_gt.view(-1,3)
+                        # rgb_gt=rgb_gt[idxs]
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         loss+=rgb_loss
                      
@@ -343,7 +345,7 @@ def run():
                             model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
                             #render new 
-                            rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max, use_chunking=False)
+                            rgb_pred, depth_map, acc_map, new_loss, idxs =model(new_frame, mesh_full, depth_min, depth_max, use_chunking=False)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 
