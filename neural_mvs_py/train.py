@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="5"
+    experiment_name="17"
 
     use_ray_compression=False
 
@@ -167,7 +167,7 @@ def run():
     smooth = InverseDepthSmoothnessLoss()
 
     # show_every=39
-    show_every=20
+    show_every=100
 
     
     #get the frames into a vector
@@ -283,10 +283,7 @@ def run():
                         grad_y=mat2tensor(frame.grad_y_32f, False)
                         grad=torch.cat([grad_x,grad_y],1).to("cuda")
                         grad_norm=grad.norm(dim=1, keepdim=True)
-                        # print("grad norm is ", grad_norm.shape)
-                        # print("grad_norm min max", grad_norm.min(), " ", grad_norm.max())
                         weights=grad_norm.view(-1)
-                        # print("grad_x min max", grad_x.min(), " ", grad_x.max())
                         pixels_indices=torch.multinomial(weights, chunck_size, replacement=False)
                         pixels_indices=pixels_indices.long()
 
@@ -341,6 +338,10 @@ def run():
                         TIME_END("backward")
                         cb.after_backward_pass()
                         optimizer.step()
+
+                    # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
+                    #     optimizer.step() # DO it only once after getting gradients for all images
+                    #     optimizer.zero_grad()
 
                     TIME_END("all")
 
@@ -398,9 +399,10 @@ def run():
             # finished all the images 
             # pbar.close()
             if phase.loader.is_finished(): #we reduce the learning rate when the test iou plateus
-            # if is_training: #we reduce the learning rate when the test iou plateus
-                # optimizer.step() # DO it only once after getting gradients for all images
-                # optimizer.zero_grad()
+                # if is_training and phase.iter_nr%10==0: #we reduce the learning rate when the test iou plateus
+                #     optimizer.step() # DO it only once after getting gradients for all images
+                #     optimizer.zero_grad()
+                    # print("what")
                 # if is_training:
                     # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                         # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau

@@ -2882,8 +2882,9 @@ class NERF_original(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=4
+        self.nr_layers=5
         self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[256, 256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
         # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
@@ -2894,12 +2895,12 @@ class NERF_original(MetaModule):
         self.net=torch.nn.ModuleList([])
         
         # gaussian encoding
-        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
-        # cur_nr_channels=256+in_channels
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=0.5)
+        cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
-        num_encodings=11
-        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
-        cur_nr_channels = in_channels + 3*num_encodings*2
+        # num_encodings=11
+        # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels = in_channels + 3*num_encodings*2
         # #dir encoding
         # num_encoding_directions=4
         # self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
@@ -3956,7 +3957,7 @@ class Net2(torch.nn.Module):
         # rays_mesh.V=query_points.detach().reshape((-1, 3)).cpu().numpy()
         # rays_mesh.m_vis.m_show_points=True
         # #color based on sigma 
-        # sigma_a = radiance_field_flattened[:,:,:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
+        # sigma_a = radiance_field_flattened[:, self.siren_out_channels-1].detach().view(-1,1).repeat(1,3)
         # rays_mesh.C=sigma_a.cpu().numpy()
         # Scene.show(rays_mesh, "rays_mesh_novel")
 
