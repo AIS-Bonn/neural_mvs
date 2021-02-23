@@ -269,21 +269,34 @@ def run():
                     #forward
                     with torch.set_grad_enabled(is_training):
 
+                        #slowly upsample the frames
+                        # frame_subsampled=frame.subsample(1)
+                        # print("frame oriignal has height width is ", frame.height, " ", frame.width)
+                        # print("frame_subsampled has height width is ", frame_subsampled.height, " ", frame_subsampled.width)
+
+                        #selects randomly some pixels on which we train
+                        pixels_indices=None
+                        chunck_size= min(30*30, frame.height*frame.width)
+                        weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+                        pixels_indices=torch.multinomial(weights, chunck_size, replacement=False)
+                        pixels_indices=pixels_indices.long()
+
+                        #during testing, we run the model multiple times with
+
                         TIME_START("forward")
                         use_chunking=True
-                        rgb_pred, depth_map, acc_map, new_loss, idxs =model(frame, mesh_full, depth_min, depth_max, use_chunking=use_chunking)
+                        rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max, pixels_indices)
                         TIME_END("forward")
 
                         #VIS 
                         # rgb_pred_mat=tensor2mat(rgb_pred)
                         # Gui.show(rgb_pred_mat, "rgb_pred")
            
+                        rgb_gt=rgb_gt.permute(0,2,3,1) #N,C,H,W to N,H,W,C
+                        rgb_gt=rgb_gt.view(-1,3)
+                        rgb_gt=torch.index_select(rgb_gt, 0, pixels_indices)
 
                         loss=0
-                        if use_chunking:
-                            rgb_gt=rgb_gt.permute(0,2,3,1) #N,C,H,W to N,H,W,C
-                            rgb_gt=rgb_gt.view(-1,3)
-                            rgb_gt=torch.index_select(rgb_gt, 0, idxs.long())
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         loss+=rgb_loss
                      
@@ -348,7 +361,12 @@ def run():
                             model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
                             #render new 
-                            rgb_pred, depth_map, acc_map, new_loss, idxs =model(new_frame, mesh_full, depth_min, depth_max, use_chunking=False)
+                            # print("new_frame height and width ", new_frame.height, " ", new_frame.width)
+                            pixels_indices = torch.arange( new_frame.height*new_frame.width ).to("cuda")
+                            pixels_indices=pixels_indices.long()
+                            rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max, pixels_indices )
+                            rgb_pred=rgb_pred.view(new_frame.height, new_frame.width, 3)
+                            rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0).contiguous()
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 

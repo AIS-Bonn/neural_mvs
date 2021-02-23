@@ -3763,7 +3763,7 @@ class Net2(torch.nn.Module):
         self.siren_net = NERF_original(in_channels=3, out_channels=self.siren_out_channels)
 
       
-    def forward(self, frame, mesh, depth_min, depth_max, use_chunking):
+    def forward(self, frame, mesh, depth_min, depth_max, pixel_indices):
 
         use_lattice_features=False
 
@@ -3809,22 +3809,24 @@ class Net2(torch.nn.Module):
         TIME_END("ray_bundle")
 
         ###TODO get only a subsample of the ray origin and ray_direction, maybe like in here https://discuss.pytorch.org/t/torch-equivalent-of-numpy-random-choice/16146/14
-        idxs=None
-        ray_origins_original=ray_origins.clone() 
-        if use_chunking:
-            TIME_START("random_pixels")
-            chunck_size= min(30*30, height*width)
-            weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
-            idxs=torch.multinomial(weights, chunck_size, replacement=False)
-            # idxs=torch.arange(height*width).to("cuda")
-            # print("idx is ", idxs.min(), idxs.max() )
-            # print("ray_origins ", ray_origins.shape)
-            # ray_origins=ray_origins[idxs]
-            ray_origins=torch.index_select(ray_origins, 0, idxs.long())
-            # print("ray_origins after selecting ", ray_origins.shape)
-            # ray_directions=ray_directions[idxs]
-            ray_directions=torch.index_select(ray_directions, 0, idxs.long())
-            TIME_END("random_pixels")
+        # idxs=None
+        # ray_origins_original=ray_origins.clone() 
+        # if use_chunking:
+        #     TIME_START("random_pixels")
+        #     chunck_size= min(30*30, height*width)
+        #     weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+        #     idxs=torch.multinomial(weights, chunck_size, replacement=False)
+        #     # idxs=torch.arange(height*width).to("cuda")
+        #     # print("idx is ", idxs.min(), idxs.max() )
+        #     # print("ray_origins ", ray_origins.shape)
+        #     # ray_origins=ray_origins[idxs]
+        #     ray_origins=torch.index_select(ray_origins, 0, idxs.long())
+        #     # print("ray_origins after selecting ", ray_origins.shape)
+        #     # ray_directions=ray_directions[idxs]
+        #     ray_directions=torch.index_select(ray_directions, 0, idxs.long())
+        #     TIME_END("random_pixels")
+        ray_origins=torch.index_select(ray_origins, 0, pixel_indices)
+        ray_directions=torch.index_select(ray_directions, 0, pixel_indices)
         # print("ray_origins_original", ray_origins_original)
         # print("ray_origins_sliced", ray_origins)
         # diff = ((ray_origins_original -ray_origins)**2).mean()
@@ -3992,11 +3994,11 @@ class Net2(torch.nn.Module):
 
         # print("rgb_predicted is ", rgb_predicted.shape)
 
-        if not use_chunking:
-            rgb_predicted=rgb_predicted.view(height,width,3)
-            rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
-        else:
-            rgb_predicted=rgb_predicted.view(-1,3).contiguous()
+        # if not use_chunking:
+            # rgb_predicted=rgb_predicted.view(height,width,3)
+            # rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        # else:
+            # rgb_predicted=rgb_predicted.view(-1,3).contiguous()
 
         # rgb_predicted=rgb_predicted.view(height,width,3)
         # rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
@@ -4011,7 +4013,7 @@ class Net2(torch.nn.Module):
 
 
 
-        return rgb_predicted,  depth_map, acc_map, new_loss, idxs
+        return rgb_predicted,  depth_map, acc_map, new_loss
         # return img_directly_after_decoding
 
 
