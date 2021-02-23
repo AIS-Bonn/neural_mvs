@@ -2882,11 +2882,11 @@ class NERF_original(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=5
+        self.nr_layers=4
         # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
-        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
-        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
      
 
@@ -3796,7 +3796,7 @@ class Net2(torch.nn.Module):
         tf_world_cam =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
         near_thresh=depth_min
         far_thresh=depth_max
-        depth_samples_per_ray=50
+        depth_samples_per_ray=80
         # chunksize=400*400
 
         # Get the "bundle" of rays through all image pixels.
@@ -3813,7 +3813,7 @@ class Net2(torch.nn.Module):
         ray_origins_original=ray_origins.clone() 
         if use_chunking:
             TIME_START("random_pixels")
-            chunck_size= min(50*50, height*width)
+            chunck_size= min(30*30, height*width)
             weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
             idxs=torch.multinomial(weights, chunck_size, replacement=False)
             # idxs=torch.arange(height*width).to("cuda")
