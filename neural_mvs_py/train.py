@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="19"
+    experiment_name="2"
 
     use_ray_compression=False
 
@@ -259,7 +259,8 @@ def run():
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
-                    frame=phase.loader.get_random_frame() 
+                    # frame=phase.loader.get_random_frame() 
+                    frame=phase.loader.get_frame_at_idx(0) 
                     # pass
                     TIME_START("all")
                     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
@@ -370,30 +371,31 @@ def run():
                                 new_frame.width=frame_to_start.width
                             #rotate a bit 
                             model_matrix = new_frame.tf_cam_world.inverse()
-                            model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
+                            # model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
-                            # new_frame=new_frame.subsample(4)
+                            # new_frame_subsampled=new_frame.subsample(4)
+                            new_frame_subsampled=new_frame
                             #render new 
-                            # print("new_frame height and width ", new_frame.height, " ", new_frame.width)
-                            nr_chuncks=20
-                            pixels_indices = torch.arange( new_frame.height*new_frame.width ).to("cuda")
+                            # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
+                            nr_chuncks=80
+                            pixels_indices = torch.arange( new_frame_subsampled.height*new_frame_subsampled.width ).to("cuda")
                             pixels_indices=pixels_indices.long()
                             pixel_indices_chunks=torch.chunk(pixels_indices, nr_chuncks)
                             rgb_pred_list=[]
                             chunks_rendered=0
                             for pixel_indices_chunk in pixel_indices_chunks:
                                 # print("rendering chunk", chunks_rendered)
-                                rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max, pixel_indices_chunk )
+                                rgb_pred, depth_map, acc_map, new_loss =model(new_frame_subsampled, mesh_full, depth_min, depth_max, pixel_indices_chunk )
                                 # print("finished rendering chunk", chunks_rendered)
                                 rgb_pred_list.append(rgb_pred.detach())
                                 chunks_rendered+=1
                             rgb_pred=torch.cat(rgb_pred_list,0)
-                            rgb_pred=rgb_pred.view(new_frame.height, new_frame.width, 3)
+                            rgb_pred=rgb_pred.view(new_frame_subsampled.height, new_frame_subsampled.width, 3)
                             rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0).contiguous()
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 
-                            frustum_mesh=new_frame.create_frustum_mesh(0.2)
+                            frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.2)
                             frustum_mesh.m_vis.m_line_width=1
                             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
                             Scene.show(frustum_mesh, "frustum_novel" )

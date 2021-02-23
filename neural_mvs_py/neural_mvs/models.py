@@ -2882,12 +2882,13 @@ class NERF_original(MetaModule):
 
         self.first_time=True
 
-        self.nr_layers=5
-        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        self.nr_layers=4
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256, 256]
+        # self.out_channels_per_layer=[512, 512, 512, 512, 512, 512]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
-        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
      
 
@@ -2924,7 +2925,9 @@ class NERF_original(MetaModule):
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
-            self.net.append( MetaSequential( BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], bias=True).cuda() ) )
+            self.net.append( MetaSequential( BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], bias=True).cuda(),
+            # torch.nn.BatchNorm1d(self.out_channels_per_layer[i]), 
+            ) )
            
 
         # self.pred_sigma_and_rgb=MetaSequential(
@@ -3010,8 +3013,10 @@ class NERF_original(MetaModule):
         for i in range(len(self.net)):
             if point_features!=None:
                 x=x+point_features
+            # identity=x
             x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
             # x=x+point_features
+            # x=x+identity
 
             # print("x has shape after resnet ", x.shape)
 
