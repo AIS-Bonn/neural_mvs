@@ -3813,10 +3813,10 @@ class Net2(torch.nn.Module):
         ray_origins_original=ray_origins.clone() 
         if use_chunking:
             TIME_START("random_pixels")
-            chunck_size= min(200*100, height*width)
+            chunck_size= min(50*50, height*width)
             weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
             idxs=torch.multinomial(weights, chunck_size, replacement=False)
-            idxs=torch.arange(height*width).to("cuda")
+            # idxs=torch.arange(height*width).to("cuda")
             print("idx is ", idxs.min(), idxs.max() )
             print("ray_origins ", ray_origins.shape)
             # ray_origins=ray_origins[idxs]
@@ -3992,14 +3992,14 @@ class Net2(torch.nn.Module):
 
         # print("rgb_predicted is ", rgb_predicted.shape)
 
-        # if not use_chunking:
-        #     rgb_predicted=rgb_predicted.view(height,width,3)
-        #     rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
-        # else:
-        #     rgb_predicted=rgb_predicted.view(-1,3).contiguous()
+        if not use_chunking:
+            rgb_predicted=rgb_predicted.view(height,width,3)
+            rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        else:
+            rgb_predicted=rgb_predicted.view(-1,3).contiguous()
 
-        rgb_predicted=rgb_predicted.view(height,width,3)
-        rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
+        # rgb_predicted=rgb_predicted.view(height,width,3)
+        # rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
 
 
 

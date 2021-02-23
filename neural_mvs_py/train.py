@@ -280,9 +280,10 @@ def run():
            
 
                         loss=0
-                        # if use_chunking:
-                            # rgb_gt=rgb_gt.view(-1,3)
-                            # rgb_gt=torch.index_select(rgb_gt, 0, idxs.long())
+                        if use_chunking:
+                            rgb_gt=rgb_gt.permute(0,2,3,1) #N,C,H,W to N,H,W,C
+                            rgb_gt=rgb_gt.view(-1,3)
+                            rgb_gt=torch.index_select(rgb_gt, 0, idxs.long())
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         loss+=rgb_loss
                      
