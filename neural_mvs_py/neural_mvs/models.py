@@ -3817,11 +3817,11 @@ class Net2(torch.nn.Module):
             weights = torch.ones([height*width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
             idxs=torch.multinomial(weights, chunck_size, replacement=False)
             # idxs=torch.arange(height*width).to("cuda")
-            print("idx is ", idxs.min(), idxs.max() )
-            print("ray_origins ", ray_origins.shape)
+            # print("idx is ", idxs.min(), idxs.max() )
+            # print("ray_origins ", ray_origins.shape)
             # ray_origins=ray_origins[idxs]
             ray_origins=torch.index_select(ray_origins, 0, idxs.long())
-            print("ray_origins after selecting ", ray_origins.shape)
+            # print("ray_origins after selecting ", ray_origins.shape)
             # ray_directions=ray_directions[idxs]
             ray_directions=torch.index_select(ray_directions, 0, idxs.long())
             TIME_END("random_pixels")
@@ -3847,8 +3847,8 @@ class Net2(torch.nn.Module):
         )
         query_points=query_points.view(-1,3)
         depth_values=depth_values.view(-1)
-        print("query_points", query_points.shape)
-        print("depth_values", depth_values.shape)
+        # print("query_points", query_points.shape)
+        # print("depth_values", depth_values.shape)
         TIME_END("sample")
 
         # "Flatten" the query points.
@@ -3971,9 +3971,9 @@ class Net2(torch.nn.Module):
         TIME_START("render_volume")
         radiance_field=radiance_field.view(-1, depth_samples_per_ray, 4)
         depth_values=depth_values.view(-1,depth_samples_per_ray)
-        print("radiance_field shapoe si ", radiance_field.shape)
-        print("ray_origins shapoe si ", ray_origins.shape)
-        print("depth_values shapoe si ", depth_values.shape)
+        # print("radiance_field shapoe si ", radiance_field.shape)
+        # print("ray_origins shapoe si ", ray_origins.shape)
+        # print("depth_values shapoe si ", depth_values.shape)
         rgb_predicted, depth_map, acc_map = render_volume_density(
         # rgb_predicted, depth_map, acc_map = render_volume_density_nerfplusplus(
         # rgb_predicted, depth_map, acc_map = render_volume_density2(
@@ -3982,7 +3982,7 @@ class Net2(torch.nn.Module):
         )
         TIME_END("render_volume")
 
-        print("rgb predicted has shpae ", rgb_predicted.shape)
+        # print("rgb predicted has shpae ", rgb_predicted.shape)
         # rgb_predicted=rgb_predicted.view(1,3,height,width)
         # rgb_predicted=rgb_predicted.permute(2,0,1).unsqueeze(0).contiguous()
         # print("depth map size is ", depth_map.shape)

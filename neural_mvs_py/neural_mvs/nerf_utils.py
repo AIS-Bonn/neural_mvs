@@ -515,11 +515,6 @@ def render_volume_density(
         ),
         dim=-1,
     )
-    print("sigma", sigma_a.shape)
-    print("rgb", rgb.shape)
-    print("dists", dists.shape)
-    print("depth_values", depth_values.shape)
-
 
     alpha = 1.0 - torch.exp(-sigma_a * dists) #as explained in willians: A volume density optical model. This normalizes the value between 0 and 1
     # print("alpha has range ", alpha.min().item(), " ", alpha.max().item() )
