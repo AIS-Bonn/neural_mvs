@@ -247,7 +247,7 @@ def run():
         for phase in phases:
             cb.epoch_started(phase=phase)
             cb.phase_started(phase=phase)
-            # model.train(phase.grad)
+            model.train(phase.grad)
             is_training=phase.grad
 
             # if loader_test.finished_reading_scene(): #For shapenet
@@ -340,6 +340,7 @@ def run():
                     #show a novel view 
                     if phase.iter_nr%show_every==0:
                         with torch.set_grad_enabled(is_training):
+                            model.eval()
                             #create novel view
                             if new_frame==None:
                                 new_frame=Frame()
@@ -348,23 +349,25 @@ def run():
                                 new_frame.K=frame_to_start.K.copy()
                                 new_frame.height=frame_to_start.height
                                 new_frame.width=frame_to_start.width
-                                # translate a bit at the beggining so it starts more centered
-                                # model_matrix = new_frame.tf_cam_world.inverse()
-                                # model_matrix=model_matrix.translate([1.0, 0.0, 0.0])
-                                # new_frame.tf_cam_world = model_matrix.inverse()
                             #rotate a bit 
-                            # model_matrix = new_frame.tf_cam_world.inverse()
-                            # model_matrix=model_matrix.rotate_axis_angle([0,1,0], 10)
-                            # new_frame.tf_cam_world = model_matrix.inverse()
-                            #attempt 2 to rotate 
                             model_matrix = new_frame.tf_cam_world.inverse()
                             model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
                             #render new 
                             # print("new_frame height and width ", new_frame.height, " ", new_frame.width)
+                            nr_chuncks=100
                             pixels_indices = torch.arange( new_frame.height*new_frame.width ).to("cuda")
                             pixels_indices=pixels_indices.long()
-                            rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max, pixels_indices )
+                            pixel_indices_chunks=torch.chunk(pixels_indices, nr_chuncks)
+                            rgb_pred_list=[]
+                            chunks_rendered=0
+                            for pixel_indices_chunk in pixel_indices_chunks:
+                                # print("rendering chunk", chunks_rendered)
+                                rgb_pred, depth_map, acc_map, new_loss =model(new_frame, mesh_full, depth_min, depth_max, pixel_indices_chunk )
+                                # print("finished rendering chunk", chunks_rendered)
+                                rgb_pred_list.append(rgb_pred.detach())
+                                chunks_rendered+=1
+                            rgb_pred=torch.cat(rgb_pred_list,0)
                             rgb_pred=rgb_pred.view(new_frame.height, new_frame.width, 3)
                             rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0).contiguous()
                             rgb_pred_mat=tensor2mat(rgb_pred)
