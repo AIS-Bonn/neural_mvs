@@ -270,7 +270,8 @@ def run():
                     with torch.set_grad_enabled(is_training):
 
                         TIME_START("forward")
-                        rgb_pred, depth_map, acc_map, new_loss, idxs =model(frame, mesh_full, depth_min, depth_max, use_chunking=False)
+                        use_chunking=True
+                        rgb_pred, depth_map, acc_map, new_loss, idxs =model(frame, mesh_full, depth_min, depth_max, use_chunking=use_chunking)
                         TIME_END("forward")
 
                         #VIS 
@@ -279,8 +280,9 @@ def run():
            
 
                         loss=0
-                        # rgb_gt=rgb_gt.view(-1,3)
-                        # rgb_gt=rgb_gt[idxs]
+                        # if use_chunking:
+                            # rgb_gt=rgb_gt.view(-1,3)
+                            # rgb_gt=torch.index_select(rgb_gt, 0, idxs.long())
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         loss+=rgb_loss
                      
