@@ -2895,7 +2895,7 @@ class NERF_original(MetaModule):
         self.net=torch.nn.ModuleList([])
         
         # gaussian encoding
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=0.5)
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=1)
         cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         # num_encodings=11

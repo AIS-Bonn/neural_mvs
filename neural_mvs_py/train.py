@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="17"
+    experiment_name="19"
 
     use_ray_compression=False
 
@@ -168,6 +168,7 @@ def run():
 
     # show_every=39
     show_every=100
+    # show_every=1
 
     
     #get the frames into a vector
@@ -261,8 +262,13 @@ def run():
                     frame=phase.loader.get_random_frame() 
                     # pass
                     TIME_START("all")
-                    # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,1,1,1)
+                    mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
+                    rgb_gt=rgb_gt*mask_tensor
+                    rgb_gt=rgb_gt+0.1
+                    rgb_mat=tensor2mat(rgb_gt)
+                    Gui.show(rgb_mat,"rgb_gt")
+
 
 
 
@@ -279,11 +285,13 @@ def run():
                         chunck_size= min(30*30, frame.height*frame.width)
                         weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
                         #weight depending on gradient
-                        grad_x=mat2tensor(frame.grad_x_32f, False)
-                        grad_y=mat2tensor(frame.grad_y_32f, False)
-                        grad=torch.cat([grad_x,grad_y],1).to("cuda")
-                        grad_norm=grad.norm(dim=1, keepdim=True)
-                        weights=grad_norm.view(-1)
+                        # grad_x=mat2tensor(frame.grad_x_32f, False)
+                        # grad_y=mat2tensor(frame.grad_y_32f, False)
+                        # grad=torch.cat([grad_x,grad_y],1).to("cuda")
+                        # grad_norm=grad.norm(dim=1, keepdim=True)
+                        # weights=grad_norm.view(-1)
+                        # weights=weights+0.001 #rto avoid a probability of zero of getting a certain pixel
+
                         pixels_indices=torch.multinomial(weights, chunck_size, replacement=False)
                         pixels_indices=pixels_indices.long()
 
@@ -304,7 +312,8 @@ def run():
 
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        loss+=rgb_loss
+                        rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
+                        loss+=rgb_loss_l1
                      
                       
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
