@@ -167,7 +167,7 @@ def run():
     smooth = InverseDepthSmoothnessLoss()
 
     # show_every=39
-    show_every=10
+    show_every=20
 
     
     #get the frames into a vector
@@ -353,9 +353,10 @@ def run():
                             model_matrix = new_frame.tf_cam_world.inverse()
                             model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
+                            # new_frame=new_frame.subsample(4)
                             #render new 
                             # print("new_frame height and width ", new_frame.height, " ", new_frame.width)
-                            nr_chuncks=100
+                            nr_chuncks=20
                             pixels_indices = torch.arange( new_frame.height*new_frame.width ).to("cuda")
                             pixels_indices=pixels_indices.long()
                             pixel_indices_chunks=torch.chunk(pixels_indices, nr_chuncks)
