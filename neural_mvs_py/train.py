@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="2"
+    experiment_name="s_l2_5"
 
     use_ray_compression=False
 
@@ -259,8 +259,8 @@ def run():
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
-                    # frame=phase.loader.get_random_frame() 
-                    frame=phase.loader.get_frame_at_idx(0) 
+                    frame=phase.loader.get_random_frame() 
+                    # frame=phase.loader.get_frame_at_idx(0) 
                     # pass
                     TIME_START("all")
                     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
@@ -283,7 +283,8 @@ def run():
 
                         #selects randomly some pixels on which we train
                         pixels_indices=None
-                        chunck_size= min(30*30, frame.height*frame.width)
+                        chunck_size= min(100*60, frame.height*frame.width)
+                        # chunck_size= frame.height*frame.width
                         weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
                         #weight depending on gradient
                         # grad_x=mat2tensor(frame.grad_x_32f, False)
@@ -313,8 +314,8 @@ def run():
 
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
-                        loss+=rgb_loss_l1
+                        # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
+                        loss+=rgb_loss
                      
                       
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
@@ -371,7 +372,7 @@ def run():
                                 new_frame.width=frame_to_start.width
                             #rotate a bit 
                             model_matrix = new_frame.tf_cam_world.inverse()
-                            # model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
+                            model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
                             # new_frame_subsampled=new_frame.subsample(4)
                             new_frame_subsampled=new_frame

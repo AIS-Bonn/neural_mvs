@@ -2899,7 +2899,7 @@ class NERF_original(MetaModule):
         self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=1)
         cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
-        # num_encodings=11
+        # num_encodings=8
         # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels = in_channels + 3*num_encodings*2
         # #dir encoding
