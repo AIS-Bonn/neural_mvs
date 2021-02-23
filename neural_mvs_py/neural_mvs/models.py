@@ -2876,6 +2876,182 @@ class SirenNetworkDirectPE_Simple(MetaModule):
         return  x
 
 
+class NERF_original(MetaModule):
+    def __init__(self, in_channels, out_channels):
+        super(NERF_original, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=5
+        # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
+        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+     
+
+        cur_nr_channels=in_channels
+        self.net=torch.nn.ModuleList([])
+        
+        # gaussian encoding
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=5)
+        # cur_nr_channels=256+in_channels
+        #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
+        num_encodings=11
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        cur_nr_channels = in_channels + 3*num_encodings*2
+        # #dir encoding
+        # num_encoding_directions=4
+        # self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        # dirs_channels=3+ 3*num_encoding_directions*2
+        # cur_nr_channels+=dirs_channels
+
+        #concat also the encoded features 
+        # reduce_feat_channels=16
+        # encoding_feat=6
+        # self.conv_reduce_feat=BlockSiren(activ=torch.relu, in_channels=32, out_channels=reduce_feat_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, do_norm=False, with_dropout=False, transposed=False ).cuda()
+        # self.learned_pe_features=LearnedPE(in_channels=reduce_feat_channels, num_encoding_functions=encoding_feat, logsampling=True)
+        # feat_enc_channels=reduce_feat_channels+ reduce_feat_channels*encoding_feat*2
+        # cur_nr_channels+=feat_enc_channels
+
+        #now we concatenate the positions and directions and pass them through the initial conv
+        self.first_conv=BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0],  bias=True).cuda()
+
+        cur_nr_channels= self.out_channels_per_layer[0]
+
+      
+
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], bias=True).cuda() ) )
+           
+
+        # self.pred_sigma_and_rgb=MetaSequential(
+        #     # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=4, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+        #     )
+
+
+        
+        self.pred_sigma_and_feat=MetaSequential(
+            # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, bias=True).cuda(),
+            )
+        num_encoding_directions=4
+        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        dirs_channels=3+ 3*num_encoding_directions*2
+        # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+        # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
+        # dirs_channels=64
+        cur_nr_channels=cur_nr_channels+dirs_channels
+        self.pred_rgb=MetaSequential( 
+            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            )
+
+
+
+
+
+
+    def forward(self, x, ray_directions, point_features, nr_points_per_ray, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        if len(x.shape)!=4:
+            print("SirenDirectPE forward: x should be a H,W,nr_points,3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+            exit(1)
+
+        # height=x.shape[0]
+        # width=x.shape[1]
+        # nr_points=x.shape[2]
+
+        #from 71,107,30,3  to Nx3
+        x=x.view(-1,3)
+        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        # x=x.view(height, width, nr_points, -1 )
+        # x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
+
+        #also make the direcitons into image 
+        ray_directions=ray_directions.view(-1,3)
+        ray_directions=F.normalize(ray_directions, p=2, dim=1)
+        ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+        # ray_directions=ray_directions.view(height, width, -1)
+        # ray_directions=ray_directions.permute(2,0,1).unsqueeze(0) #1,C,HW
+        # ray_directions=ray_directions.repeat(nr_points,1,1,1) #repeat as many times as samples that you have in a ray
+        dim_ray_dir=ray_directions.shape[1]
+        ray_directions=ray_directions.repeat(1, nr_points_per_ray) #repeat as many times as samples that you have in a ray
+        ray_directions=ray_directions.view(-1,dim_ray_dir)
+
+
+
+
+        #skip to x the point_features
+        if point_features!=None:
+            point_features=point_features.view(height, width, nr_points, -1 )
+            point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
+
+            #concat also encoded features
+            #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
+            feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
+            feat_reduced_channels=feat_reduce.shape[1]
+            feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
+            feat_enc=self.learned_pe_features(feat_reduce)
+            feat_enc=feat_enc.view(nr_points, height, width, -1)
+            feat_enc=feat_enc.permute(0,3,1,2).contiguous()
+            x=torch.cat([x,feat_enc],1)
+
+
+        # x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
+        x=self.first_conv(x)
+
+        for i in range(len(self.net)):
+            if point_features!=None:
+                x=x+point_features
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+            # x=x+point_features
+
+            # print("x has shape after resnet ", x.shape)
+
+        # sigma_and_rgb=self.pred_sigma_and_rgb(x)
+        # sigma_a=torch.relu( sigma_and_rgb[:,0:1, :, :] ) #first channel is the sigma
+        # rgb=torch.sigmoid(  sigma_and_rgb[:, 1:4, :, :]  )
+        # x=torch.cat([rgb, sigma_a],1)
+
+        # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+
+
+
+
+        #predict the sigma and a feature vector for the rest of things
+        sigma_and_feat=self.pred_sigma_and_feat(x,  params=get_subdict(params, 'pred_sigma_and_feat'))
+        #get the feature vector for the rest of things and concat it with the direction
+        sigma_a=torch.relu( sigma_and_feat[:,0:1] ) #first channel is the sigma
+        feat=torch.relu( sigma_and_feat[:,1:sigma_and_feat.shape[1] ] )
+        # print("sigma and feat is ", sigma_and_feat.shape)
+        # print(" feat is ", feat.shape)
+        feat_and_dirs=torch.cat([feat, ray_directions], 1)
+        #predict rgb
+        # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
+        rgb=torch.sigmoid(  self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') )  )
+        #concat 
+        # print("rgb is", rgb.shape)
+        # print("sigma_a is", sigma_a.shape)
+        x=torch.cat([rgb, sigma_a],1)
+
+        # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+
+
+        
+      
+
+
+
+       
+        return  x
+
+
 
 #this siren net receives directly the coordinates, no need to make a concat coord or whatever
 #This one does soemthin like densenet so each layers just append to a stack
@@ -3583,7 +3759,8 @@ class Net2(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
 
        
-        self.siren_net = SirenNetworkDirectPE_Simple(in_channels=3, out_channels=self.siren_out_channels)
+        # self.siren_net = SirenNetworkDirectPE_Simple(in_channels=3, out_channels=self.siren_out_channels)
+        self.siren_net = NERF_original(in_channels=3, out_channels=self.siren_out_channels)
 
       
     def forward(self, frame, mesh, depth_min, depth_max, use_chunking):
@@ -3736,7 +3913,8 @@ class Net2(torch.nn.Module):
         TIME_START("just_siren")
         # flattened_query_points=flattened_query_points.half()
         # ray_directions=ray_directions.half()
-        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, aggregated_point_features ) #radiance field has shape height,width, nr_samples,4
+        # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, aggregated_point_features ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, aggregated_point_features, depth_samples_per_ray ) #radiance field has shape height,width, nr_samples,4
         # radiance_field_flattened=radiance_field_flattened.float()
         TIME_END("just_siren")
         # radiance_field_flattened = self.siren_net(flattened_query_points.to("cuda"), ray_directions, params=siren_params )

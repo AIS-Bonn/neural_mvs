@@ -274,8 +274,8 @@ def run():
                         TIME_END("forward")
 
                         #VIS 
-                        # rgb_pred_mat=tensor2mat(rgb_pred)
-                        # Gui.show(rgb_pred_mat, "rgb_pred")
+                        rgb_pred_mat=tensor2mat(rgb_pred)
+                        Gui.show(rgb_pred_mat, "rgb_pred")
            
 
                         loss=0

@@ -587,6 +587,50 @@ class BlockSiren(MetaModule):
 
         return x
 
+class BlockNerf(MetaModule):
+    def __init__(self, in_channels, out_channels, bias, activ=torch.nn.ReLU(inplace=False) ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
+        super(BlockNerf, self).__init__()
+        self.bias=bias 
+        self.activ=activ
+        # self.init=init
+        
+
+        self.relu=torch.nn.ReLU()
+        self.leaky_relu=torch.nn.LeakyReLU(negative_slope=0.1)
+
+      
+
+        self.conv= MetaSequential( MetaLinear(in_channels, out_channels, bias=self.bias ).cuda()  )
+
+
+
+       
+        print("initializing with kaiming uniform")
+        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
+        if self.bias is not None:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+
+
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+        x = self.conv(x, params=get_subdict(params, 'conv') )
+     
+
+        if self.activ is not None:
+            x=self.activ(x)
+        
+
+        return x
+
 class BlockForResnet(MetaModule):
     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ReLU(inplace=False), init=None, do_norm=False, is_first_layer=False ):
         super(BlockForResnet, self).__init__()
