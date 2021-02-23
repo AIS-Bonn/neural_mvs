@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="6"
+    experiment_name="5"
 
     use_ray_compression=False
 
@@ -278,6 +278,15 @@ def run():
                         pixels_indices=None
                         chunck_size= min(30*30, frame.height*frame.width)
                         weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+                        #weight depending on gradient
+                        grad_x=mat2tensor(frame.grad_x_32f, False)
+                        grad_y=mat2tensor(frame.grad_y_32f, False)
+                        grad=torch.cat([grad_x,grad_y],1).to("cuda")
+                        grad_norm=grad.norm(dim=1, keepdim=True)
+                        # print("grad norm is ", grad_norm.shape)
+                        # print("grad_norm min max", grad_norm.min(), " ", grad_norm.max())
+                        weights=grad_norm.view(-1)
+                        # print("grad_x min max", grad_x.min(), " ", grad_x.max())
                         pixels_indices=torch.multinomial(weights, chunck_size, replacement=False)
                         pixels_indices=pixels_indices.long()
 
