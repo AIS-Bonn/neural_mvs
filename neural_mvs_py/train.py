@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_7_dirs"
+    experiment_name="s_9_dirs"
 
     use_ray_compression=False
 
@@ -297,8 +297,8 @@ def run():
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                         if first_time:
                             first_time=False
-                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
@@ -385,6 +385,7 @@ def run():
                         loss.backward()
                         TIME_END("backward")
                         cb.after_backward_pass()
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
                         optimizer.step()
 
                     # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
