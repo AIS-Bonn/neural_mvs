@@ -264,11 +264,14 @@ std::vector<bool> SFM::filter_cross_check( const std::vector< std::vector<cv::DM
 }
 
 
-easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Frame& frame_query, const easy_pbr::Frame& frame_target){
+//return a mesh with the cloud that we get from the sparse point. also returns the distances of those points to the frame_query and the indexes of the pixels corresponding to the keypoints
+std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> SFM::compute_3D_keypoints_from_frames(const easy_pbr::Frame& frame_query, const easy_pbr::Frame& frame_target){
 
     easy_pbr::MeshSharedPtr mesh=easy_pbr::Mesh::create();
 
-
+    //get the distance of each of the triangulated keypoints towards the camera and also the index that it has in the camera (x+y*width)
+    std::vector<float> keypoint_distances;
+    std::vector<int> keypoint_indices;
 
 
     //attempt 2 a bit nicer
@@ -450,7 +453,8 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
 
     //attempt 4 using ray intersection 
     int nr_points=matches.size();
-    mesh->V.resize( nr_points, 3 );
+    // mesh->V.resize( nr_points, 3 );
+    std::vector<Eigen::VectorXd> points_3d;
     // https://stackoverflow.com/questions/29188686/finding-the-intersect-location-of-two-rays
     for(size_t m_idx=0; m_idx<matches.size(); m_idx++){
         cv::DMatch match=matches[m_idx];
@@ -495,16 +499,22 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
         Eigen::Vector3f d3= dir_query.cross(dir_target);
         if (d3.norm()<0.00001){
             std::cout<< "lines are in the same direction. Cannot compute intersection" << std::endl;
-            point_intersection.setZero();
         }else{
             point_intersection=intersect_rays(origin_query, dir_query, origin_target, dir_target);
+            points_3d.push_back( point_intersection.cast<double>() );
+            float dist=  (point_intersection - frame_query.tf_cam_world.inverse().translation()).norm();
+            keypoint_distances.push_back(dist);
+            // keypoint_indices.push_back( query_observed.x() + (frame_query.height-query_observed.y())*frame_query.width);
+            keypoint_indices.push_back( query_observed.x() + query_observed.y()*frame_query.width);
         }
 
-        mesh->V.row(m_idx) = point_intersection.cast<double>();
 
     }
+
+    mesh->V=radu::utils::vec2eigen(points_3d);
     
-    
+    Eigen::VectorXf keypoint_distances_eigen=radu::utils::vec2eigen(keypoint_distances);
+    Eigen::VectorXi keypoint_indices_eigen=radu::utils::vec2eigen(keypoint_indices);
 
 
 
@@ -545,7 +555,7 @@ easy_pbr::MeshSharedPtr SFM::compute_3D_keypoints_from_frames(const easy_pbr::Fr
     // easy_pbr::Gui::show(img, "img_debug");
 
 
-    return mesh;
+    return {mesh, keypoint_distances_eigen, keypoint_indices_eigen} ;
 }
 
 

@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_19"
+    experiment_name="s_21_depthloss2"
 
     use_ray_compression=False
 
@@ -197,7 +197,8 @@ def run():
     # selected_frame_idx=[1] 
     # selected_frame_idx=[0,1,2,3] 
     # selected_frame_idx=np.arange(7) #For nerf
-    selected_frame_idx=np.arange(30) #For colmap
+    # selected_frame_idx=np.arange(1) #For colmap
+    selected_frame_idx=[10]
     frames_query_selected=[]
     frames_target_selected=[]
     frames_all_selected=[]
@@ -212,7 +213,7 @@ def run():
             frames_target_selected.append(frame_target)
             frames_all_selected.append(frame_query)
             frames_all_selected.append(frame_target)
-            mesh_sparse=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
+            mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
             meshes_for_query_frames.append(mesh_sparse)
             # Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
 
@@ -233,6 +234,19 @@ def run():
     mesh_full.m_vis.m_show_points=True
     mesh_full.m_vis.set_color_pervertcolor()
     Scene.show(mesh_full, "mesh_full" )
+
+
+    #get for each frame_query the distances of the keypoints
+    frame_idx2keypoint_data={}
+    for i in range(loader_train.nr_samples()):
+        frame_query=loader_train.get_frame_at_idx(i) 
+        frame_target=loader_train.get_closest_frame(frame_query)
+        mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
+        keypoints_distances=torch.from_numpy(keypoints_distances_eigen.copy()).to("cuda")
+        keypoints_indices=torch.from_numpy(keypoints_indices_eigen.copy()).to("cuda")
+        keypoint_data=[keypoints_distances, keypoints_indices]
+        frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
+
 
 
     #depth min max for nerf 
@@ -262,7 +276,7 @@ def run():
                 for i in range(phase.loader.nr_samples()):
                     model.train(phase.grad)
                     frame=phase.loader.get_random_frame() 
-                    # frame=phase.loader.get_frame_at_idx(0) 
+                    # frame=phase.loader.get_frame_at_idx(10) 
                     # pass
                     TIME_START("all")
                     # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
@@ -279,7 +293,7 @@ def run():
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
                         
-                        rgb_pred=model(frame, mesh_full, depth_min, depth_max)
+                        rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max)
 
                         #view pred
                         rgb_pred_mat=tensor2mat(rgb_pred)
@@ -291,6 +305,21 @@ def run():
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
                         loss+=rgb_loss
+
+                        #loss on depth 
+                        keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
+                        keypoint_distances=keypoint_data[0]
+                        keypoint_instances=keypoint_data[1]
+                        depth_pred=depth_pred.view(-1,1)
+                        depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
+                        loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
+                        loss+=loss_depth*0.0001
+                        # print("loss depth is ", loss_depth)
+
+                        # print("keypoint_distances ", keypoint_distances)
+                        # print("depth_pred_keypoints ", depth_pred_keypoints)
+                        # print("keypoint_instances", keypoint_instances)
+
 
 
 
@@ -373,7 +402,7 @@ def run():
                             new_frame_subsampled=new_frame
                             #render new 
                             # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            rgb_pred=model(frame, mesh_full, depth_min, depth_max)
+                            rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 

@@ -3365,7 +3365,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3)
         points3D = camera_center + depth_per_pixel*ray_dirs
-        show_3D_points(points3D, "points_3d_init")
+        # show_3D_points(points3D, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -3404,9 +3404,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
             if iter_nr==self.nr_iters-1:
                 show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
 
+        #get the depth at this final 3d position
+        depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
 
-        return new_world_coords
+        return new_world_coords, depth
 
 
 
@@ -4238,7 +4240,7 @@ class Net3_SRN(torch.nn.Module):
       
     def forward(self, frame, mesh, depth_min, depth_max):
 
-        point3d = self.ray_marcher(frame, depth_min)
+        point3d, depth = self.ray_marcher(frame, depth_min)
 
 
         ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -4250,7 +4252,10 @@ class Net3_SRN(torch.nn.Module):
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)
         rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
 
-        return rgb_pred
+        depth=depth.view(frame.height, frame.width,1)
+        depth=depth.permute(2,0,1).unsqueeze(0)
+
+        return rgb_pred, depth
         
 
 

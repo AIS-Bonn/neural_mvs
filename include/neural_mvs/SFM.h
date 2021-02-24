@@ -26,7 +26,7 @@ public:
     ~SFM();
 
     // std::shared_ptr<easy_pbr::Mesh> compute_3D_keypoints_from_frames(const std::vector<easy_pbr::Frame>& frames);
-    std::shared_ptr<easy_pbr::Mesh> compute_3D_keypoints_from_frames(const easy_pbr::Frame& frame_query, const easy_pbr::Frame& frame_target);
+    std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> compute_3D_keypoints_from_frames(const easy_pbr::Frame& frame_query, const easy_pbr::Frame& frame_target);
 
    
 
