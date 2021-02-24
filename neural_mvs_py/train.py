@@ -279,17 +279,27 @@ def run():
                     with torch.set_grad_enabled(is_training):
                         
                         TIME_START("forward")
-                        model(frame, mesh_full, depth_min, depth_max)
+                        rgb_pred=model(frame, mesh_full, depth_min, depth_max)
                         TIME_END("forward")
+
+                        #view pred
+                        rgb_pred_mat=tensor2mat(rgb_pred)
+                        Gui.show(rgb_pred_mat,"rgb_pred")
+
+                        #loss
+                        loss=0
+                        rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
+                        # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
+                        loss+=rgb_loss
 
                       
                       
-                        # #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
-                        # if first_time:
-                        #     first_time=False
-                        #     # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                        #     optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                        #     optimizer.zero_grad()
+                        #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
+                        if first_time:
+                            first_time=False
+                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer.zero_grad()
 
                         # cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
@@ -365,23 +375,23 @@ def run():
 
 
 
-                    # #backward
-                    # if is_training:
-                    #     if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                    #         scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                    #backward
+                    if is_training:
+                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                        optimizer.zero_grad()
+                        cb.before_backward_pass()
+                        TIME_START("backward")
+                        loss.backward()
+                        TIME_END("backward")
+                        cb.after_backward_pass()
+                        optimizer.step()
+
+                    # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
+                    #     optimizer.step() # DO it only once after getting gradients for all images
                     #     optimizer.zero_grad()
-                    #     cb.before_backward_pass()
-                    #     TIME_START("backward")
-                    #     loss.backward()
-                    #     TIME_END("backward")
-                    #     cb.after_backward_pass()
-                    #     optimizer.step()
 
-                    # # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
-                    # #     optimizer.step() # DO it only once after getting gradients for all images
-                    # #     optimizer.zero_grad()
-
-                    # TIME_END("all")
+                    TIME_END("all")
 
 
                     # #novel views after computing gradients and so on

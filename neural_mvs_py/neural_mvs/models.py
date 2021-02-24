@@ -3397,7 +3397,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
 
 
-
+        return new_world_coords
 
 
 
@@ -4209,6 +4209,7 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         self.ray_marcher=DifferentiableRayMarcher()
+        self.nerf = NERF_original(in_channels=3, out_channels=4)
 
 
         #activ
@@ -4228,7 +4229,22 @@ class Net3_SRN(torch.nn.Module):
       
     def forward(self, frame, mesh, depth_min, depth_max):
 
-        self.ray_marcher(frame, depth_min)
+        point3d = self.ray_marcher(frame, depth_min)
+
+
+        ray_dirs_mesh=frame.pixels2dirs_mesh()
+        ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+
+        radiance_field_flattened = self.nerf(point3d, ray_dirs, point_features=None, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+
+        rgb_pred=radiance_field_flattened[:, 0:3]
+        rgb_pred=rgb_pred.view(frame.height, frame.width,3)
+        rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+
+        return rgb_pred
+        
+
+
 
 class PCA(Function):
     # @staticmethod
