@@ -3321,7 +3321,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.lstm_hidden_size = 64
         # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
-        self.feature_computer= VolumetricFeature(in_channels=3, out_channels=32, nr_layers=4, hidden_size=32, use_dirs=False) 
+        self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
+        self.feature_computer= VolumetricFeature(in_channels=3, out_channels=32, nr_layers=2, hidden_size=32, use_dirs=False) 
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -3329,12 +3330,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
 
         #params 
+        self.nr_iters=5
 
       
     def forward(self, frame, depth_min):
 
         depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        depth_per_pixel.fill_(depth_min)
+        depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
 
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -3355,7 +3357,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3)
         points3D = camera_center + depth_per_pixel*ray_dirs
-        show_3D_points(points3D, "points_3d")
+        # show_3D_points(points3D, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -3363,15 +3365,36 @@ class DifferentiableRayMarcher(torch.nn.Module):
         depths = [initial_depth]
         states = [None]
 
+
+        for iter_nr in range(self.nr_iters):
+            # print("iter is ", iter_nr)
         
-        #compute the features at this position 
-        feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            #compute the features at this position 
+            # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
 
-        #create the lstm if not created 
-        # if self.lstm==None:
-            # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
+            #create the lstm if not created 
+            if self.lstm==None:
+                self.lstm = torch.nn.LSTMCell(input_size=feat.shape[1], hidden_size=self.lstm_hidden_size ).to("cuda")
+                self.lstm.apply(init_recurrent_weights)
+                lstm_forget_gate_init(self.lstm)
 
-        #run through the lstm
+            #run through the lstm
+            state = self.lstm(feat, states[-1])
+            # if state[0].requires_grad:
+                # state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+
+            signed_distance= self.out_layer(state[0])
+            # print("ray_dirs is ", ray_dirs.shape)
+            # print("signed distance is ", signed_distance.shape)
+
+            new_world_coords = world_coords[-1] + ray_dirs * signed_distance
+            states.append(state)
+            world_coords.append(new_world_coords)
+
+            if iter_nr==self.nr_iters-1:
+                show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
+
 
 
 

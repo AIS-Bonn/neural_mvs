@@ -28,6 +28,28 @@ TIME_END = lambda name: profiler_end(name)
 # neural_mvs=NeuralMVS.create()
 # print("created neural mvs")
 
+#inits from SRN paper  https://github.com/vsitzmann/scene-representation-networks/blob/8165b500816bb1699f5a34782455f2c4b6d4f35a/custom_layers.py
+def init_recurrent_weights(self):
+    for m in self.modules():
+        if type(m) in [torch.nn.GRU, torch.nn.LSTM, torch.nn.RNN]:
+            for name, param in m.named_parameters():
+                if 'weight_ih' in name:
+                    torch.nn.init.kaiming_normal_(param.data)
+                elif 'weight_hh' in name:
+                    torch.nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    param.data.fill_(0)
+
+def lstm_forget_gate_init(lstm_layer):
+    for name, parameter in lstm_layer.named_parameters():
+        if not "bias" in name: continue
+        n = parameter.size(0)
+        start, end = n // 4, n // 2
+        parameter.data[start:end].fill_(1.)
+
+
+
+
 def show_3D_points(points_3d_tensor, name):
     mesh=Mesh()
     mesh.V=points_3d_tensor.detach().double().reshape((-1, 3)).cpu().numpy()
