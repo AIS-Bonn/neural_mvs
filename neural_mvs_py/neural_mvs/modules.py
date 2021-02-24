@@ -624,7 +624,6 @@ class BlockNerf(MetaModule):
 
         x = self.conv(x, params=get_subdict(params, 'conv') )
      
-
         if self.activ is not None:
             x=self.activ(x)
         

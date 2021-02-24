@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_9_dirs"
+    experiment_name="s_19"
 
     use_ray_compression=False
 
@@ -260,6 +260,7 @@ def run():
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
+                    model.train(phase.grad)
                     frame=phase.loader.get_random_frame() 
                     # frame=phase.loader.get_frame_at_idx(0) 
                     # pass
@@ -268,8 +269,8 @@ def run():
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                     # rgb_gt=rgb_gt*mask_tensor
                     # rgb_gt=rgb_gt+0.1
-                    rgb_mat=tensor2mat(rgb_gt)
-                    Gui.show(rgb_mat,"rgb_gt")
+                    # rgb_mat=tensor2mat(rgb_gt)
+                    # Gui.show(rgb_mat,"rgb_gt")
 
 
 
@@ -278,19 +279,44 @@ def run():
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
                         
-                        TIME_START("forward")
                         rgb_pred=model(frame, mesh_full, depth_min, depth_max)
-                        TIME_END("forward")
 
                         #view pred
                         rgb_pred_mat=tensor2mat(rgb_pred)
                         Gui.show(rgb_pred_mat,"rgb_pred")
 
                         #loss
+                        rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
                         loss+=rgb_loss
+
+
+
+                        # #attempt 2 multiscale loss
+                        # loss=0
+                        # rgb_loss_scale_fine=None
+                        # for i in range(1):
+                        #     if i!=0:
+                        #         frame=frame.subsample(4)
+
+                        #     rgb_pred=model(frame, mesh_full, depth_min, depth_max)
+
+                        #     #view pred
+                        #     rgb_pred_mat=tensor2mat(rgb_pred)
+                        #     Gui.show(rgb_pred_mat,"rgb_pred_"+str(i) )
+
+                        #     #loss
+                        #     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
+                        #     # print("rgb_gt is ", rgb_gt.shape)
+                        #     # print("rgb_pred is ", rgb_pred.shape)
+                        #     rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
+                        #     # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
+                        #     loss+=rgb_loss
+
+                        #     if i==0:
+                        #         rgb_loss_scale_fine=rgb_loss
 
                       
                       
@@ -306,10 +332,61 @@ def run():
 
 
 
+                    #backward
+                    if is_training:
+                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                        optimizer.zero_grad()
+                        cb.before_backward_pass()
+                        TIME_START("backward")
+                        loss.backward()
+                        TIME_END("backward")
+                        cb.after_backward_pass()
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
+                        optimizer.step()
+
+                    # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
+                    #     optimizer.step() # DO it only once after getting gradients for all images
+                    #     optimizer.zero_grad()
+
+                    TIME_END("all")
+
+
+                    #novel view
+                    #show a novel view 
+                    if phase.iter_nr%show_every==0:
+                        with torch.set_grad_enabled(False):
+                            model.eval()
+                            #create novel view
+                            if new_frame==None:
+                                new_frame=Frame()
+                                frame_to_start=loader_train.get_frame_at_idx(0)
+                                new_frame.tf_cam_world=frame_to_start.tf_cam_world
+                                new_frame.K=frame_to_start.K.copy()
+                                new_frame.height=frame_to_start.height
+                                new_frame.width=frame_to_start.width
+                            #rotate a bit 
+                            model_matrix = new_frame.tf_cam_world.inverse()
+                            model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
+                            new_frame.tf_cam_world = model_matrix.inverse()
+                            # new_frame_subsampled=new_frame.subsample(4)
+                            new_frame_subsampled=new_frame
+                            #render new 
+                            # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
+                            rgb_pred=model(frame, mesh_full, depth_min, depth_max)
+                            rgb_pred_mat=tensor2mat(rgb_pred)
+                            Gui.show(rgb_pred_mat, "rgb_novel")
+                            #show new frustum 
+                            frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.2)
+                            frustum_mesh.m_vis.m_line_width=1
+                            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
+                            Scene.show(frustum_mesh, "frustum_novel" )
 
 
 
 
+
+                    ###################### NERF PART 
 
                     # #forward
                     # with torch.set_grad_enabled(is_training):
@@ -375,24 +452,24 @@ def run():
 
 
 
-                    #backward
-                    if is_training:
-                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
-                        optimizer.zero_grad()
-                        cb.before_backward_pass()
-                        TIME_START("backward")
-                        loss.backward()
-                        TIME_END("backward")
-                        cb.after_backward_pass()
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
-                        optimizer.step()
-
-                    # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
-                    #     optimizer.step() # DO it only once after getting gradients for all images
+                    # #backward
+                    # if is_training:
+                    #     if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                    #         scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                     #     optimizer.zero_grad()
+                    #     cb.before_backward_pass()
+                    #     TIME_START("backward")
+                    #     loss.backward()
+                    #     TIME_END("backward")
+                    #     cb.after_backward_pass()
+                    #     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
+                    #     optimizer.step()
 
-                    TIME_END("all")
+                    # # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
+                    # #     optimizer.step() # DO it only once after getting gradients for all images
+                    # #     optimizer.zero_grad()
+
+                    # TIME_END("all")
 
 
                     # #novel views after computing gradients and so on
