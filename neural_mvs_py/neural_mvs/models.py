@@ -2883,11 +2883,11 @@ class NERF_original(MetaModule):
         self.first_time=True
 
         self.nr_layers=4
-        # self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
         # self.out_channels_per_layer=[256, 256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[512, 512, 512, 512, 512, 512]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
-        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
         # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
         self.use_ray_dirs=use_ray_dirs
