@@ -8,6 +8,7 @@ import numpy as np
 import time
 import math
 from neuralmvs import NeuralMVS
+from easypbr import * 
 
 #Just to have something close to the macros we have in c++
 def profiler_start(name):
@@ -26,6 +27,12 @@ TIME_END = lambda name: profiler_end(name)
 # print("creating neural mbs")
 # neural_mvs=NeuralMVS.create()
 # print("created neural mvs")
+
+def show_3D_points(points_3d_tensor, name):
+    mesh=Mesh()
+    mesh.V=points_3d_tensor.detach().double().reshape((-1, 3)).cpu().numpy()
+    mesh.m_vis.m_show_points=True
+    Scene.show(mesh, name)
 
 
 class SplatTexture(Function):

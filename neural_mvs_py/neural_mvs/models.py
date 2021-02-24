@@ -2887,8 +2887,8 @@ class NERF_original(MetaModule):
         # self.out_channels_per_layer=[256, 256, 256, 256, 256, 256]
         # self.out_channels_per_layer=[512, 512, 512, 512, 512, 512]
         # self.out_channels_per_layer=[96, 96, 96, 96, 96, 96]
-        # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
-        self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
+        self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
      
 
@@ -3056,6 +3056,87 @@ class NERF_original(MetaModule):
 
        
         return  x
+
+#Compute a feature vector given a 3D position. Similar to the function phi from scene representation network
+class VolumetricFeature(MetaModule):
+    def __init__(self, in_channels, out_channels, nr_layers, hidden_size, use_dirs):
+        super(VolumetricFeature, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=nr_layers
+        self.hidden_size=hidden_size
+        self.use_dirs=use_dirs
+        
+
+        cur_nr_channels=in_channels
+        self.net=torch.nn.ModuleList([])
+        
+        # gaussian encoding
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=1)
+        cur_nr_channels=256+in_channels
+        #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
+        # num_encodings=8
+        # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels = in_channels + 3*num_encodings*2
+   
+        #now we concatenate the positions and directions and pass them through the initial conv
+        self.first_conv=BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=hidden_size,  bias=True).cuda()
+        cur_nr_channels= hidden_size
+
+      
+
+        for i in range(self.nr_layers):
+            self.net.append( MetaSequential( BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=hidden_size, bias=True).cuda()
+            ) )
+           
+        if use_dirs:
+            num_encoding_directions=4
+            self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+            dirs_channels=3+ 3*num_encoding_directions*2
+            cur_nr_channels+=dirs_channels
+
+        #get the features until now, concat the directions if needed and computes the final feature 
+        self.pred_feat=MetaSequential( 
+            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=hidden_size,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=hidden_size, out_channels=out_channels,  bias=True ).cuda()    
+            )
+
+
+
+    def forward(self, x, ray_directions, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        if len(x.shape)!=2:
+            print("Nerf_original forward: x should be a Nx3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+            exit(1)
+
+
+        #from 71,107,30,3  to Nx3
+        x=x.view(-1,3)
+        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+
+        x=self.first_conv(x)
+
+        for i in range(len(self.net)):
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+            
+
+        #if we use direction, we also concat those 
+        if self.use_dirs:
+            #also make the direcitons into image 
+            ray_directions=ray_directions.view(-1,3)
+            ray_directions=F.normalize(ray_directions, p=2, dim=1)
+            ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+            x=torch.cat([x, ray_directions])
+
+        x=self.pred_feat(x)
+
+        return  x
+
+
 
 
 
@@ -3229,6 +3310,73 @@ class DecoderTo2D(torch.nn.Module):
         # print("final x after decoding is ", x.shape)
 
         return x
+
+
+#inspired from the ray marcher from https://github.com/vsitzmann/scene-representation-networks/blob/master/custom_layers.py
+class DifferentiableRayMarcher(torch.nn.Module):
+    def __init__(self):
+        super(DifferentiableRayMarcher, self).__init__()
+
+        #model 
+        self.lstm_hidden_size = 64
+        # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
+        self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
+        self.feature_computer= VolumetricFeature(in_channels=3, out_channels=32, nr_layers=4, hidden_size=32, use_dirs=False) 
+
+        #activ
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
+
+        #params 
+
+      
+    def forward(self, frame, depth_min):
+
+        depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+        depth_per_pixel.fill_(depth_min)
+
+        #Ray direction in world coordinates
+        ray_dirs_mesh=frame.pixels2dirs_mesh()
+        ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+
+        #compute points_2d 
+        points2d_screen_mesh=frame.pixels2coords()
+        points2d_screen=torch.from_numpy(points2d_screen_mesh.V.copy()).to("cuda").float()
+
+        #unproject to 3D
+        # K_inv= torch.from_numpy(  np.linalg.inv(frame.K.copy())    ).to("cuda")
+        # tf_world_cam =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
+        # point_3D_camera_coord= K_inv * points2d_screen; 
+        # point_3D_camera_coord= point_3D_camera_coord*depth_per_pixel
+        # Eigen::Vector3d point_3D_world_coord=tf_world_cam*point_3D_camera_coord;
+
+        #attempt 2 unproject to 3D 
+        camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
+        camera_center=camera_center.view(1,3)
+        points3D = camera_center + depth_per_pixel*ray_dirs
+        show_3D_points(points3D, "points_3d")
+
+        init_world_coords=points3D
+        initial_depth=depth_per_pixel
+        world_coords = [init_world_coords]
+        depths = [initial_depth]
+        states = [None]
+
+        
+        #compute the features at this position 
+        feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+
+        #create the lstm if not created 
+        # if self.lstm==None:
+            # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
+
+        #run through the lstm
+
+
+
+
+
 
 
 
@@ -4028,6 +4176,36 @@ class Net2(torch.nn.Module):
 
 
         return x
+
+#Instead of doing ray marching like in NERF we use a LSTM to update the ray step similar to Scene representation network
+class Net3_SRN(torch.nn.Module):
+    def __init__(self, model_params):
+        super(Net3_SRN, self).__init__()
+
+        self.first_time=True
+
+        #models
+        self.ray_marcher=DifferentiableRayMarcher()
+
+
+        #activ
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
+
+        #params 
+
+
+        
+        self.slice=SliceLatticeModule()
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
+
+
+      
+    def forward(self, frame, mesh, depth_min, depth_max):
+
+        self.ray_marcher(frame, depth_min)
 
 class PCA(Function):
     # @staticmethod

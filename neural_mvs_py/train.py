@@ -157,7 +157,8 @@ def run():
     # model=SirenNetwork(in_channels=2, out_channels=3).to("cuda")
     # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
     # model=DepthPredictor(model_params).to("cuda")
-    model=Net2(model_params).to("cuda")
+    # model=Net2(model_params).to("cuda")
+    model=Net3_SRN(model_params).to("cuda")
     # model.train()
     # model.half()
 
@@ -238,7 +239,7 @@ def run():
     depth_min=2
     depth_max=5
     #depth min max for home photos
-    depth_min=4.3
+    depth_min=3.5
     depth_max=11.5
 
     new_frame=None
@@ -259,147 +260,173 @@ def run():
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
-                    frame=phase.loader.get_random_frame() 
-                    # frame=phase.loader.get_frame_at_idx(0) 
+                    # frame=phase.loader.get_random_frame() 
+                    frame=phase.loader.get_frame_at_idx(0) 
                     # pass
                     TIME_START("all")
-                    mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+                    # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
-                    rgb_gt=rgb_gt*mask_tensor
-                    rgb_gt=rgb_gt+0.1
+                    # rgb_gt=rgb_gt*mask_tensor
+                    # rgb_gt=rgb_gt+0.1
                     rgb_mat=tensor2mat(rgb_gt)
                     Gui.show(rgb_mat,"rgb_gt")
 
 
 
 
-                    #forward
+
+                    #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
-
-                        #slowly upsample the frames
-                        # frame_subsampled=frame.subsample(1)
-                        # print("frame oriignal has height width is ", frame.height, " ", frame.width)
-                        # print("frame_subsampled has height width is ", frame_subsampled.height, " ", frame_subsampled.width)
-
-                        #selects randomly some pixels on which we train
-                        pixels_indices=None
-                        chunck_size= min(100*60, frame.height*frame.width)
-                        # chunck_size= frame.height*frame.width
-                        weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
-                        #weight depending on gradient
-                        # grad_x=mat2tensor(frame.grad_x_32f, False)
-                        # grad_y=mat2tensor(frame.grad_y_32f, False)
-                        # grad=torch.cat([grad_x,grad_y],1).to("cuda")
-                        # grad_norm=grad.norm(dim=1, keepdim=True)
-                        # weights=grad_norm.view(-1)
-                        # weights=weights+0.001 #rto avoid a probability of zero of getting a certain pixel
-
-                        pixels_indices=torch.multinomial(weights, chunck_size, replacement=False)
-                        pixels_indices=pixels_indices.long()
-
-                        #during testing, we run the model multiple times with
-
+                        
                         TIME_START("forward")
-                        use_chunking=True
-                        rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max, pixels_indices)
+                        model(frame, mesh_full, depth_min, depth_max)
                         TIME_END("forward")
 
-                        #VIS 
-                        # rgb_pred_mat=tensor2mat(rgb_pred)
-                        # Gui.show(rgb_pred_mat, "rgb_pred")
-           
-                        rgb_gt=rgb_gt.permute(0,2,3,1) #N,C,H,W to N,H,W,C
-                        rgb_gt=rgb_gt.view(-1,3)
-                        rgb_gt=torch.index_select(rgb_gt, 0, pixels_indices)
+                      
+                      
+                        # #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
+                        # if first_time:
+                        #     first_time=False
+                        #     # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                        #     optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                        #     optimizer.zero_grad()
 
-                        loss=0
-                        rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
-                        loss+=rgb_loss
+                        # cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
+
+
+
+
+
+
+
+
+                    # #forward
+                    # with torch.set_grad_enabled(is_training):
+
+                    #     #slowly upsample the frames
+                    #     # frame_subsampled=frame.subsample(1)
+                    #     # print("frame oriignal has height width is ", frame.height, " ", frame.width)
+                    #     # print("frame_subsampled has height width is ", frame_subsampled.height, " ", frame_subsampled.width)
+
+                    #     #selects randomly some pixels on which we train
+                    #     pixels_indices=None
+                    #     chunck_size= min(30*30, frame.height*frame.width)
+                    #     weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+                    #     #weight depending on gradient
+                    #     # grad_x=mat2tensor(frame.grad_x_32f, False)
+                    #     # grad_y=mat2tensor(frame.grad_y_32f, False)
+                    #     # grad=torch.cat([grad_x,grad_y],1).to("cuda")
+                    #     # grad_norm=grad.norm(dim=1, keepdim=True)
+                    #     # weights=grad_norm.view(-1)
+                    #     # weights=weights+0.001 #rto avoid a probability of zero of getting a certain pixel
+
+                    #     pixels_indices=torch.multinomial(weights, chunck_size, replacement=False)
+                    #     pixels_indices=pixels_indices.long()
+
+                    #     #during testing, we run the model multiple times with
+
+                    #     TIME_START("forward")
+                    #     use_chunking=True
+                    #     rgb_pred, depth_map, acc_map, new_loss =model(frame, mesh_full, depth_min, depth_max, pixels_indices)
+                    #     TIME_END("forward")
+
+                    #     #VIS 
+                    #     # rgb_pred_mat=tensor2mat(rgb_pred)
+                    #     # Gui.show(rgb_pred_mat, "rgb_pred")
+           
+                    #     rgb_gt=rgb_gt.permute(0,2,3,1) #N,C,H,W to N,H,W,C
+                    #     rgb_gt=rgb_gt.view(-1,3)
+                    #     rgb_gt=torch.index_select(rgb_gt, 0, pixels_indices)
+
+                    #     loss=0
+                    #     rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
+                    #     # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
+                    #     loss+=rgb_loss
                      
                       
-                        #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
-                        if first_time:
-                            first_time=False
-                            # model.half()
-                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
-                            # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
-                            # lambda1 = lambda epoch: 0.9999 ** phase.iter_nr
-                            # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1])
-                            optimizer.zero_grad()
+                    #     #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
+                    #     if first_time:
+                    #         first_time=False
+                    #         # model.half()
+                    #         # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                    #         optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                    #         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True, factor=0.1)
+                    #         # scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                    #         # lambda1 = lambda epoch: 0.9999 ** phase.iter_nr
+                    #         # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1])
+                    #         optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                        # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the prediction 
+                    #     cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                    #     # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the prediction 
 
                     
                   
 
 
 
-                    #backward
-                    if is_training:
-                        if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                            scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
-                        optimizer.zero_grad()
-                        cb.before_backward_pass()
-                        TIME_START("backward")
-                        loss.backward()
-                        TIME_END("backward")
-                        cb.after_backward_pass()
-                        optimizer.step()
-
-                    # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
-                    #     optimizer.step() # DO it only once after getting gradients for all images
+                    # #backward
+                    # if is_training:
+                    #     if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                    #         scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                     #     optimizer.zero_grad()
+                    #     cb.before_backward_pass()
+                    #     TIME_START("backward")
+                    #     loss.backward()
+                    #     TIME_END("backward")
+                    #     cb.after_backward_pass()
+                    #     optimizer.step()
 
-                    TIME_END("all")
+                    # # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
+                    # #     optimizer.step() # DO it only once after getting gradients for all images
+                    # #     optimizer.zero_grad()
+
+                    # TIME_END("all")
 
 
-                    #novel views after computing gradients and so on
-                    #show a novel view 
-                    if phase.iter_nr%show_every==0:
-                        with torch.set_grad_enabled(is_training):
-                            model.eval()
-                            #create novel view
-                            if new_frame==None:
-                                new_frame=Frame()
-                                frame_to_start=loader_train.get_frame_at_idx(0)
-                                new_frame.tf_cam_world=frame_to_start.tf_cam_world
-                                new_frame.K=frame_to_start.K.copy()
-                                new_frame.height=frame_to_start.height
-                                new_frame.width=frame_to_start.width
-                            #rotate a bit 
-                            model_matrix = new_frame.tf_cam_world.inverse()
-                            model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
-                            new_frame.tf_cam_world = model_matrix.inverse()
-                            # new_frame_subsampled=new_frame.subsample(4)
-                            new_frame_subsampled=new_frame
-                            #render new 
-                            # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            nr_chuncks=80
-                            pixels_indices = torch.arange( new_frame_subsampled.height*new_frame_subsampled.width ).to("cuda")
-                            pixels_indices=pixels_indices.long()
-                            pixel_indices_chunks=torch.chunk(pixels_indices, nr_chuncks)
-                            rgb_pred_list=[]
-                            chunks_rendered=0
-                            for pixel_indices_chunk in pixel_indices_chunks:
-                                # print("rendering chunk", chunks_rendered)
-                                rgb_pred, depth_map, acc_map, new_loss =model(new_frame_subsampled, mesh_full, depth_min, depth_max, pixel_indices_chunk )
-                                # print("finished rendering chunk", chunks_rendered)
-                                rgb_pred_list.append(rgb_pred.detach())
-                                chunks_rendered+=1
-                            rgb_pred=torch.cat(rgb_pred_list,0)
-                            rgb_pred=rgb_pred.view(new_frame_subsampled.height, new_frame_subsampled.width, 3)
-                            rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0).contiguous()
-                            rgb_pred_mat=tensor2mat(rgb_pred)
-                            Gui.show(rgb_pred_mat, "rgb_novel")
-                            #show new frustum 
-                            frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.2)
-                            frustum_mesh.m_vis.m_line_width=1
-                            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
-                            Scene.show(frustum_mesh, "frustum_novel" )
+                    # #novel views after computing gradients and so on
+                    # #show a novel view 
+                    # if phase.iter_nr%show_every==0:
+                    #     with torch.set_grad_enabled(is_training):
+                    #         model.eval()
+                    #         #create novel view
+                    #         if new_frame==None:
+                    #             new_frame=Frame()
+                    #             frame_to_start=loader_train.get_frame_at_idx(0)
+                    #             new_frame.tf_cam_world=frame_to_start.tf_cam_world
+                    #             new_frame.K=frame_to_start.K.copy()
+                    #             new_frame.height=frame_to_start.height
+                    #             new_frame.width=frame_to_start.width
+                    #         #rotate a bit 
+                    #         model_matrix = new_frame.tf_cam_world.inverse()
+                    #         model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
+                    #         new_frame.tf_cam_world = model_matrix.inverse()
+                    #         # new_frame_subsampled=new_frame.subsample(4)
+                    #         new_frame_subsampled=new_frame
+                    #         #render new 
+                    #         # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
+                    #         nr_chuncks=80
+                    #         pixels_indices = torch.arange( new_frame_subsampled.height*new_frame_subsampled.width ).to("cuda")
+                    #         pixels_indices=pixels_indices.long()
+                    #         pixel_indices_chunks=torch.chunk(pixels_indices, nr_chuncks)
+                    #         rgb_pred_list=[]
+                    #         chunks_rendered=0
+                    #         for pixel_indices_chunk in pixel_indices_chunks:
+                    #             # print("rendering chunk", chunks_rendered)
+                    #             rgb_pred, depth_map, acc_map, new_loss =model(new_frame_subsampled, mesh_full, depth_min, depth_max, pixel_indices_chunk )
+                    #             # print("finished rendering chunk", chunks_rendered)
+                    #             rgb_pred_list.append(rgb_pred.detach())
+                    #             chunks_rendered+=1
+                    #         rgb_pred=torch.cat(rgb_pred_list,0)
+                    #         rgb_pred=rgb_pred.view(new_frame_subsampled.height, new_frame_subsampled.width, 3)
+                    #         rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0).contiguous()
+                    #         rgb_pred_mat=tensor2mat(rgb_pred)
+                    #         Gui.show(rgb_pred_mat, "rgb_novel")
+                    #         #show new frustum 
+                    #         frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.2)
+                    #         frustum_mesh.m_vis.m_line_width=1
+                    #         frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
+                    #         Scene.show(frustum_mesh, "frustum_novel" )
 
 
 
