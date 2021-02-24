@@ -2877,7 +2877,7 @@ class SirenNetworkDirectPE_Simple(MetaModule):
 
 
 class NERF_original(MetaModule):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, use_ray_dirs):
         super(NERF_original, self).__init__()
 
         self.first_time=True
@@ -2890,6 +2890,7 @@ class NERF_original(MetaModule):
         self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
         # self.out_channels_per_layer=[64, 64, 64, 64, 64, 64]
         # self.out_channels_per_layer=[32, 32, 32, 32, 32, 32]
+        self.use_ray_dirs=use_ray_dirs
      
 
         cur_nr_channels=in_channels
@@ -2941,13 +2942,14 @@ class NERF_original(MetaModule):
             # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
             BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, bias=True).cuda(),
             )
-        num_encoding_directions=4
-        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
-        dirs_channels=3+ 3*num_encoding_directions*2
-        # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
-        # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
-        # dirs_channels=64
-        cur_nr_channels=cur_nr_channels+dirs_channels
+        if use_ray_dirs:
+            num_encoding_directions=4
+            self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+            dirs_channels=3+ 3*num_encoding_directions*2
+            # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+            # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
+            # dirs_channels=64
+            cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
             BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
@@ -2977,17 +2979,7 @@ class NERF_original(MetaModule):
         # x=x.view(height, width, nr_points, -1 )
         # x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
 
-        #also make the direcitons into image 
-        ray_directions=ray_directions.view(-1,3)
-        ray_directions=F.normalize(ray_directions, p=2, dim=1)
-        ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
-        # ray_directions=ray_directions.view(height, width, -1)
-        # ray_directions=ray_directions.permute(2,0,1).unsqueeze(0) #1,C,HW
-        # ray_directions=ray_directions.repeat(nr_points,1,1,1) #repeat as many times as samples that you have in a ray
-        dim_ray_dir=ray_directions.shape[1]
-        ray_directions=ray_directions.repeat(1, nr_points_per_ray) #repeat as many times as samples that you have in a ray
-        ray_directions=ray_directions.view(-1,dim_ray_dir)
-
+      
 
 
 
@@ -3037,7 +3029,21 @@ class NERF_original(MetaModule):
         feat=torch.relu( sigma_and_feat[:,1:sigma_and_feat.shape[1] ] )
         # print("sigma and feat is ", sigma_and_feat.shape)
         # print(" feat is ", feat.shape)
-        feat_and_dirs=torch.cat([feat, ray_directions], 1)
+
+
+        feat_and_dirs=feat
+        if self.use_ray_dirs:
+            #also make the direcitons into image 
+            ray_directions=ray_directions.view(-1,3)
+            ray_directions=F.normalize(ray_directions, p=2, dim=1)
+            ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+            # ray_directions=ray_directions.view(height, width, -1)
+            # ray_directions=ray_directions.permute(2,0,1).unsqueeze(0) #1,C,HW
+            # ray_directions=ray_directions.repeat(nr_points,1,1,1) #repeat as many times as samples that you have in a ray
+            dim_ray_dir=ray_directions.shape[1]
+            ray_directions=ray_directions.repeat(1, nr_points_per_ray) #repeat as many times as samples that you have in a ray
+            ray_directions=ray_directions.view(-1,dim_ray_dir)
+            feat_and_dirs=torch.cat([feat, ray_directions], 1)
         #predict rgb
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
         rgb=torch.sigmoid(  self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') )  )
@@ -3330,13 +3336,15 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
 
         #params 
-        self.nr_iters=5
+        self.nr_iters=10
 
       
     def forward(self, frame, depth_min):
 
-        depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
+        # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+        # depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
+        # depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=0.05, std=5e-4).cuda()
+        depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=1e-1).cuda()
 
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -3357,7 +3365,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3)
         points3D = camera_center + depth_per_pixel*ray_dirs
-        # show_3D_points(points3D, "points_3d_init")
+        show_3D_points(points3D, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -3381,10 +3389,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             #run through the lstm
             state = self.lstm(feat, states[-1])
-            # if state[0].requires_grad:
-                # state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+            if state[0].requires_grad:
+                state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
+            signed_distance=torch.abs(signed_distance) #the distance only increases
             # print("ray_dirs is ", ray_dirs.shape)
             # print("signed distance is ", signed_distance.shape)
 
@@ -4209,7 +4218,7 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         self.ray_marcher=DifferentiableRayMarcher()
-        self.nerf = NERF_original(in_channels=3, out_channels=4)
+        self.nerf = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
 
 
         #activ

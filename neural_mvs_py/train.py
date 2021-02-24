@@ -119,7 +119,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_l2_5"
+    experiment_name="s_7_dirs"
 
     use_ray_compression=False
 
@@ -260,8 +260,8 @@ def run():
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
-                    # frame=phase.loader.get_random_frame() 
-                    frame=phase.loader.get_frame_at_idx(0) 
+                    frame=phase.loader.get_random_frame() 
+                    # frame=phase.loader.get_frame_at_idx(0) 
                     # pass
                     TIME_START("all")
                     # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
@@ -301,8 +301,8 @@ def run():
                             optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer.zero_grad()
 
-                        # cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                        cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
+                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
 
 
 
