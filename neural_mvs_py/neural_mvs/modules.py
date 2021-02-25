@@ -411,179 +411,242 @@ class BlockPAC(torch.nn.Module):
 
         return x
 
+# class BlockSiren(MetaModule):
+#     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ReLU(inplace=False), init=None, do_norm=False, is_first_layer=False ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
+#     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
+#         super(BlockSiren, self).__init__()
+#         self.out_channels=out_channels
+#         self.kernel_size=kernel_size
+#         self.stride=stride
+#         self.padding=padding
+#         self.dilation=dilation
+#         self.bias=bias 
+#         self.conv= None
+#         self.norm= None
+#         # self.relu=torch.nn.ReLU(inplace=False)
+#         self.activ=activ
+#         self.with_dropout=with_dropout
+#         self.transposed=transposed
+#         # self.cc=ConcatCoord()
+#         self.init=init
+#         self.do_norm=do_norm
+#         self.is_first_layer=is_first_layer
+
+#         if with_dropout:
+#             self.drop=torch.nn.Dropout2d(0.2)
+
+#         self.relu=torch.nn.ReLU()
+#         self.leaky_relu=torch.nn.LeakyReLU(negative_slope=0.1)
+
+#         # self.conv=None
+
+#         # self.norm = torch.nn.BatchNorm2d(in_channels, momentum=0.01).cuda()
+#         # self.norm = torch.nn.BatchNorm2d(self.out_channels, momentum=0.01).cuda()
+#         # self.norm = torch.nn.GroupNorm(1, in_channels).cuda()
+
+#         # self.sine_scale=torch.nn.Parameter(torch.Tensor(1)).cuda()
+#         # self.sine_scale=torch.nn.Parameter(torch.randn(3,6)).cuda()
+#         # torch.nn.init.constant_(self.sine_scale, 30)
+#         # with torch.set_grad_enabled(False):
+#             # self.sine_scale=30
+#         # self.sine_scale.requires_grad = True
+#         # self.wtf=torch.nn.Linear(10,10)
+#         # self.weight = torch.nn.Parameter(torch.Tensor(10, 10))
+#         # torch.nn.init.uniform_(self.sine_scale, -1, 1)
+#         # self.W = torch.nn.Parameter(torch.randn(3,4,5))
+#         # self.sine_scale = torch.nn.Parameter(torch.randn(1))
+#         # torch.nn.init.constant_(self.sine_scale, 30)
+#         # self.W.requires_grad = True
+
+#         # if not self.transposed:
+#         # self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+#         self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias ).cuda()  )
+#             # self.conv_alt= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=3, stride=self.stride, padding=1, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+#         # else:
+#             # self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+
+#         if self.init=="zero":
+#                 torch.nn.init.zeros_(self.conv[-1].weight) 
+#         if self.activ==torch.sin:
+#             with torch.no_grad():
+#                 # print(":we are usign sin")
+#                 # print("in channels is ", in_channels, " and conv weight size 1 is ", self.conv.weight.size(-1) )
+#                 # num_input = self.conv.weight.size(-1)
+#                 num_input = in_channels
+#                 # num_input = self.out_channels
+#                 # See supplement Sec. 1.5 for discussion of factor 30
+#                 if self.is_first_layer:
+#                     # self.conv[-1].weight.uniform_(-1 / num_input, 1 / num_input)
+#                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
+#                     # print("conv 1 is ", self.conv[-1].weight )
+#                 else:
+#                     # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/30 , np.sqrt(6 / num_input)/30 )
+#                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
+#                     # print("conv any other is ", self.conv[-1].weight )
+#                 # self.conv[-1].bias.zero_()
+#                 # print("siren weight init has mean and varaicne ", self.conv[-1].weight.mean(), " std", self.conv[-1].weight.std() )
+
+#         if self.activ==torch.relu or self.activ==None:
+#             print("initializing with kaiming uniform")
+#             torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
+#             if self.bias is not None:
+#                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+#                 bound = 1 / math.sqrt(fan_in)
+#                 torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+
+#         self.iter=1
+
+#     def forward(self, x, params=None):
+#         if params is None:
+#             params = OrderedDict(self.named_parameters())
+#         # else: 
+#             # print("params is not none")
+       
+
+#         in_channels=x.shape[1]
+
+#         x_input=x
+
+
+#         # print("BLOCK SIREN: before conv, x has mean " , x.mean().item() , " var ", x.var().item(), " std", x.std().item() )
+#         x = self.conv(x, params=get_subdict(params, 'conv') )
+#         # x_relu=self.conv_alt(x_input,  params=get_subdict(params, 'conv_alt') )
+#         # x_relu=self.leaky_relu(x_relu)
+
+#         # #page 3 at the top of principled initialization hypernetwork https://openreview.net/pdf?id=H1lma24tPB
+#         # var_xi=x_input.var()
+#         # w= get_subdict(params, 'conv')["0.weight"]
+#         # bias= get_subdict(params, 'conv')["0.bias"]
+#         # var_w=w.var()
+#         # var_b=bias.var()
+#         # # w= self.conv[-1].weight
+#         # dj=w.shape[1]
+#         # print("dj is ", dj)
+#         # print("w mean is", w.mean() )
+#         # print("w var is", w.var() )
+#         # print("b var is", bias.var() )
+#         # var_yi=x.var()
+#         # var_predicted= dj*var_w*var_xi + var_b
+#         # print("var predicted, ", var_predicted.item(), " var_yi ", var_yi.item())
+
+#         # print("exiting")
+#         # exit(1)
+
+
+#         if self.activ==torch.sin:
+#             # print("before 30x, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+#             if self.is_first_layer: 
+#                 # x_conv_scaled=30*x_conv
+#                 # x=x*(5+self.iter*0.01)
+#                 x=1*x
+#             # x_conv_scaled=x_conv
+#             else: 
+#                 x=x*1
+#             # print("before activ, x has mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+#             # mean=x.mean()
+#             # std=x.std()
+#             # x=(x-mean)/std
+#             x=self.activ(x)
+#             # x_relu=self.relu(x_conv)
+#             #each x will map into a certain period of the sine depending on their value, the network has to be aware of which sine it will activate
+#             # x_pos = x/30
+#             # x=torch.cat( [x_sine, x_relu],1)
+#             # x=torch.cat( [x_sine, x_pos],1)
+#             # x=x_sine+x_conv%(3.14)
+#             # x=x_sine + x_relu
+#             # x=x_sine
+#             # print("after activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+
+
+#             # # if self.is_first_layer:
+#             # #check the layer
+#             # print("x.shape ", x.shape)
+#             # nr_layers=x.shape[1]
+#             # for i in range(10):
+#             #     layer=x[:,i:i+1, :, :]
+#             #     layer=(layer+1.0)*0.5
+#             #     layer_mat=tensor2mat(layer)
+#             #     Gui.show(layer_mat, "layer_"+str(i))
+
+
+#         elif self.activ is not None:
+#             x=self.activ(x)
+#         # elif self.activ is None:
+#             # x=x_conv
+
+#         # if(self.activ==torch.sin):
+#             # print("after activ, x has mean and std " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+#         # print("x has shape ", x.shape)
+
+#         # x=x+x_relu
+#         # print("returning x with mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+
+#         return x
+
+
 class BlockSiren(MetaModule):
-    def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ReLU(inplace=False), init=None, do_norm=False, is_first_layer=False ):
+    def __init__(self, in_channels, out_channels, bias, activ=torch.nn.ReLU(inplace=False), is_first_layer=False ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
         super(BlockSiren, self).__init__()
-        self.out_channels=out_channels
-        self.kernel_size=kernel_size
-        self.stride=stride
-        self.padding=padding
-        self.dilation=dilation
         self.bias=bias 
-        self.conv= None
-        self.norm= None
-        # self.relu=torch.nn.ReLU(inplace=False)
         self.activ=activ
-        self.with_dropout=with_dropout
-        self.transposed=transposed
-        # self.cc=ConcatCoord()
-        self.init=init
-        self.do_norm=do_norm
         self.is_first_layer=is_first_layer
-
-        if with_dropout:
-            self.drop=torch.nn.Dropout2d(0.2)
+        
 
         self.relu=torch.nn.ReLU()
         self.leaky_relu=torch.nn.LeakyReLU(negative_slope=0.1)
 
-        # self.conv=None
+      
 
-        # self.norm = torch.nn.BatchNorm2d(in_channels, momentum=0.01).cuda()
-        # self.norm = torch.nn.BatchNorm2d(self.out_channels, momentum=0.01).cuda()
-        # self.norm = torch.nn.GroupNorm(1, in_channels).cuda()
+        self.conv= MetaSequential( MetaLinear(in_channels, out_channels, bias=self.bias ).cuda()  )
 
-        # self.sine_scale=torch.nn.Parameter(torch.Tensor(1)).cuda()
-        # self.sine_scale=torch.nn.Parameter(torch.randn(3,6)).cuda()
-        # torch.nn.init.constant_(self.sine_scale, 30)
-        # with torch.set_grad_enabled(False):
-            # self.sine_scale=30
-        # self.sine_scale.requires_grad = True
-        # self.wtf=torch.nn.Linear(10,10)
-        # self.weight = torch.nn.Parameter(torch.Tensor(10, 10))
-        # torch.nn.init.uniform_(self.sine_scale, -1, 1)
-        # self.W = torch.nn.Parameter(torch.randn(3,4,5))
-        # self.sine_scale = torch.nn.Parameter(torch.randn(1))
-        # torch.nn.init.constant_(self.sine_scale, 30)
-        # self.W.requires_grad = True
 
-        # if not self.transposed:
-        # self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
-        self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias ).cuda()  )
-            # self.conv_alt= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=3, stride=self.stride, padding=1, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
-        # else:
-            # self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
 
-        if self.init=="zero":
-                torch.nn.init.zeros_(self.conv[-1].weight) 
-        if self.activ==torch.sin:
+        if self.activ==torch.sin or self.activ==None:
             with torch.no_grad():
-                # print(":we are usign sin")
-                # print("in channels is ", in_channels, " and conv weight size 1 is ", self.conv.weight.size(-1) )
-                # num_input = self.conv.weight.size(-1)
                 num_input = in_channels
-                # num_input = self.out_channels
                 # See supplement Sec. 1.5 for discussion of factor 30
                 if self.is_first_layer:
-                    # self.conv[-1].weight.uniform_(-1 / num_input, 1 / num_input)
                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
-                    # print("conv 1 is ", self.conv[-1].weight )
                 else:
-                    # self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input)/30 , np.sqrt(6 / num_input)/30 )
                     self.conv[-1].weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
-                    # print("conv any other is ", self.conv[-1].weight )
-                # self.conv[-1].bias.zero_()
-                # print("siren weight init has mean and varaicne ", self.conv[-1].weight.mean(), " std", self.conv[-1].weight.std() )
 
-        if self.activ==torch.relu or self.activ==None:
-            print("initializing with kaiming uniform")
-            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
-            if self.bias is not None:
-                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
-                bound = 1 / math.sqrt(fan_in)
-                torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+        # if self.activ==torch.relu or self.activ==None:
+        #     print("initializing with kaiming uniform")
+        #     torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
+        #     if self.bias is not None:
+        #         fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+        #         bound = 1 / math.sqrt(fan_in)
+        #         torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
 
-        self.iter=1
 
     def forward(self, x, params=None):
         if params is None:
             params = OrderedDict(self.named_parameters())
-        # else: 
-            # print("params is not none")
-       
 
-        in_channels=x.shape[1]
-
-        x_input=x
-
-
-        # print("BLOCK SIREN: before conv, x has mean " , x.mean().item() , " var ", x.var().item(), " std", x.std().item() )
         x = self.conv(x, params=get_subdict(params, 'conv') )
-        # x_relu=self.conv_alt(x_input,  params=get_subdict(params, 'conv_alt') )
-        # x_relu=self.leaky_relu(x_relu)
-
-        # #page 3 at the top of principled initialization hypernetwork https://openreview.net/pdf?id=H1lma24tPB
-        # var_xi=x_input.var()
-        # w= get_subdict(params, 'conv')["0.weight"]
-        # bias= get_subdict(params, 'conv')["0.bias"]
-        # var_w=w.var()
-        # var_b=bias.var()
-        # # w= self.conv[-1].weight
-        # dj=w.shape[1]
-        # print("dj is ", dj)
-        # print("w mean is", w.mean() )
-        # print("w var is", w.var() )
-        # print("b var is", bias.var() )
-        # var_yi=x.var()
-        # var_predicted= dj*var_w*var_xi + var_b
-        # print("var predicted, ", var_predicted.item(), " var_yi ", var_yi.item())
-
-        # print("exiting")
-        # exit(1)
 
 
         if self.activ==torch.sin:
-            # print("before 30x, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
             if self.is_first_layer: 
-                # x_conv_scaled=30*x_conv
-                # x=x*(5+self.iter*0.01)
-                x=1*x
-            # x_conv_scaled=x_conv
+                x=90*x
             else: 
                 x=x*1
-            # print("before activ, x has mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
-            # mean=x.mean()
-            # std=x.std()
-            # x=(x-mean)/std
             x=self.activ(x)
-            # x_relu=self.relu(x_conv)
-            #each x will map into a certain period of the sine depending on their value, the network has to be aware of which sine it will activate
-            # x_pos = x/30
-            # x=torch.cat( [x_sine, x_relu],1)
-            # x=torch.cat( [x_sine, x_pos],1)
-            # x=x_sine+x_conv%(3.14)
-            # x=x_sine + x_relu
-            # x=x_sine
-            # print("after activ, x has mean and std " , x.mean().item() , " std ", x.std().item(), " min: ", x.min().item(),  "max ", x.max().item() )
-
-
-            # # if self.is_first_layer:
-            # #check the layer
-            # print("x.shape ", x.shape)
-            # nr_layers=x.shape[1]
-            # for i in range(10):
-            #     layer=x[:,i:i+1, :, :]
-            #     layer=(layer+1.0)*0.5
-            #     layer_mat=tensor2mat(layer)
-            #     Gui.show(layer_mat, "layer_"+str(i))
+ 
 
 
         elif self.activ is not None:
             x=self.activ(x)
-        # elif self.activ is None:
-            # x=x_conv
-
-        # if(self.activ==torch.sin):
-            # print("after activ, x has mean and std " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
-        # print("x has shape ", x.shape)
-
-        # x=x+x_relu
-        # print("returning x with mean " , x.mean().item() , " var ", x.var().item(), " min: ", x.min().item(),  "max ", x.max().item() )
+     
 
         return x
 

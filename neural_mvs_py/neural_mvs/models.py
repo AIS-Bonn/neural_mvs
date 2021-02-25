@@ -3063,6 +3063,151 @@ class NERF_original(MetaModule):
        
         return  x
 
+
+class SIREN_original(MetaModule):
+    def __init__(self, in_channels, out_channels, use_ray_dirs):
+        super(SIREN_original, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=4
+        self.out_channels_per_layer=[128, 128, 128, 128, 128, 128]
+        self.use_ray_dirs=use_ray_dirs
+     
+
+        cur_nr_channels=in_channels
+        self.net=torch.nn.ModuleList([])
+        
+
+        #now we concatenate the positions and directions and pass them through the initial conv
+        self.first_conv=BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0],  bias=True, is_first_layer=True).cuda()
+
+        cur_nr_channels= self.out_channels_per_layer[0]
+
+      
+
+        for i in range(self.nr_layers):
+            is_first_layer=i==0
+            self.net.append( MetaSequential( BlockNerf(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], bias=True).cuda(),
+            ) )
+           
+
+       
+        
+        self.pred_sigma_and_feat=MetaSequential(
+            # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
+            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, bias=True).cuda(),
+            )
+        if use_ray_dirs:
+            num_encoding_directions=4
+            self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+            dirs_channels=3+ 3*num_encoding_directions*2
+            # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
+            # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
+            # dirs_channels=64
+            cur_nr_channels=cur_nr_channels+dirs_channels
+        self.pred_rgb=MetaSequential( 
+            BlockNerf(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            )
+
+
+
+
+
+
+    def forward(self, x, ray_directions, point_features, nr_points_per_ray, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        if len(x.shape)!=2:
+            print("Nerf_original forward: x should be a Nx3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+            exit(1)
+
+        # height=x.shape[0]
+        # width=x.shape[1]
+        # nr_points=x.shape[2]
+
+        #from 71,107,30,3  to Nx3
+        x=x.view(-1,3)
+        # x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        # x=x.view(height, width, nr_points, -1 )
+        # x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
+
+      
+
+
+
+        #skip to x the point_features
+        if point_features!=None:
+            point_features=point_features.view(height, width, nr_points, -1 )
+            point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
+
+            #concat also encoded features
+            #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
+            feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
+            feat_reduced_channels=feat_reduce.shape[1]
+            feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
+            feat_enc=self.learned_pe_features(feat_reduce)
+            feat_enc=feat_enc.view(nr_points, height, width, -1)
+            feat_enc=feat_enc.permute(0,3,1,2).contiguous()
+            x=torch.cat([x,feat_enc],1)
+
+
+        # x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
+        x=self.first_conv(x)
+
+        for i in range(len(self.net)):
+            if point_features!=None:
+                x=x+point_features
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+
+
+
+        #predict the sigma and a feature vector for the rest of things
+        sigma_and_feat=self.pred_sigma_and_feat(x,  params=get_subdict(params, 'pred_sigma_and_feat'))
+        #get the feature vector for the rest of things and concat it with the direction
+        sigma_a=torch.relu( sigma_and_feat[:,0:1] ) #first channel is the sigma
+        feat=torch.sin( sigma_and_feat[:,1:sigma_and_feat.shape[1] ] )
+        # print("sigma and feat is ", sigma_and_feat.shape)
+        # print(" feat is ", feat.shape)
+
+
+        feat_and_dirs=feat
+        if self.use_ray_dirs:
+            #also make the direcitons into image 
+            ray_directions=ray_directions.view(-1,3)
+            ray_directions=F.normalize(ray_directions, p=2, dim=1)
+            ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+            # ray_directions=ray_directions.view(height, width, -1)
+            # ray_directions=ray_directions.permute(2,0,1).unsqueeze(0) #1,C,HW
+            # ray_directions=ray_directions.repeat(nr_points,1,1,1) #repeat as many times as samples that you have in a ray
+            dim_ray_dir=ray_directions.shape[1]
+            ray_directions=ray_directions.repeat(1, nr_points_per_ray) #repeat as many times as samples that you have in a ray
+            ray_directions=ray_directions.view(-1,dim_ray_dir)
+            feat_and_dirs=torch.cat([feat, ray_directions], 1)
+        #predict rgb
+        # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
+        rgb=torch.sigmoid(  self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') )  )
+        #concat 
+        # print("rgb is", rgb.shape)
+        # print("sigma_a is", sigma_a.shape)
+        x=torch.cat([rgb, sigma_a],1)
+
+        # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
+
+
+        
+      
+
+
+
+       
+        return  x
+
+
+
 #Compute a feature vector given a 3D position. Similar to the function phi from scene representation network
 class VolumetricFeature(MetaModule):
     def __init__(self, in_channels, out_channels, nr_layers, hidden_size, use_dirs):
@@ -3347,6 +3492,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         else:
             depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=2e-2).cuda()
 
+        # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
+
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
         ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
@@ -3417,8 +3564,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #get the depth at this final 3d position
         depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
+        # points3D = camera_center + depth_per_pixel*ray_dirs
+
 
         return new_world_coords, depth
+        # return points3D, depth_per_pixel
 
 
 
@@ -4231,6 +4381,7 @@ class Net3_SRN(torch.nn.Module):
         #models
         self.ray_marcher=DifferentiableRayMarcher()
         self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
+        # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=False)
 
 
         #activ
