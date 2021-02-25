@@ -3,8 +3,8 @@ import math
 import torch
 from torch.optim.optimizer import Optimizer, required
 import itertools as it
-from lookahead import *
-from radam import * 
+from optimizers.over9000.lookahead import *
+from optimizers.over9000.radam import * 
 
 def Ranger(params, alpha=0.5, k=6, *args, **kwargs):
      radam = RAdam(params, *args, **kwargs)

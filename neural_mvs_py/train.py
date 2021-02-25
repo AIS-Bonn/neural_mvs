@@ -25,6 +25,8 @@ from callbacks.phase import *
 from optimizers.over9000.radam import *
 from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
+from optimizers.over9000.ranger import *
+from optimizers.over9000.apollo import *
 
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
@@ -120,7 +122,9 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_29_clip_h16"
+    # experiment_name="s_apol_lr5.0_clipno"
+    # experiment_name="s_adam0.001_clipno"
+    experiment_name="s_radam2"
 
     use_ray_compression=False
 
@@ -170,7 +174,7 @@ def run():
     ssim_l1_criterion = MS_SSIM_L1_LOSS()
 
     # show_every=39
-    show_every=100
+    show_every=10
     # show_every=1
 
     
@@ -356,6 +360,9 @@ def run():
                         if first_time:
                             first_time=False
                             optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=Apollo( model.parameters(), lr=train_params.lr() )
+                            # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer.zero_grad()
 
@@ -405,7 +412,7 @@ def run():
                             new_frame_subsampled=new_frame
                             #render new 
                             # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max)
+                            rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 
