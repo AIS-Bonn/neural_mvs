@@ -14,6 +14,7 @@ from easypbr  import *
 from dataloaders import *
 from neuralmvs import *
 from neural_mvs.models import *
+from neural_mvs.MS_SSIM_L1_loss import *
 
 from callbacks.callback import *
 from callbacks.viewer_callback import *
@@ -119,7 +120,7 @@ def run():
 
     # experiment_name="default"
     # experiment_name="n4"
-    experiment_name="s_23"
+    experiment_name="s_29_clip_h16"
 
     use_ray_compression=False
 
@@ -166,6 +167,7 @@ def run():
     scheduler=None
     concat_coord=ConcatCoord() 
     smooth = InverseDepthSmoothnessLoss()
+    ssim_l1_criterion = MS_SSIM_L1_LOSS()
 
     # show_every=39
     show_every=100
@@ -303,6 +305,7 @@ def run():
                         rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
+                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
                         # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
                         loss+=rgb_loss
 
@@ -371,7 +374,7 @@ def run():
                         loss.backward()
                         TIME_END("backward")
                         cb.after_backward_pass()
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
                         optimizer.step()
 
                     # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
