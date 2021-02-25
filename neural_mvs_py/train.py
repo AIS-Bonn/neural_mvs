@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_adamagain_onlydepth2"
+    experiment_name="s_rg_scaled"
 
     use_ray_compression=False
 
@@ -203,8 +203,8 @@ def run():
     # selected_frame_idx=[1] 
     # selected_frame_idx=[0,1,2,3] 
     # selected_frame_idx=np.arange(7) #For nerf
-    # selected_frame_idx=np.arange(1) #For colmap
-    selected_frame_idx=[10]
+    selected_frame_idx=np.arange(30) #For colmap
+    # selected_frame_idx=[10]
     frames_query_selected=[]
     frames_target_selected=[]
     frames_all_selected=[]
@@ -223,11 +223,11 @@ def run():
             meshes_for_query_frames.append(mesh_sparse)
             # Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
 
-            frustum_mesh=frame_query.create_frustum_mesh(0.2)
+            frustum_mesh=frame_query.create_frustum_mesh(0.01)
             frustum_mesh.m_vis.m_line_width=1
             Scene.show(frustum_mesh, "frustum_"+str(frame_query.frame_idx) )
 
-            frustum_mesh=frame_target.create_frustum_mesh(0.2)
+            frustum_mesh=frame_target.create_frustum_mesh(0.01)
             frustum_mesh.m_vis.m_line_width=1
             frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0]
             Scene.show(frustum_mesh, "frustum_T_"+str(frame_target.frame_idx) )
@@ -240,6 +240,7 @@ def run():
     mesh_full.m_vis.m_show_points=True
     mesh_full.m_vis.set_color_pervertcolor()
     Scene.show(mesh_full, "mesh_full" )
+    print("scene scale is ", Scene.get_scale())
 
 
     #get for each frame_query the distances of the keypoints
@@ -263,6 +264,9 @@ def run():
     #depth min max for home photos
     depth_min=3.5
     depth_max=11.5
+    #depth min max for home photos after scaling the scenne
+    depth_min=0.1
+    depth_max=1.0
 
     new_frame=None
 
@@ -323,7 +327,7 @@ def run():
                         depth_pred=depth_pred.view(-1,1)
                         depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
                         loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
-                        loss+=loss_depth*0.0001
+                        loss+=loss_depth
                         # print("loss depth is ", loss_depth)
 
                         # #debug the keypoints 
@@ -382,9 +386,9 @@ def run():
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                         if first_time:
                             first_time=False
-                            optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr() )
-                            # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer.zero_grad()
@@ -404,7 +408,7 @@ def run():
                         loss.backward()
                         TIME_END("backward")
                         cb.after_backward_pass()
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
                         optimizer.step()
 
                     # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
@@ -429,17 +433,17 @@ def run():
                                 new_frame.width=frame_to_start.width
                             #rotate a bit 
                             model_matrix = new_frame.tf_cam_world.inverse()
-                            model_matrix=model_matrix.orbit_y_around_point([1,0,0], 10)
+                            model_matrix=model_matrix.orbit_y_around_point([0,0,0], 10)
                             new_frame.tf_cam_world = model_matrix.inverse()
                             # new_frame_subsampled=new_frame.subsample(4)
                             new_frame_subsampled=new_frame
                             #render new 
                             # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max)
+                            rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max, novel=True)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 
-                            frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.2)
+                            frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.01)
                             frustum_mesh.m_vis.m_line_width=1
                             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
                             Scene.show(frustum_mesh, "frustum_novel" )

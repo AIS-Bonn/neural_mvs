@@ -2897,7 +2897,7 @@ class NERF_original(MetaModule):
         self.net=torch.nn.ModuleList([])
         
         # gaussian encoding
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=1)
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=7)
         cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         # num_encodings=8
@@ -3079,7 +3079,7 @@ class VolumetricFeature(MetaModule):
         self.net=torch.nn.ModuleList([])
         
         # gaussian encoding
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=1.0)
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=7.0)
         cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         # num_encodings=8
@@ -3339,12 +3339,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.nr_iters=10
 
       
-    def forward(self, frame, depth_min):
+    def forward(self, frame, depth_min, novel=False):
 
-        # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        # depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
-        # depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=0.05, std=5e-4).cuda()
-        depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=1e-1).cuda()
+        if novel:
+            depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+            depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
+        else:
+            # depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=0.05, std=5e-4).cuda()
+            depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=1e-2).cuda()
 
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -3365,7 +3367,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3)
         points3D = camera_center + depth_per_pixel*ray_dirs
-        # show_3D_points(points3D, "points_3d_init")
+        show_3D_points(points3D, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -3394,6 +3396,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             signed_distance= self.out_layer(state[0])
             signed_distance=torch.abs(signed_distance) #the distance only increases
+            #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
+            # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
+            # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
+            depth_scaling=1.0/(0.5*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5
+            signed_distance=signed_distance*depth_scaling
+            
+
             # print("ray_dirs is ", ray_dirs.shape)
             # print("signed distance is ", signed_distance.shape)
 
@@ -4238,9 +4247,9 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, mesh, depth_min, depth_max):
+    def forward(self, frame, mesh, depth_min, depth_max, novel=False):
 
-        point3d, depth = self.ray_marcher(frame, depth_min)
+        point3d, depth = self.ray_marcher(frame, depth_min, novel)
 
 
         ray_dirs_mesh=frame.pixels2dirs_mesh()
