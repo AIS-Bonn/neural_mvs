@@ -2897,7 +2897,7 @@ class NERF_original(MetaModule):
         self.net=torch.nn.ModuleList([])
         
         # gaussian encoding
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=7)
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=8)
         cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         # num_encodings=8
@@ -3079,7 +3079,7 @@ class VolumetricFeature(MetaModule):
         self.net=torch.nn.ModuleList([])
         
         # gaussian encoding
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=7.0)
+        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=8.0)
         cur_nr_channels=256+in_channels
         #directional encoding runs way faster than the gaussian one and is free of thi std_dev hyperparameter which need to be finetuned depending on the scale of the scene
         # num_encodings=8
@@ -3343,10 +3343,9 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         if novel:
             depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-            depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
+            depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
         else:
-            # depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=0.05, std=5e-4).cuda()
-            depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=1e-2).cuda()
+            depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=2e-2).cuda()
 
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -3395,12 +3394,15 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
+            # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
             signed_distance=torch.abs(signed_distance) #the distance only increases
             #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
             # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
             # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
-            depth_scaling=1.0/(0.5*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5
+            depth_scaling=1.0/(0.5*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
+            # depth_scaling=1.0/(0.25*self.nr_iters) #maybe the average movement is more like 0.25 idunno
             signed_distance=signed_distance*depth_scaling
+            # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
             
 
             # print("ray_dirs is ", ray_dirs.shape)
@@ -4229,7 +4231,7 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         self.ray_marcher=DifferentiableRayMarcher()
-        self.nerf = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
+        self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
 
 
         #activ
@@ -4255,7 +4257,7 @@ class Net3_SRN(torch.nn.Module):
         ray_dirs_mesh=frame.pixels2dirs_mesh()
         ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
 
-        radiance_field_flattened = self.nerf(point3d, ray_dirs, point_features=None, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=None, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
 
         rgb_pred=radiance_field_flattened[:, 0:3]
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)

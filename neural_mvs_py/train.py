@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_rg_scaled"
+    experiment_name="s_rd0.003"
 
     use_ray_compression=False
 
@@ -265,7 +265,7 @@ def run():
     depth_min=3.5
     depth_max=11.5
     #depth min max for home photos after scaling the scenne
-    depth_min=0.1
+    depth_min=0.15
     depth_max=1.0
 
     new_frame=None
@@ -386,11 +386,18 @@ def run():
                         #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                         if first_time:
                             first_time=False
-                            # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr() )
-                            optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=torch.optim.AdamW( 
+                            #     [
+                            #         {'params': model.ray_marcher.parameters()},
+                            #         {'params': model.rgb_predictor.parameters(), 'lr': train_params.lr()*0.1 }
+                            #     ], lr=train_params.lr(), weight_decay=train_params.weight_decay()
+
+                            #  )
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
