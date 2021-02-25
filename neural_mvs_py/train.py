@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_rd0.003"
+    experiment_name="s_rd0.003noabs"
 
     use_ray_compression=False
 
@@ -330,7 +330,7 @@ def run():
                         loss+=loss_depth
                         # print("loss depth is ", loss_depth)
 
-                        # #debug the keypoints 
+                        # debug the keypoints 
                         # ray_dirs_mesh=frame.pixels2dirs_mesh()
                         # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
                         # camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")

@@ -3395,12 +3395,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             signed_distance= self.out_layer(state[0])
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
-            signed_distance=torch.abs(signed_distance) #the distance only increases
+            # signed_distance=torch.abs(signed_distance) #the distance only increases
             #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
             # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
             # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
-            depth_scaling=1.0/(0.5*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
-            # depth_scaling=1.0/(0.25*self.nr_iters) #maybe the average movement is more like 0.25 idunno
+            depth_scaling=1.0/(1.0*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
             signed_distance=signed_distance*depth_scaling
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
             
