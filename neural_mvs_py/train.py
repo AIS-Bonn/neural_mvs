@@ -48,7 +48,7 @@ random.seed(0)
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = True
 # torch.autograd.set_detect_anomaly(True)
-# torch.set_printoptions(edgeitems=5)
+torch.set_printoptions(edgeitems=3)
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_radam2"
+    experiment_name="s_adamagain_onlydepth2"
 
     use_ray_compression=False
 
@@ -250,8 +250,10 @@ def run():
         mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
         keypoints_distances=torch.from_numpy(keypoints_distances_eigen.copy()).to("cuda")
         keypoints_indices=torch.from_numpy(keypoints_indices_eigen.copy()).to("cuda")
-        keypoint_data=[keypoints_distances, keypoints_indices]
+        keypoints_3d =torch.from_numpy(mesh_sparse.V.copy()).float().to("cuda")
+        keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
         frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
+        # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx) )
 
 
 
@@ -317,11 +319,32 @@ def run():
                         keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
                         keypoint_distances=keypoint_data[0]
                         keypoint_instances=keypoint_data[1]
+                        keypoints_3d=keypoint_data[2]
                         depth_pred=depth_pred.view(-1,1)
                         depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
                         loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
                         loss+=loss_depth*0.0001
                         # print("loss depth is ", loss_depth)
+
+                        # #debug the keypoints 
+                        # ray_dirs_mesh=frame.pixels2dirs_mesh()
+                        # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+                        # camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
+                        # camera_center=camera_center.view(1,3)
+                        # rays_dirs_keypoints = torch.index_select(ray_dirs, 0, keypoint_instances.long())
+                        # keypoints3d_reprojected = camera_center + keypoint_distances.view(-1,1)*rays_dirs_keypoints
+                        # show_3D_points(keypoints3d_reprojected, " keypoints_debug_"+str(frame.frame_idx))
+                        # show_3D_points(keypoints_3d, " keypoints_CORR_debug_"+str(frame.frame_idx))
+                        # error= (keypoints_3d- keypoints3d_reprojected).norm(dim=1)
+                        # print("-----pytorch stuf-------------")
+                        # print("keypoints_3d ", keypoints_3d)
+                        # print("keypoints3d_reprojected ", keypoints3d_reprojected[0,:])
+                        # print("rays_dirs_keypoints ", rays_dirs_keypoints[0,:])
+                        # print("keypoint_distances", keypoint_distances[0])
+                        # print("error is ", error[0])
+                        # print("camera_center", camera_center)
+                        # exit(1)
+
 
                         # print("keypoint_distances ", keypoint_distances)
                         # print("depth_pred_keypoints ", depth_pred_keypoints)

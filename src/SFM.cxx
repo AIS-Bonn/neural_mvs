@@ -497,15 +497,62 @@ std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> SFM::comp
         // https://stackoverflow.com/questions/29188686/finding-the-intersect-location-of-two-rays
         Eigen::Vector3f point_intersection;
         Eigen::Vector3f d3= dir_query.cross(dir_target);
+
+        // auto ray_dirs_mesh=frame_query.pixels2dirs_mesh();
+
         if (d3.norm()<0.00001){
             std::cout<< "lines are in the same direction. Cannot compute intersection" << std::endl;
         }else{
             point_intersection=intersect_rays(origin_query, dir_query, origin_target, dir_target);
-            points_3d.push_back( point_intersection.cast<double>() );
-            float dist=  (point_intersection - frame_query.tf_cam_world.inverse().translation()).norm();
-            keypoint_distances.push_back(dist);
-            // keypoint_indices.push_back( query_observed.x() + (frame_query.height-query_observed.y())*frame_query.width);
-            keypoint_indices.push_back( query_observed.x() + query_observed.y()*frame_query.width);
+            if (!point_intersection.isZero()){
+                points_3d.push_back( point_intersection.cast<double>() );
+                float dist=  (point_intersection - frame_query.tf_cam_world.inverse().translation()).norm();
+                keypoint_distances.push_back(dist);
+                // keypoint_indices.push_back( query_observed.x() + (frame_query.height-query_observed.y())*frame_query.width);
+                // keypoint_indices.push_back( query_observed.x() + query_observed.y()*frame_query.width);
+                keypoint_indices.push_back( int(query_observed.x()) + int(query_observed.y())*frame_query.width);
+
+                // //debug why the heck does reprojecting this does not give me the point_intersection
+                // Eigen::Vector3f point_screen;
+                // //the point is not at x,y but at x, heght-y. That's because we got the depth from the depth map at x,y and we have to take into account that opencv mat has origin at the top left. However the camera coordinate system actually has origin at the bottom left (same as the origin of the uv space in opengl) So the point in screen coordinates will be at x, height-y
+                // point_screen << query_observed.x(),frame_query.height-query_observed.y(),1.0;
+                // Eigen::Vector3f point_cam_coords;
+                // point_cam_coords=frame_query.K.inverse()*point_screen;
+                // Eigen::Vector3f point_world_coords;
+                // point_world_coords=frame_query.tf_cam_world.inverse()*point_cam_coords;
+                // Eigen::Vector3f dir=(point_world_coords-frame_query.tf_cam_world.inverse().translation()).normalized();
+                // Eigen::Vector3f point_reprojected= frame_query.tf_cam_world.inverse().translation() + dir*dist; 
+                // float error= (point_reprojected-point_intersection).norm();
+                // if (frame_query.frame_idx==10 && points_3d.size()==1){
+                //     std::cout << " point_intersection "<< point_intersection.transpose() << " point_reprojected "<< point_reprojected.transpose() <<  " error is " << error << std::endl;
+                //     std::cout << "dir is " << dir.transpose() << " dist is " << dist << " center is " << frame_query.tf_cam_world.inverse().translation().transpose() << std::endl;
+                //     std::cout << "query_observed.x() " <<  query_observed.x() << " query_observed.y() " <<  query_observed.y() << " frame_width " << frame_query.width <<std::endl;
+                //     // std::cout << "pushed_index " <<  query_observed.x() + query_observed.y()*frame_query.width << std::endl;
+                //     // int pushed_index= query_observed.x() + query_observed.y()*frame_query.width;
+                //     int pushed_index= keypoint_indices.back();
+                //     std::cout << "pushed_index (INT) " <<  pushed_index << std::endl;
+
+                //     //find which is the index that this dir has
+                //     for(int i=0; i<ray_dirs_mesh->V.rows(); i++){
+                //         Eigen::Vector3d dir_from_mesh=ray_dirs_mesh->V.row(i);
+                //         float error= (dir_from_mesh- dir.cast<double>()).norm();
+                //         int y= i/frame_query.width;
+                //         int x = i-y*frame_query.width;
+                //         if(error<0.01){
+                //             std::cout << " found dir_from mesh " <<dir_from_mesh.transpose() << " at idx " << i << " error is "<< error <<std::endl;
+                //             std::cout  <<" this linear index correspnds to x " << x << " and y " << y << std::endl;
+                //         }
+                //         if(i==pushed_index){
+                //             std::cout << "==== at Pushed_inndex dir_from mesh " <<dir_from_mesh.transpose() << " at idx " << i << " error is "<< error <<std::endl;
+                //             std::cout  <<" this linear index correspnds to x " << x << " and y " << y << std::endl;
+                //         }
+
+                //     }
+
+                // }
+
+
+            }
         }
 
 
