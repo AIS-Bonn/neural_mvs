@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_rd0.003noabs"
+    experiment_name="s_rdclip0.01"
 
     use_ray_compression=False
 
@@ -416,6 +416,7 @@ def run():
                         TIME_END("backward")
                         cb.after_backward_pass()
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
                         optimizer.step()
 
                     # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
