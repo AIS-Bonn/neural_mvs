@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_fnerf.csin10"
+    experiment_name="s_sin2"
 
     use_ray_compression=False
 
@@ -318,6 +318,8 @@ def run():
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
                         # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
                         loss+=rgb_loss_ssim_l1
+                        # loss+=rgb_loss
+                        # loss+=rgb_loss_l1
 
                         #loss on depth 
                         keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
@@ -398,6 +400,7 @@ def run():
                             #     ], lr=train_params.lr(), weight_decay=train_params.weight_decay()
 
                             #  )
+                            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 

@@ -3107,7 +3107,7 @@ class SIREN_original(MetaModule):
             # dirs_channels=64
             cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
-            BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
@@ -3613,7 +3613,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #run through the lstm
             state = self.lstm(feat, states[-1])
             if state[0].requires_grad:
-                state[0].register_hook(lambda x: x.clamp(min=-0.1, max=0.1))
+                state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
