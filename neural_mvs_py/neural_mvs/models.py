@@ -3323,8 +3323,8 @@ class VolumetricFeatureSiren(MetaModule):
 
         #get the features until now, concat the directions if needed and computes the final feature 
         self.pred_feat=MetaSequential( 
-            BlockNerf(activ=torch.sin, in_channels=cur_nr_channels, out_channels=hidden_size,  bias=True ).cuda(),
-            BlockNerf(activ=None, in_channels=hidden_size, out_channels=out_channels,  bias=True ).cuda()    
+            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=hidden_size,  bias=True ).cuda(),
+            BlockSiren(activ=None, in_channels=hidden_size, out_channels=out_channels,  bias=True ).cuda()    
             )
 
 

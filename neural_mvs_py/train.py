@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_fnerf.cnerf3"
+    experiment_name="s_fnerf.cnerf"
 
     use_ray_compression=False
 
@@ -287,8 +287,8 @@ def run():
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
                     model.train(phase.grad)
-                    # frame=phase.loader.get_random_frame() 
-                    frame=phase.loader.get_frame_at_idx(10) 
+                    frame=phase.loader.get_random_frame() 
+                    # frame=phase.loader.get_frame_at_idx(10) 
                     # pass
                     TIME_START("all")
                     # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
