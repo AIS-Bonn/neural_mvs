@@ -3088,7 +3088,7 @@ class SIREN_original(MetaModule):
 
         for i in range(self.nr_layers):
             is_first_layer=i==0
-            self.net.append( MetaSequential( BlockNerf(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], bias=True).cuda(),
+            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[i], bias=True).cuda(),
             ) )
            
 
@@ -3096,7 +3096,7 @@ class SIREN_original(MetaModule):
         
         self.pred_sigma_and_feat=MetaSequential(
             # BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, is_first_layer=False).cuda(),
-            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, bias=True).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=cur_nr_channels+1, bias=True).cuda(),
             )
         if use_ray_dirs:
             num_encoding_directions=4
@@ -3107,8 +3107,8 @@ class SIREN_original(MetaModule):
             # dirs_channels=64
             cur_nr_channels=cur_nr_channels+dirs_channels
         self.pred_rgb=MetaSequential( 
-            BlockNerf(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
-            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            BlockSiren(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
 
@@ -3268,6 +3268,80 @@ class VolumetricFeature(MetaModule):
         #from 71,107,30,3  to Nx3
         x=x.view(-1,3)
         x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+
+        x=self.first_conv(x)
+
+        for i in range(len(self.net)):
+            x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
+            
+
+        #if we use direction, we also concat those 
+        if self.use_dirs:
+            #also make the direcitons into image 
+            ray_directions=ray_directions.view(-1,3)
+            ray_directions=F.normalize(ray_directions, p=2, dim=1)
+            ray_directions=self.learned_pe_dirs(ray_directions, params=get_subdict(params, 'learned_pe_dirs'))
+            x=torch.cat([x, ray_directions])
+
+        x=self.pred_feat(x)
+
+        return  x
+
+
+class VolumetricFeatureSiren(MetaModule):
+    def __init__(self, in_channels, out_channels, nr_layers, hidden_size, use_dirs):
+        super(VolumetricFeatureSiren, self).__init__()
+
+        self.first_time=True
+
+        self.nr_layers=nr_layers
+        self.hidden_size=hidden_size
+        self.use_dirs=use_dirs
+        
+
+        cur_nr_channels=in_channels
+        self.net=torch.nn.ModuleList([])
+        
+        # gaussian encoding
+       
+   
+        #now we concatenate the positions and directions and pass them through the initial conv
+        self.first_conv=BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=hidden_size,  bias=True, is_first_layer=True).cuda()
+        cur_nr_channels= hidden_size
+
+      
+
+        for i in range(self.nr_layers):
+            self.net.append( MetaSequential( BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=hidden_size, bias=True).cuda()
+            ) )
+           
+        if use_dirs:
+            num_encoding_directions=4
+            self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+            dirs_channels=3+ 3*num_encoding_directions*2
+            cur_nr_channels+=dirs_channels
+
+        #get the features until now, concat the directions if needed and computes the final feature 
+        self.pred_feat=MetaSequential( 
+            BlockNerf(activ=torch.sin, in_channels=cur_nr_channels, out_channels=hidden_size,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=hidden_size, out_channels=out_channels,  bias=True ).cuda()    
+            )
+
+
+
+    def forward(self, x, ray_directions, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+
+
+        if len(x.shape)!=2:
+            print("Nerf_original forward: x should be a Nx3 matrix so 4 dimensions but it actually has ", x.shape, " so the lenght is ", len(x.shape))
+            exit(1)
+
+
+        #from 71,107,30,3  to Nx3
+        x=x.view(-1,3)
+        # x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
 
         x=self.first_conv(x)
 
@@ -3474,6 +3548,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
         self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
         self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
+        # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -4381,7 +4456,7 @@ class Net3_SRN(torch.nn.Module):
         #models
         self.ray_marcher=DifferentiableRayMarcher()
         self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
-        # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=False)
+        # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
 
 
         #activ
