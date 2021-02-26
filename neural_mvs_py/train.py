@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_fnerf.cnerf"
+    experiment_name="s_fnerf.csin5"
 
     use_ray_compression=False
 
@@ -291,10 +291,10 @@ def run():
                     # frame=phase.loader.get_frame_at_idx(10) 
                     # pass
                     TIME_START("all")
-                    # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+                    mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
-                    # rgb_gt=rgb_gt*mask_tensor
-                    # rgb_gt=rgb_gt+0.1
+                    rgb_gt=rgb_gt*mask_tensor
+                    rgb_gt=rgb_gt+0.1
                     # rgb_mat=tensor2mat(rgb_gt)
                     # Gui.show(rgb_mat,"rgb_gt")
 
@@ -312,12 +312,12 @@ def run():
                         Gui.show(rgb_pred_mat,"rgb_pred")
 
                         #loss
-                        rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
+                        # rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
                         # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
-                        loss+=rgb_loss
+                        loss+=rgb_loss_ssim_l1
 
                         #loss on depth 
                         keypoint_data=frame_idx2keypoint_data[frame.frame_idx]

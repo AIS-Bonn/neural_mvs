@@ -3617,7 +3617,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             signed_distance= self.out_layer(state[0])
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
-            # signed_distance=torch.abs(signed_distance) #the distance only increases
+            signed_distance=torch.abs(signed_distance) #the distance only increases
             #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
             # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
             # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
@@ -4455,8 +4455,8 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         self.ray_marcher=DifferentiableRayMarcher()
-        self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
-        # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
+        # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
+        self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
 
 
         #activ
