@@ -3613,7 +3613,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #run through the lstm
             state = self.lstm(feat, states[-1])
             if state[0].requires_grad:
-                state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+                state[0].register_hook(lambda x: x.clamp(min=-0.1, max=0.1))
 
             signed_distance= self.out_layer(state[0])
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
