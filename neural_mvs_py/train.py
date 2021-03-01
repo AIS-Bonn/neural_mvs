@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_f6_sinfeat"
+    experiment_name="s_7sinfsimple"
 
     use_ray_compression=False
 
