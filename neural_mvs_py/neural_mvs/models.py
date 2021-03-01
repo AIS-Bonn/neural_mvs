@@ -3112,8 +3112,8 @@ class SIREN_original(MetaModule):
             cur_nr_channels=cur_nr_channels+dirs_channels
             cur_nr_channels=cur_nr_channels+32
         self.pred_rgb=MetaSequential( 
-            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
-            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
 
