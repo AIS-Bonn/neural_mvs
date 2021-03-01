@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_sin4"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -390,9 +390,9 @@ def run():
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr() )
-                            optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
-                            # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=torch.optim.AdamW( 
                             #     [
                             #         {'params': model.ray_marcher.parameters()},
