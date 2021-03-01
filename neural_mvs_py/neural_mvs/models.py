@@ -3684,12 +3684,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
 
         #Ray direction in world coordinates
-        ray_dirs_mesh=frame.pixels2dirs_mesh()
-        ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        # ray_dirs_mesh=frame.pixels2dirs_mesh()
+        # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        ray_dirs=frame.ray_dirs
 
         #compute points_2d 
-        points2d_screen_mesh=frame.pixels2coords()
-        points2d_screen=torch.from_numpy(points2d_screen_mesh.V.copy()).to("cuda").float()
+        # points2d_screen_mesh=frame.pixels2coords()
+        # points2d_screen=torch.from_numpy(points2d_screen_mesh.V.copy()).to("cuda").float()
 
         #unproject to 3D
         # K_inv= torch.from_numpy(  np.linalg.inv(frame.K.copy())    ).to("cuda")
@@ -3699,7 +3700,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # Eigen::Vector3d point_3D_world_coord=tf_world_cam*point_3D_camera_coord;
 
         #attempt 2 unproject to 3D 
-        camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
+        camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3)
         points3D = camera_center + depth_per_pixel*ray_dirs
         # show_3D_points(points3D, "points_3d_init")
@@ -3721,7 +3722,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #concat also the features from images 
             feat_sliced_per_frame=[]
             for i in range(len(frames_close)):
-                frame_close=frames_close[i]
+                frame_close=frames_close[i].frame
                 frame_features=frames_features[i]
                 uv=compute_uv(frame_close, world_coords[-1])
                 frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
@@ -4609,25 +4610,28 @@ class Net3_SRN(torch.nn.Module):
       
     def forward(self, frame, mesh, depth_min, depth_max, frames_close, novel=False):
 
+        TIME_START("unet")
         frames_features=[]
         for frame_close in frames_close:
-            mask_tensor=mat2tensor(frame_close.mask, False).to("cuda").repeat(1,3,1,1)
-            rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
-            rgb_gt=rgb_gt*mask_tensor
+            rgb_gt=frame_close.rgb_tensor
             frame_features=self.unet(rgb_gt)
             frames_features.append(frame_features)
+        TIME_END("unet")
 
+        TIME_START("ray_march")
         point3d, depth = self.ray_marcher(frame, depth_min, frames_close, frames_features, novel)
+        TIME_END("ray_march")
 
 
-        ray_dirs_mesh=frame.pixels2dirs_mesh()
-        ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        # ray_dirs_mesh=frame.pixels2dirs_mesh()
+        # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        ray_dirs=frame.ray_dirs
 
 
         #concat also the features from images 
         feat_sliced_per_frame=[]
         for i in range(len(frames_close)):
-            frame_close=frames_close[i]
+            frame_close=frames_close[i].frame
             frame_features=frames_features[i]
             uv=compute_uv(frame_close, point3d )
             frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
@@ -4641,8 +4645,9 @@ class Net3_SRN(torch.nn.Module):
         # print("img_features_aggregated", img_features_aggregated.shape)
 
 
-
+        TIME_START("rgb_predict")
         radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+        TIME_END("rgb_predict")
 
         rgb_pred=radiance_field_flattened[:, 0:3]
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)
@@ -4652,19 +4657,19 @@ class Net3_SRN(torch.nn.Module):
         depth=depth.permute(2,0,1).unsqueeze(0)
 
 
-        #DEBUG 
-        if novel:
-            #show the PCAd features of the closest frame
-            img_features=frames_features[0]
-            height=img_features.shape[2]
-            width=img_features.shape[3]
-            img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-            img_features_for_pca=img_features_for_pca.view(height*width, -1)
-            pca=PCA.apply(img_features_for_pca)
-            pca=pca.view(height, width, 3)
-            pca=pca.permute(2,0,1).unsqueeze(0)
-            pca_mat=tensor2mat(pca)
-            Gui.show(pca_mat, "pca_mat")
+        # #DEBUG 
+        # if novel:
+        #     #show the PCAd features of the closest frame
+        #     img_features=frames_features[0]
+        #     height=img_features.shape[2]
+        #     width=img_features.shape[3]
+        #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+        #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
+        #     pca=PCA.apply(img_features_for_pca)
+        #     pca=pca.view(height, width, 3)
+        #     pca=pca.permute(2,0,1).unsqueeze(0)
+        #     pca_mat=tensor2mat(pca)
+        #     Gui.show(pca_mat, "pca_mat")
 
         return rgb_pred, depth
         

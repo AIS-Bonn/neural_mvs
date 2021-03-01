@@ -59,12 +59,12 @@ def get_close_frames(frame_py, all_frames_py_list, nr_frames_close):
     #fromt his frame close get the frames from frame_py_list with the same indexes
     frames_selected=[]
     for frame in frames_close:
-        frame_idx=frame.frame.idx
+        frame_idx=frame.frame_idx
         #find in all_frames_py_list the one with this frame idx
         for frame_py in all_frames_py_list:
-            if frame.frame_idx==frame_idx:
+            if frame_py.frame_idx==frame_idx:
                 frames_selected.append(frame_py)
-    
+
     return frames_selected
 
 class FramePY():
@@ -86,6 +86,9 @@ class FramePY():
         self.frame_idx=frame.frame_idx
         self.loader=loader
         self.frame=frame
+        #Ray direction in world coordinates
+        ray_dirs_mesh=frame.pixels2dirs_mesh()
+        self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
         #create tensor to store the bound in z near and zfar for every pixel of this image
         # self.znear_zfar = torch.nn.Parameter(  torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))  )
         # with torch.no_grad():
@@ -170,7 +173,7 @@ def run():
     #create phases
     phases= [
         Phase('train', loader_train, grad=True),
-        # Phase('test', loader_test, grad=False)
+        Phase('test', loader_test, grad=False)
     ]
     #model 
     model=None
@@ -283,6 +286,8 @@ def run():
     for i in range(loader_test.nr_samples()):
         frame=loader_test.get_frame_at_idx(i)
         frames_test.append(FramePY(frame, loader_test))
+    phases[0].frames=frames_train 
+    phases[1].frames=frames_test
 
 
 
@@ -315,16 +320,21 @@ def run():
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
                     model.train(phase.grad)
-                    frame=phase.loader.get_random_frame() 
+                    if phase.grad:
+                        frame=random.choice(frames_train)
+                    else:
+                        frame=phase.frames[i]
+                    # frame=phase.loader.get_random_frame() 
                     # frame=phase.loader.get_frame_at_idx(10) 
                     # pass
                     TIME_START("all")
-                    mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
-                    rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
-                    rgb_gt=rgb_gt*mask_tensor
+                    # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+                    # rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
+                    # rgb_gt=rgb_gt*mask_tensor
                     # rgb_gt=rgb_gt+0.1
                     # rgb_mat=tensor2mat(rgb_gt)
                     # Gui.show(rgb_mat,"rgb_gt")
+                    rgb_gt=frame.rgb_tensor
 
 
 
@@ -333,12 +343,16 @@ def run():
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
 
-                        frames_close=loader_train.get_close_frames(frame, 2)
-                        rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max,frames_close)
+                        # frames_close=loader_train.get_close_frames(frame, 2)
+                        frames_close=get_close_frames(frame, phase.frames, 2)
+                        TIME_START("forward")
+                        rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
+                        TIME_END("forward")
 
                         #view pred
-                        rgb_pred_mat=tensor2mat(rgb_pred)
-                        Gui.show(rgb_pred_mat,"rgb_pred")
+                        if phase.iter_nr%show_every==0:
+                            rgb_pred_mat=tensor2mat(rgb_pred)
+                            Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
 
                         #loss
                         # rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
@@ -462,49 +476,49 @@ def run():
                     TIME_END("all")
 
 
-                    #novel view
-                    #show a novel view 
-                    if phase.iter_nr%show_every==0:
-                        with torch.set_grad_enabled(False):
-                            model.eval()
-                            #create novel view
-                            if new_frame==None:
-                                new_frame=Frame()
-                                frame_to_start=loader_train.get_frame_at_idx(0)
-                                new_frame.tf_cam_world=frame_to_start.tf_cam_world
-                                new_frame.K=frame_to_start.K.copy()
-                                new_frame.height=frame_to_start.height
-                                new_frame.width=frame_to_start.width
-                            #rotate a bit 
-                            model_matrix = new_frame.tf_cam_world.inverse()
-                            model_matrix=model_matrix.orbit_y_around_point([0,0,0], 10)
-                            new_frame.tf_cam_world = model_matrix.inverse()
-                            # new_frame_subsampled=new_frame.subsample(4)
-                            new_frame_subsampled=new_frame
-                            #render new 
-                            # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            frames_close=loader_train.get_close_frames(new_frame, 2)
-                            rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max,frames_close, novel=True)
-                            rgb_pred_mat=tensor2mat(rgb_pred)
-                            Gui.show(rgb_pred_mat, "rgb_novel")
-                            #show new frustum 
-                            frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.01)
-                            frustum_mesh.m_vis.m_line_width=1
-                            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
-                            Scene.show(frustum_mesh, "frustum_novel" )
-                            #show points at the end of the ray march
-                            ray_dirs_mesh=new_frame.pixels2dirs_mesh()
-                            ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
-                            camera_center=torch.from_numpy( new_frame.pos_in_world() ).to("cuda")
-                            camera_center=camera_center.view(1,3)
-                            points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
-                            #get the point that have a color of black (correspond to background) and put them to zero
-                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                            rgb_pred_zeros_mask= rgb_pred_zeros<0.01
-                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-                            show_3D_points(points3D, "points_3d_novel")
+                    # #novel view
+                    # #show a novel view 
+                    # if phase.iter_nr%show_every==0:
+                    #     with torch.set_grad_enabled(False):
+                    #         model.eval()
+                    #         #create novel view
+                    #         if new_frame==None:
+                    #             new_frame=Frame()
+                    #             frame_to_start=loader_train.get_frame_at_idx(0)
+                    #             new_frame.tf_cam_world=frame_to_start.tf_cam_world
+                    #             new_frame.K=frame_to_start.K.copy()
+                    #             new_frame.height=frame_to_start.height
+                    #             new_frame.width=frame_to_start.width
+                    #         #rotate a bit 
+                    #         model_matrix = new_frame.tf_cam_world.inverse()
+                    #         model_matrix=model_matrix.orbit_y_around_point([0,0,0], 10)
+                    #         new_frame.tf_cam_world = model_matrix.inverse()
+                    #         # new_frame_subsampled=new_frame.subsample(4)
+                    #         new_frame_subsampled=new_frame
+                    #         #render new 
+                    #         # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
+                    #         frames_close=loader_train.get_close_frames(new_frame, 2)
+                    #         rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max,frames_close, novel=True)
+                    #         rgb_pred_mat=tensor2mat(rgb_pred)
+                    #         Gui.show(rgb_pred_mat, "rgb_novel")
+                    #         #show new frustum 
+                    #         frustum_mesh=new_frame_subsampled.create_frustum_mesh(0.01)
+                    #         frustum_mesh.m_vis.m_line_width=1
+                    #         frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
+                    #         Scene.show(frustum_mesh, "frustum_novel" )
+                    #         #show points at the end of the ray march
+                    #         ray_dirs_mesh=new_frame.pixels2dirs_mesh()
+                    #         ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+                    #         camera_center=torch.from_numpy( new_frame.pos_in_world() ).to("cuda")
+                    #         camera_center=camera_center.view(1,3)
+                    #         points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                    #         #get the point that have a color of black (correspond to background) and put them to zero
+                    #         rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                    #         rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                    #         rgb_pred_zeros_mask= rgb_pred_zeros<0.01
+                    #         rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                    #         points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                    #         show_3D_points(points3D, "points_3d_novel")
 
 
 
