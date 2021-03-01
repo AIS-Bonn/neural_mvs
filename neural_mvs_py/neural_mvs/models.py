@@ -841,7 +841,7 @@ class UNet(torch.nn.Module):
         super(UNet, self).__init__()
 
 
-        self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
+        # self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
 
         self.start_nr_channels=nr_channels_start
         # self.first_conv = torch.nn.Conv2d(6, self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 

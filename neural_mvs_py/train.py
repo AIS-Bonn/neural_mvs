@@ -288,6 +288,9 @@ def run():
         frames_test.append(FramePY(frame, loader_test))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
+    #Show only the visdom for the testin
+    phases[0].show_visdom=False
+    phases[1].show_visdom=True
 
 
 
@@ -321,7 +324,7 @@ def run():
                 for i in range(phase.loader.nr_samples()):
                     model.train(phase.grad)
                     if phase.grad:
-                        frame=random.choice(frames_train)
+                        frame=random.choice(phase.frames)
                     else:
                         frame=phase.frames[i]
                     # frame=phase.loader.get_random_frame() 
