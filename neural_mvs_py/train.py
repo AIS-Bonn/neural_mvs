@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_"
+    experiment_name="s_f"
 
     use_ray_compression=False
 
@@ -214,7 +214,8 @@ def run():
         # frame_0=loader_train.get_frame_at_idx(i+3) 
         if i in selected_frame_idx:
             frame_query=loader_train.get_frame_at_idx(i) 
-            frame_target=loader_train.get_closest_frame(frame_query)
+            # frame_target=loader_train.get_closest_frame(frame_query)
+            frame_target=loader_train.get_close_frames(frame_query, 1)[0]
             frames_query_selected.append(frame_query)
             frames_target_selected.append(frame_target)
             frames_all_selected.append(frame_query)
@@ -304,8 +305,9 @@ def run():
 
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
-                        
-                        rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max)
+
+                        frames_close=loader_train.get_close_frames(frame_query, 1)
+                        rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max,frames_close)
 
                         #view pred
                         rgb_pred_mat=tensor2mat(rgb_pred)
@@ -450,7 +452,8 @@ def run():
                             new_frame_subsampled=new_frame
                             #render new 
                             # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max, novel=True)
+                            frames_close=loader_train.get_close_frames(frame_query, 1)
+                            rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max,frames_close, novel=True)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
                             #show new frustum 

@@ -3549,6 +3549,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
         self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -3559,7 +3561,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.nr_iters=10
 
       
-    def forward(self, frame, depth_min, novel=False):
+    def forward(self, frame, depth_min, frames_close, frames_features, novel=False):
 
         if novel:
             depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
@@ -3603,6 +3605,19 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #compute the features at this position 
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+
+            #concat also the features from images 
+            feat_sliced_per_frame=[]
+            for i in range(len(frames_close)):
+                frame_close=frames_close[i]
+                frame_features=frames_features[i]
+                uv=compute_uv(frame_close, world_coords[-1])
+                frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+                dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+                feat_sliced_per_frame.append(sliced_local_features) 
+            img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+            feat=torch.cat([feat,img_features_aggregated],1)
+
 
             #create the lstm if not created 
             if self.lstm==None:
@@ -4454,6 +4469,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=16)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
@@ -4468,15 +4484,22 @@ class Net3_SRN(torch.nn.Module):
 
 
         
-        self.slice=SliceLatticeModule()
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
 
 
       
-    def forward(self, frame, mesh, depth_min, depth_max, novel=False):
+    def forward(self, frame, mesh, depth_min, depth_max, frames_close, novel=False):
 
-        point3d, depth = self.ray_marcher(frame, depth_min, novel)
+        frames_features=[]
+        for frame_close in frames_close:
+            mask_tensor=mat2tensor(frame_close.mask, False).to("cuda").repeat(1,3,1,1)
+            rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
+            rgb_gt=rgb_gt*mask_tensor
+            frame_features=self.unet(rgb_gt)
+            frames_features.append(frame_features)
+
+        point3d, depth = self.ray_marcher(frame, depth_min, frames_close, frames_features, novel)
 
 
         ray_dirs_mesh=frame.pixels2dirs_mesh()
