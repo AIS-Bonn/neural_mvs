@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_7sinfsimple"
+    experiment_name="s_5smooth0.01"
 
     use_ray_compression=False
 
@@ -333,6 +333,11 @@ def run():
                         loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
                         loss+=loss_depth*10
                         # print("loss depth is ", loss_depth)
+
+                        #smoothness loss
+                        # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        # smooth_loss = smooth(depth_pred, rgb_gt)
+                        # loss+=smooth_loss*0.01
 
                         # debug the keypoints 
                         # ray_dirs_mesh=frame.pixels2dirs_mesh()
