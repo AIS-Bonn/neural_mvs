@@ -54,15 +54,27 @@ torch.set_printoptions(edgeitems=3)
 train_params=TrainParams.create(config_file)    
 model_params=ModelParams.create(config_file)    
 
+def get_close_frames(frame_py, all_frames_py_list, nr_frames_close):
+    frames_close=frame_py.loader.get_close_frames(frame_py.frame, 2)
+    #fromt his frame close get the frames from frame_py_list with the same indexes
+    frames_selected=[]
+    for frame in frames_close:
+        frame_idx=frame.frame.idx
+        #find in all_frames_py_list the one with this frame idx
+        for frame_py in all_frames_py_list:
+            if frame.frame_idx==frame_idx:
+                frames_selected.append(frame_py)
+    
+    return frames_selected
 
 class FramePY():
-    def __init__(self, frame, znear, zfar):
+    def __init__(self, frame, loader):
         #get mask 
         self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
         self.mask=frame.mask
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
-        # self.rgb_tensor=self.rgb_tensor*self.mask_tensor
+        self.rgb_tensor=self.rgb_tensor*self.mask_tensor
         self.rgb_32f=tensor2mat(self.rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
@@ -70,15 +82,19 @@ class FramePY():
         #weight and hegiht
         self.height=self.rgb_tensor.shape[2]
         self.width=self.rgb_tensor.shape[3]
+        #misc
+        self.frame_idx=frame.frame_idx
+        self.loader=loader
+        self.frame=frame
         #create tensor to store the bound in z near and zfar for every pixel of this image
-        self.znear_zfar = torch.nn.Parameter(  torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))  )
-        with torch.no_grad():
-            self.znear_zfar[:,0,:,:]=znear
-            self.znear_zfar[:,1,:,:]=zfar
+        # self.znear_zfar = torch.nn.Parameter(  torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))  )
+        # with torch.no_grad():
+        #     self.znear_zfar[:,0,:,:]=znear
+        #     self.znear_zfar[:,1,:,:]=zfar
         # self.znear_zfar.requires_grad=True
-        self.cloud=frame.depth2world_xyz_mesh()
-        self.cloud=frame.assign_color(self.cloud)
-        self.cloud.remove_vertices_at_zero()
+        # self.cloud=frame.depth2world_xyz_mesh()
+        # self.cloud=frame.assign_color(self.cloud)
+        # self.cloud.remove_vertices_at_zero()
     def create_frustum_mesh(self, scale):
         frame=Frame()
         frame.K=self.K
@@ -258,6 +274,17 @@ def run():
         # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx) )
 
 
+    #get all the frames train in am array, becuase it's faster to have everything already on the gpu
+    frames_train=[]
+    frames_test=[]
+    for i in range(loader_train.nr_samples()):
+        frame=loader_train.get_frame_at_idx(i)
+        frames_train.append(FramePY(frame, loader_train))
+    for i in range(loader_test.nr_samples()):
+        frame=loader_test.get_frame_at_idx(i)
+        frames_test.append(FramePY(frame, loader_test))
+
+
 
     #depth min max for nerf 
     depth_min=2
@@ -332,7 +359,6 @@ def run():
                         depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
                         loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
                         loss+=loss_depth*10
-                        # print("loss depth is ", loss_depth)
 
                         #smoothness loss
                         # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
