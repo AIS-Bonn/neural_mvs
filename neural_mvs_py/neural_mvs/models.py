@@ -3588,7 +3588,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3)
         points3D = camera_center + depth_per_pixel*ray_dirs
-        show_3D_points(points3D, "points_3d_init")
+        # show_3D_points(points3D, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -3633,8 +3633,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             states.append(state)
             world_coords.append(new_world_coords)
 
-            if iter_nr==self.nr_iters-1:
-                show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
+            # if iter_nr==self.nr_iters-1:
+                # show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
 
         #get the depth at this final 3d position
         depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)

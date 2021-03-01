@@ -294,7 +294,7 @@ def run():
                     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                     rgb_gt=rgb_gt*mask_tensor
-                    rgb_gt=rgb_gt+0.1
+                    # rgb_gt=rgb_gt+0.1
                     # rgb_mat=tensor2mat(rgb_gt)
                     # Gui.show(rgb_mat,"rgb_gt")
 
@@ -458,6 +458,19 @@ def run():
                             frustum_mesh.m_vis.m_line_width=1
                             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0]
                             Scene.show(frustum_mesh, "frustum_novel" )
+                            #show points at the end of the ray march
+                            ray_dirs_mesh=new_frame.pixels2dirs_mesh()
+                            ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+                            camera_center=torch.from_numpy( new_frame.pos_in_world() ).to("cuda")
+                            camera_center=camera_center.view(1,3)
+                            points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                            #get the point that have a color of black (correspond to background) and put them to zero
+                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                            rgb_pred_zeros_mask= rgb_pred_zeros<0.01
+                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                            points3D[rgb_pred_zeros_mask]=0.0
+                            show_3D_points(points3D, "points_3d_novel")
 
 
 
