@@ -3227,8 +3227,17 @@ class RGB_predictor_simple(MetaModule):
 
         self.use_ray_dirs = use_ray_dirs
 
-        self.first_conv=BlockSiren(activ=torch.sin, in_channels=3, out_channels=128,  bias=True, is_first_layer=True).cuda()
+        cur_nr_channels=in_channels
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=9)
+        # cur_nr_channels=256+in_channels
+        num_encodings=8
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        cur_nr_channels = in_channels + 3*num_encodings*2
 
+
+        # self.first_conv=BlockSiren(activ=torch.sin, in_channels=3, out_channels=128,  bias=True, is_first_layer=True).cuda()
+
+        cur_nr_channels+=32 #for point features
       
         if use_ray_dirs:
             num_encoding_directions=4
@@ -3237,8 +3246,7 @@ class RGB_predictor_simple(MetaModule):
             # new leaned pe with gaussian random weights as in  Fourier Features Let Networks Learn High Frequency 
             # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
             # dirs_channels=64
-            cur_nr_channels=128
-            cur_nr_channels+=32
+            # cur_nr_channels+=128 #point
             cur_nr_channels+=dirs_channels
         self.pred_rgb=MetaSequential( 
             BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
@@ -3265,34 +3273,11 @@ class RGB_predictor_simple(MetaModule):
 
         #from 71,107,30,3  to Nx3
         x=x.view(-1,3)
-        # x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
         # x=x.view(height, width, nr_points, -1 )
         # x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
 
       
-
-
-
-        # #skip to x the point_features
-        # if point_features!=None:
-        #     point_features=point_features.view(height, width, nr_points, -1 )
-        #     point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
-
-        #     #concat also encoded features
-        #     #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
-        #     feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
-        #     feat_reduced_channels=feat_reduce.shape[1]
-        #     feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
-        #     feat_enc=self.learned_pe_features(feat_reduce)
-        #     feat_enc=feat_enc.view(nr_points, height, width, -1)
-        #     feat_enc=feat_enc.permute(0,3,1,2).contiguous()
-        #     x=torch.cat([x,feat_enc],1)
-
-        # if point_features!=None:
-        #     x=torch.cat([x, point_features],1)
-
-
-        x=self.first_conv(x) 
 
 
         x=torch.cat([x,point_features],1)
@@ -3316,11 +3301,10 @@ class RGB_predictor_simple(MetaModule):
         
         #predict rgb
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
-        rgb=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
+        x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
         #concat 
         # print("rgb is", rgb.shape)
         # print("sigma_a is", sigma_a.shape)
-        x=rgb
 
         # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
 
