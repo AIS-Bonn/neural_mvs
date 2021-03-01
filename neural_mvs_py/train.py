@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_sin2"
+    experiment_name="s_sin4"
 
     use_ray_compression=False
 
@@ -143,12 +143,12 @@ def run():
     #create loaders
     # loader=TinyLoader.create(config_file)
     # loader_train=DataLoaderShapeNetImg(config_path)
-    # loader_train=DataLoaderNerf(config_path)
-    loader_train=DataLoaderColmap(config_path)
+    loader_train=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderColmap(config_path)
     # loader=DataLoaderVolRef(config_path)
     # loader_test=DataLoaderShapeNetImg(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    loader_test=DataLoaderColmap(config_path)
+    loader_test=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderColmap(config_path)
     # loader_test=DataLoaderVolRef(config_path)
 
     #create phases
