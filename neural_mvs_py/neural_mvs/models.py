@@ -3621,8 +3621,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 uv=compute_uv(frame_close, world_coords[-1])
                 frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
                 dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-                feat_sliced_per_frame.append(sliced_local_features) 
-            img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+                feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+            # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+            # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
+            img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
+            img_features_mean=img_features_concat.mean(dim=0)
+            img_features_std=img_features_concat.std(dim=0)
+            img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
             feat=torch.cat([feat,img_features_aggregated],1)
 
 
@@ -4522,7 +4527,9 @@ class Net3_SRN(torch.nn.Module):
         #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
         #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
         #     feat_sliced_per_frame.append(sliced_local_features) 
+        #     print("sliced_local_features", sliced_local_features.shape)
         # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+        # print("img_features_aggregated", img_features_aggregated.shape)
 
         radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=None, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
 

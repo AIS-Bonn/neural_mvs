@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_f3_closefix"
+    experiment_name="s_f4_frames2"
 
     use_ray_compression=False
 
@@ -306,7 +306,7 @@ def run():
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
 
-                        frames_close=loader_train.get_close_frames(frame, 1)
+                        frames_close=loader_train.get_close_frames(frame, 2)
                         rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max,frames_close)
 
                         #view pred
@@ -452,7 +452,7 @@ def run():
                             new_frame_subsampled=new_frame
                             #render new 
                             # print("new_frame height and width ", new_frame_subsampled.height, " ", new_frame_subsampled.width)
-                            frames_close=loader_train.get_close_frames(new_frame, 1)
+                            frames_close=loader_train.get_close_frames(new_frame, 2)
                             rgb_pred, depth_pred=model(new_frame, mesh_full, depth_min, depth_max,frames_close, novel=True)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat, "rgb_novel")
