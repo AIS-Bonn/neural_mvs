@@ -2918,6 +2918,7 @@ class NERF_original(MetaModule):
         # cur_nr_channels+=feat_enc_channels
 
         #now we concatenate the positions and directions and pass them through the initial conv
+        # cur_nr_channels+=16
         self.first_conv=BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=self.out_channels_per_layer[0],  bias=True).cuda()
 
         cur_nr_channels= self.out_channels_per_layer[0]
@@ -2983,28 +2984,31 @@ class NERF_original(MetaModule):
 
 
 
-        #skip to x the point_features
-        if point_features!=None:
-            point_features=point_features.view(height, width, nr_points, -1 )
-            point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
+        # #skip to x the point_features
+        # if point_features!=None:
+        #     point_features=point_features.view(height, width, nr_points, -1 )
+        #     point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
 
-            #concat also encoded features
-            #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
-            feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
-            feat_reduced_channels=feat_reduce.shape[1]
-            feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
-            feat_enc=self.learned_pe_features(feat_reduce)
-            feat_enc=feat_enc.view(nr_points, height, width, -1)
-            feat_enc=feat_enc.permute(0,3,1,2).contiguous()
-            x=torch.cat([x,feat_enc],1)
+        #     #concat also encoded features
+        #     #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
+        #     feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
+        #     feat_reduced_channels=feat_reduce.shape[1]
+        #     feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
+        #     feat_enc=self.learned_pe_features(feat_reduce)
+        #     feat_enc=feat_enc.view(nr_points, height, width, -1)
+        #     feat_enc=feat_enc.permute(0,3,1,2).contiguous()
+        #     x=torch.cat([x,feat_enc],1)
+
+        if point_features!=None:
+            x=torch.cat([x, point_features],1)
 
 
         # x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
         x=self.first_conv(x)
 
         for i in range(len(self.net)):
-            if point_features!=None:
-                x=x+point_features
+            # if point_features!=None:
+                # x=x+point_features
             # identity=x
             x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
             # x=x+point_features
@@ -3139,28 +3143,31 @@ class SIREN_original(MetaModule):
 
 
 
-        #skip to x the point_features
-        if point_features!=None:
-            point_features=point_features.view(height, width, nr_points, -1 )
-            point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
+        # #skip to x the point_features
+        # if point_features!=None:
+        #     point_features=point_features.view(height, width, nr_points, -1 )
+        #     point_features=point_features.permute(2,3,0,1).contiguous() #N,C,H,W, where C is usually 128 or however big the feature vector is
 
-            #concat also encoded features
-            #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
-            feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
-            feat_reduced_channels=feat_reduce.shape[1]
-            feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
-            feat_enc=self.learned_pe_features(feat_reduce)
-            feat_enc=feat_enc.view(nr_points, height, width, -1)
-            feat_enc=feat_enc.permute(0,3,1,2).contiguous()
-            x=torch.cat([x,feat_enc],1)
+        #     #concat also encoded features
+        #     #THIS HELPS BUT ONLY IF WE USE LIKE 4-5 steps fo encoding, if we use the typical 11 as for the position then it gets unstable
+        #     feat_reduce=self.conv_reduce_feat(point_features) #M x 8 x H xW
+        #     feat_reduced_channels=feat_reduce.shape[1]
+        #     feat_reduce=feat_reduce.permute(0,2,3,1).contiguous().view(-1,feat_reduced_channels)
+        #     feat_enc=self.learned_pe_features(feat_reduce)
+        #     feat_enc=feat_enc.view(nr_points, height, width, -1)
+        #     feat_enc=feat_enc.permute(0,3,1,2).contiguous()
+        #     x=torch.cat([x,feat_enc],1)
+
+        if point_features!=None:
+            x=torch.cat([x, point_features],1)
 
 
         # x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
         x=self.first_conv(x)
 
         for i in range(len(self.net)):
-            if point_features!=None:
-                x=x+point_features
+            # if point_features!=None:
+                # x=x+point_features
             x=self.net[i](x, params=get_subdict(params, 'net.'+str(i)  )  )
 
 
@@ -4505,6 +4512,18 @@ class Net3_SRN(torch.nn.Module):
         ray_dirs_mesh=frame.pixels2dirs_mesh()
         ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
 
+
+        # #concat also the features from images 
+        # feat_sliced_per_frame=[]
+        # for i in range(len(frames_close)):
+        #     frame_close=frames_close[i]
+        #     frame_features=frames_features[i]
+        #     uv=compute_uv(frame_close, point3d )
+        #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+        #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+        #     feat_sliced_per_frame.append(sliced_local_features) 
+        # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+
         radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=None, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
 
         rgb_pred=radiance_field_flattened[:, 0:3]
@@ -4513,6 +4532,21 @@ class Net3_SRN(torch.nn.Module):
 
         depth=depth.view(frame.height, frame.width,1)
         depth=depth.permute(2,0,1).unsqueeze(0)
+
+
+        #DEBUG 
+        if novel:
+            #show the PCAd features of the closest frame
+            img_features=frames_features[0]
+            height=img_features.shape[2]
+            width=img_features.shape[3]
+            img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+            img_features_for_pca=img_features_for_pca.view(height*width, -1)
+            pca=PCA.apply(img_features_for_pca)
+            pca=pca.view(height, width, 3)
+            pca=pca.permute(2,0,1).unsqueeze(0)
+            pca_mat=tensor2mat(pca)
+            Gui.show(pca_mat, "pca_mat")
 
         return rgb_pred, depth
         
