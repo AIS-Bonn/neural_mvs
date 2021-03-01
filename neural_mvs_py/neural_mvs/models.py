@@ -3110,9 +3110,10 @@ class SIREN_original(MetaModule):
             # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
             # dirs_channels=64
             cur_nr_channels=cur_nr_channels+dirs_channels
+            cur_nr_channels=cur_nr_channels+32
         self.pred_rgb=MetaSequential( 
-            BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
-            BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
 
@@ -3158,8 +3159,8 @@ class SIREN_original(MetaModule):
         #     feat_enc=feat_enc.permute(0,3,1,2).contiguous()
         #     x=torch.cat([x,feat_enc],1)
 
-        if point_features!=None:
-            x=torch.cat([x, point_features],1)
+        # if point_features!=None:
+        #     x=torch.cat([x, point_features],1)
 
 
         # x=torch.cat([x,ray_directions],1) #nr_points, channels, height, width
@@ -3194,6 +3195,10 @@ class SIREN_original(MetaModule):
             ray_directions=ray_directions.repeat(1, nr_points_per_ray) #repeat as many times as samples that you have in a ray
             ray_directions=ray_directions.view(-1,dim_ray_dir)
             feat_and_dirs=torch.cat([feat, ray_directions], 1)
+
+        if point_features!=None:
+            feat_and_dirs=torch.cat([feat_and_dirs, point_features],1)
+        
         #predict rgb
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
         rgb=torch.sigmoid(  self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') )  )
@@ -4518,20 +4523,25 @@ class Net3_SRN(torch.nn.Module):
         ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
 
 
-        # #concat also the features from images 
-        # feat_sliced_per_frame=[]
-        # for i in range(len(frames_close)):
-        #     frame_close=frames_close[i]
-        #     frame_features=frames_features[i]
-        #     uv=compute_uv(frame_close, point3d )
-        #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
-        #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-        #     feat_sliced_per_frame.append(sliced_local_features) 
-        #     print("sliced_local_features", sliced_local_features.shape)
-        # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+        #concat also the features from images 
+        feat_sliced_per_frame=[]
+        for i in range(len(frames_close)):
+            frame_close=frames_close[i]
+            frame_features=frames_features[i]
+            uv=compute_uv(frame_close, point3d )
+            frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+            dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+            feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
+        img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+        img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
+        img_features_mean=img_features_concat.mean(dim=0)
+        img_features_std=img_features_concat.std(dim=0)
+        img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
         # print("img_features_aggregated", img_features_aggregated.shape)
 
-        radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=None, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+
+
+        radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
 
         rgb_pred=radiance_field_flattened[:, 0:3]
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)

@@ -124,7 +124,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_f4_frames2"
+    experiment_name="s_f5_sinfeat"
 
     use_ray_compression=False
 
@@ -331,7 +331,7 @@ def run():
                         depth_pred=depth_pred.view(-1,1)
                         depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
                         loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
-                        loss+=loss_depth
+                        loss+=loss_depth*10
                         # print("loss depth is ", loss_depth)
 
                         # debug the keypoints 
@@ -472,7 +472,7 @@ def run():
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
                             rgb_pred_zeros_mask= rgb_pred_zeros<0.01
                             rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                            points3D[rgb_pred_zeros_mask]=0.0
+                            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
                             show_3D_points(points3D, "points_3d_novel")
 
 
