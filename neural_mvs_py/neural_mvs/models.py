@@ -3654,6 +3654,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
     def __init__(self):
         super(DifferentiableRayMarcher, self).__init__()
 
+        num_encodings=8
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels = in_channels + 3*num_encodings*2
+
         #model 
         self.lstm_hidden_size = 16
         # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
@@ -3679,7 +3683,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
             depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
         else:
-            depth_per_pixel = torch.zeros((frame.height*frame.width, 1)).normal_(mean=depth_min, std=2e-2).cuda()
+            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
 
         # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
 
@@ -3718,6 +3722,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #compute the features at this position 
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            # feat=self.learned_pe(world_coords[-1])
 
             #concat also the features from images 
             feat_sliced_per_frame=[]

@@ -46,7 +46,7 @@ config_file="train.cfg"
 torch.manual_seed(0)
 random.seed(0)
 # torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.benchmark = True
 # torch.autograd.set_detect_anomaly(True)
 torch.set_printoptions(edgeitems=3)
 
@@ -143,7 +143,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_4"
+    experiment_name="s_1"
 
     use_ray_compression=False
 

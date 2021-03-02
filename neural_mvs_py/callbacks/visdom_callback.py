@@ -14,7 +14,7 @@ class VisdomCallback(Callback):
        
 
         if phase.show_visdom:
-            self.vis.log(phase.iter_nr, loss, "loss_"+phase.name, self.experiment_name, smooth=True, show_every=1)
+            self.vis.log(phase.iter_nr, loss, "loss_"+phase.name, self.experiment_name, smooth=True, show_every=30)
         # self.vis.log(phase.iter_nr, smooth_loss.item(), "smooth_loss_"+phase.name, self.experiment_name, smooth=True, show_every=30)
         # if phase.grad:
         # self.vis.log(phase.iter_nr, lr, "lr", "lr", smooth=False)
