@@ -3110,7 +3110,7 @@ class SIREN_original(MetaModule):
             # self.learned_pe_dirs=LearnedPEGaussian(in_channels=in_channels, out_channels=64, std=10)
             # dirs_channels=64
             cur_nr_channels=cur_nr_channels+dirs_channels
-            cur_nr_channels=cur_nr_channels+32
+        cur_nr_channels=cur_nr_channels+32
         self.pred_rgb=MetaSequential( 
             BlockSiren(activ=torch.sin, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             BlockSiren(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
@@ -4610,6 +4610,11 @@ class Net3_SRN(torch.nn.Module):
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
+        # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
+        # with torch.set_grad_enabled(False):
+            # self.s_weight.fill_(0.5)
+            # self.s_weight.fill_(10.0)
+        self.frame_weights_computer= FrameWeightComputer()
 
 
         #activ
@@ -4617,7 +4622,7 @@ class Net3_SRN(torch.nn.Module):
         self.sigmoid=torch.nn.Sigmoid()
         self.tanh=torch.nn.Tanh()
 
-        #params 
+        #params
 
 
         
@@ -4668,6 +4673,65 @@ class Net3_SRN(torch.nn.Module):
         # ray_dirs_left=self.rgb_predictor.learned_pe_dirs(ray_dirs_left)
         # ray_dirs_right=self.rgb_predictor.learned_pe_dirs(ray_dirs_right)
         # img_features_aggregated=torch.cat([img_features_aggregated, ray_dirs_left, ray_dirs_right ], dim=1)
+
+
+
+        #attemt3, weighted mean and std similar to https://ibrnet.github.io/static/paper.pdf
+        #TODO 
+        # cur_dir=frame.look_dir
+        # exponential_weight_towards_neighbour=[]
+        # for i in range(len(frames_close)):
+        #     dir_neighbour=frames_close[i].look_dir
+        #     dot= torch.dot( cur_dir.view(-1), dir_neighbour.view(-1) )
+        #     s_dot= self.s_weight*(dot-1)
+        #     exp=torch.exp(s_dot)
+        #     exponential_weight_towards_neighbour.append(exp)
+        # all_exp=torch.cat(exponential_weight_towards_neighbour)
+        # exp_minimum= all_exp.min()
+        # unnormalized_weights=[]
+        # for i in range(len(frames_close)):
+        #     cur_exp= exponential_weight_towards_neighbour[i]
+        #     exp_sub_min= cur_exp-exp_minimum
+        #     unnormalized_weight= torch.relu(exp_sub_min)
+        #     unnormalized_weights.append(unnormalized_weight)
+        #     # print("unnormalized_weight", unnormalized_weight)
+        # all_unormalized_weights=torch.cat(unnormalized_weights)
+        # weight_sum=all_unormalized_weights.sum()
+        # weights=[]
+        # for i in range(len(frames_close)):
+        #     unnormalized_weight= unnormalized_weights[i]
+        #     weight= unnormalized_weight/weight_sum
+        #     weights.append(weight)
+        # weights=torch.cat(weights)
+        # print("weights", weights)
+        # print("cur frame idx", frame.frame_idx, " close frames is ", frames_close[0].frame_idx, " ",  frames_close[1].frame_idx   )
+        #weight the featues and then mean them
+        # img_features_concat=torch.cat(feat_sliced_per_frame,0)
+        # weights=weights.view(-1,1,1)
+        # img_features_concat_weighted=img_features_concat*weights
+        # img_features_mean= img_features_concat_weighted.sum(dim=0)/len(frames_close)
+        #STD https://stats.stackexchange.com/a/6536
+
+        #put the mean and std togather 
+        # img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
+        # img_features_aggregated=torch.cat([img_features_mean],1)
+
+        # print("s is ", self.s_weight)
+
+        ##attempt 4 
+        weights=self.frame_weights_computer(frame, frames_close)
+        # print("weight is", weights)
+        #show the frames and with a line weight depending on the weight
+        for i in range(len(frames_close)):
+            frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
+            frustum_mesh.m_vis.m_line_width= (weights[i])*20
+            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
+            Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
+
+
+
+
+
 
 
         TIME_START("rgb_predict")

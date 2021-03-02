@@ -70,6 +70,48 @@ def compute_uv(frame, points_3D_world):
 
 
 
+class FrameWeightComputer(torch.nn.Module):
+
+    def __init__(self ):
+        super(FrameWeightComputer, self).__init__()
+
+        self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
+        with torch.set_grad_enabled(False):
+            # self.s_weight.fill_(0.5)
+            self.s_weight.fill_(10.0)
+
+    def forward(self, frame, frames_close):
+        cur_dir=frame.look_dir
+        exponential_weight_towards_neighbour=[]
+        for i in range(len(frames_close)):
+            dir_neighbour=frames_close[i].look_dir
+            dot= torch.dot( cur_dir.view(-1), dir_neighbour.view(-1) )
+            s_dot= self.s_weight*(dot-1)
+            exp=torch.exp(s_dot)
+            exponential_weight_towards_neighbour.append(exp)
+        all_exp=torch.cat(exponential_weight_towards_neighbour)
+        exp_minimum= all_exp.min()
+        unnormalized_weights=[]
+        for i in range(len(frames_close)):
+            cur_exp= exponential_weight_towards_neighbour[i]
+            exp_sub_min= cur_exp-exp_minimum
+            unnormalized_weight= torch.relu(exp_sub_min)
+            unnormalized_weights.append(unnormalized_weight)
+            # print("unnormalized_weight", unnormalized_weight)
+        all_unormalized_weights=torch.cat(unnormalized_weights)
+        weight_sum=all_unormalized_weights.sum()
+        weights=[]
+        for i in range(len(frames_close)):
+            unnormalized_weight= unnormalized_weights[i]
+            weight= unnormalized_weight/weight_sum
+            weights.append(weight)
+        weights=torch.cat(weights)
+
+        return weights
+
+
+
+
 class Block(MetaModule):
     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):

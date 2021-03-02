@@ -55,7 +55,7 @@ train_params=TrainParams.create(config_file)
 model_params=ModelParams.create(config_file)    
 
 def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, discard_same_idx):
-    frames_close=loader.get_close_frames(frame_py.frame, 2, discard_same_idx)
+    frames_close=loader.get_close_frames(frame_py.frame, nr_frames_close, discard_same_idx)
     # print("frames_close in py is ", len(frames_close))
     # print("all_frames_py_list", len(all_frames_py_list))
     #fromt his frame close get the frames from frame_py_list with the same indexes
@@ -93,6 +93,11 @@ class FramePY():
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
         self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        #lookdir and cam center
+        self.camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
+        self.camera_center=self.camera_center.view(1,3)
+        self.look_dir=torch.from_numpy( frame.look_dir() ).to("cuda")
+        self.look_dir=self.look_dir.view(1,3)
         #create tensor to store the bound in z near and zfar for every pixel of this image
         # self.znear_zfar = torch.nn.Parameter(  torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))  )
         # with torch.no_grad():
@@ -143,7 +148,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_4dirs"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -201,12 +206,18 @@ def run():
     phases[0].show_visdom=False
     phases[1].show_visdom=True
 
-    #show all the train frames 
-    for i in range(loader_train.nr_samples()):
-        frame=loader_train.get_frame_at_idx(i)
-        frustum_mesh=frame.create_frustum_mesh(0.01)
-        frustum_mesh.m_vis.m_line_width=1
-        Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
+    #show all the train and test frames 
+    # for i in range(loader_train.nr_samples()):
+    #     frame=loader_train.get_frame_at_idx(i)
+    #     frustum_mesh=frame.create_frustum_mesh(0.02)
+    #     frustum_mesh.m_vis.m_line_width=1
+    #     Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
+    # for i in range(loader_test.nr_samples()):
+    #     frame=loader_test.get_frame_at_idx(i)
+    #     frustum_mesh=frame.create_frustum_mesh(0.02)
+    #     frustum_mesh.m_vis.m_line_width=1
+    #     frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0] #blue
+    #     Scene.show(frustum_mesh, "frustum_test_"+str(frame.frame_idx) )
 
  
     
@@ -308,6 +319,17 @@ def run():
                         rgb_mat=tensor2mat(rgb_gt)
                         Gui.show(rgb_mat,"rgb_gt")
 
+                    #view current active frame
+                    frustum_mesh=frame.frame.create_frustum_mesh(0.02)
+                    frustum_mesh.m_vis.m_line_width=3
+                    frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
+                    Scene.show(frustum_mesh, "frustum_activ" )
+
+
+                    #DEBUG run only one iter of the training 
+                    # if is_training:
+                        # break
+
 
 
 
@@ -318,16 +340,13 @@ def run():
 
                         # frames_close=loader_train.get_close_frames(frame, 2)
                         discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
-                        frames_close=get_close_frames(loader_train, frame, frames_train, 2, discard_same_idx) #the neighbour are only from the training set
+                        frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
+                        # print("frames_close", len(frames_close))
                         TIME_START("forward")
                         rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
                         TIME_END("forward")
 
-                        #VIEW pred
-                        if phase.iter_nr%show_every==0:
-                            rgb_pred_mat=tensor2mat(rgb_pred)
-                            Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-
+                     
                         #loss
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
@@ -350,6 +369,30 @@ def run():
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                             # smooth_loss = smooth(depth_pred, rgb_gt)
                             # loss+=smooth_loss*0.01
+
+
+                        
+                        #VIEW pred
+                        if phase.iter_nr%show_every==0:
+                            rgb_pred_mat=tensor2mat(rgb_pred)
+                            Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
+
+                        
+                        #VIEW 3d points   at the end of the ray march
+                        ray_dirs=frame.ray_dirs
+                        camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+                        camera_center=camera_center.view(1,3)
+                        points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                        #get the point that have a color of black (correspond to background) and put them to zero
+                        rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                        rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                        rgb_pred_zeros_mask= rgb_pred_zeros<0.01
+                        rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                        points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                        show_3D_points(points3D, "points_3d")
+
+
+
 
                         # debug the keypoints 
                         # ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -374,6 +417,8 @@ def run():
                         # print("keypoint_distances ", keypoint_distances)
                         # print("depth_pred_keypoints ", depth_pred_keypoints)
                         # print("keypoint_instances", keypoint_instances)
+
+
 
 
 
