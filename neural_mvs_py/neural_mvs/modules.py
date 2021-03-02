@@ -110,6 +110,36 @@ class FrameWeightComputer(torch.nn.Module):
         return weights
 
 
+class FeatureAgregator(torch.nn.Module):
+
+    def __init__(self ):
+        super(FeatureAgregator, self).__init__()
+
+
+    def forward(self, frame, frames_close, feat_sliced_per_frame, weights):
+
+        #similar to https://ibrnet.github.io/static/paper.pdf
+        img_features_concat=torch.cat(feat_sliced_per_frame,0) #Nr_frames x N x FEATDIM
+        weights=weights.view(-1,1,1)
+        img_features_concat_weighted=img_features_concat*weights
+
+        img_features_mean= img_features_concat_weighted.sum(dim=0)
+
+        # STD https://stats.stackexchange.com/a/6536
+        img_features_normalized=  (img_features_concat-img_features_mean.unsqueeze(0))**2 #xi- mu
+        img_features_normalized_weighted= img_features_normalized*weights
+        std= img_features_normalized_weighted.sum(dim=0) #this is just the nominator but the denominator is probably not needed since it's just 1
+
+        final_feat=torch.cat([img_features_mean, std],1)
+
+        
+
+        return final_feat
+
+
+
+
+
 
 
 class Block(MetaModule):

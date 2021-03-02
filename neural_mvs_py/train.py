@@ -148,7 +148,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_7bothfeatweight"
 
     use_ray_compression=False
 
@@ -388,7 +388,7 @@ def run():
                         rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
                         rgb_pred_zeros_mask= rgb_pred_zeros<0.01
                         rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                        # points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
                         show_3D_points(points3D, "points_3d")
 
 

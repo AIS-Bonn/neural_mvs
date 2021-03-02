@@ -3668,6 +3668,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
+        # self.frame_weights_computer= FrameWeightComputer()
+        # self.feature_aggregator= FeatureAgregator()
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
         self.feature_fuser = torch.nn.Sequential(
@@ -3726,6 +3728,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         depths = [initial_depth]
         states = [None]
 
+        # weights=self.frame_weights_computer(frame, frames_close)
 
         for iter_nr in range(self.nr_iters):
             # print("iter is ", iter_nr)
@@ -3746,10 +3749,15 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
             # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
             # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
+            #attempt 1
             img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
             img_features_mean=img_features_concat.mean(dim=0)
             img_features_std=img_features_concat.std(dim=0)
             img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
+            
+            #attempt 2 
+            # img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
+
             feat=torch.cat([feat,img_features_aggregated],1)
 
             feat=self.feature_fuser(feat)
@@ -4615,6 +4623,7 @@ class Net3_SRN(torch.nn.Module):
             # self.s_weight.fill_(0.5)
             # self.s_weight.fill_(10.0)
         self.frame_weights_computer= FrameWeightComputer()
+        self.feature_aggregator= FeatureAgregator()
 
 
         #activ
@@ -4720,14 +4729,15 @@ class Net3_SRN(torch.nn.Module):
 
         ##attempt 4 
         weights=self.frame_weights_computer(frame, frames_close)
+        img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
         # print("weight is", weights)
         #show the frames and with a line weight depending on the weight
         for i in range(len(frames_close)):
             frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
-            frustum_mesh.m_vis.m_line_width= (weights[i])*20
+            frustum_mesh.m_vis.m_line_width= (weights[i])*15
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
-
+        
 
 
 
