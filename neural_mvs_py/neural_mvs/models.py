@@ -3250,6 +3250,7 @@ class RGB_predictor_simple(MetaModule):
             cur_nr_channels+=dirs_channels
         self.pred_rgb=MetaSequential( 
             BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
@@ -4605,8 +4606,8 @@ class Net3_SRN(torch.nn.Module):
         self.unet=UNet( nr_channels_start=16, nr_channels_output=16)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
-        self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
-        # self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
+        # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
+        self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
 
 
         #activ

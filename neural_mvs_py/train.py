@@ -143,7 +143,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_3featfuse_pos"
+    experiment_name="s_4rgbsimple"
 
     use_ray_compression=False
 
@@ -380,7 +380,7 @@ def run():
                             depth_pred=depth_pred.view(-1,1)
                             depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
                             loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
-                            loss+=loss_depth*10
+                            loss+=loss_depth*30
 
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
