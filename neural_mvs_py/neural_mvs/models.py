@@ -3663,17 +3663,18 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
         self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
-        self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
+        # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
-        # self.feature_fuser = torch.nn.Sequential(
-        #     torch.nn.Linear(64+32, 64),
-        #     torch.nn.ReLU(),
-        #     torch.nn.Linear(64, 64),
-        #     torch.nn.ReLU(),
-        #     torch.nn.Linear(64, 64)
-        # )
+        self.feature_fuser = torch.nn.Sequential(
+            # torch.nn.Linear(64+32, 64),
+            torch.nn.Linear(3+3*num_encodings*2  +32, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 64)
+        )
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -3728,8 +3729,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         
             #compute the features at this position 
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
-            feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
-            # feat=self.learned_pe(world_coords[-1])
+            # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            feat=self.learned_pe(world_coords[-1])
 
             #concat also the features from images 
             feat_sliced_per_frame=[]
@@ -3748,7 +3749,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
             feat=torch.cat([feat,img_features_aggregated],1)
 
-            # feat=self.feature_fuser(feat)
+            feat=self.feature_fuser(feat)
 
 
             #create the lstm if not created 
