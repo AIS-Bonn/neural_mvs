@@ -54,21 +54,25 @@ torch.set_printoptions(edgeitems=3)
 train_params=TrainParams.create(config_file)    
 model_params=ModelParams.create(config_file)    
 
-def get_close_frames(frame_py, all_frames_py_list, nr_frames_close):
-    frames_close=frame_py.loader.get_close_frames(frame_py.frame, 2)
+def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, discard_same_idx):
+    frames_close=loader.get_close_frames(frame_py.frame, 2, discard_same_idx)
+    # print("frames_close in py is ", len(frames_close))
+    # print("all_frames_py_list", len(all_frames_py_list))
     #fromt his frame close get the frames from frame_py_list with the same indexes
     frames_selected=[]
     for frame in frames_close:
         frame_idx=frame.frame_idx
+        # print("looking for a frame with frame_idx", frame_idx)
         #find in all_frames_py_list the one with this frame idx
         for frame_py in all_frames_py_list:
+            # print("cur frame has frmaeidx", frame_py.frame_idx)
             if frame_py.frame_idx==frame_idx:
                 frames_selected.append(frame_py)
 
     return frames_selected
 
 class FramePY():
-    def __init__(self, frame, loader):
+    def __init__(self, frame):
         #get mask 
         self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
         self.mask=frame.mask
@@ -84,7 +88,7 @@ class FramePY():
         self.width=self.rgb_tensor.shape[3]
         #misc
         self.frame_idx=frame.frame_idx
-        self.loader=loader
+        # self.loader=loader
         self.frame=frame
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
@@ -143,7 +147,7 @@ def run():
     # experiment_name="n4"
     # experiment_name="s_apol_lr5.0_clipno"
     # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_4rgbsimple"
+    experiment_name="s_5f"
 
     use_ray_compression=False
 
@@ -200,6 +204,23 @@ def run():
     show_every=10
     # show_every=1
 
+
+
+    #get all the frames train in am array, becuase it's faster to have everything already on the gpu
+    frames_train=[]
+    frames_test=[]
+    for i in range(loader_train.nr_samples()):
+        frame=loader_train.get_frame_at_idx(i)
+        frames_train.append(FramePY(frame))
+    for i in range(loader_test.nr_samples()):
+        frame=loader_test.get_frame_at_idx(i)
+        frames_test.append(FramePY(frame))
+    phases[0].frames=frames_train 
+    phases[1].frames=frames_test
+    #Show only the visdom for the testin
+    phases[0].show_visdom=False
+    phases[1].show_visdom=True
+
     
     #get the frames into a vector
     # selected_frame_idx=[0,4] #two cameras at like 45 degrees
@@ -215,7 +236,7 @@ def run():
     #         loader_train.reset()
     #         break
 
-    frames_train=[]
+    # frames_train=[]
     # frames_train.append( frame_0 )
     # frames_train.append( loader_train.get_closest_frame(frame_0) )
     
@@ -238,7 +259,7 @@ def run():
         if i in selected_frame_idx:
             frame_query=loader_train.get_frame_at_idx(i) 
             # frame_target=loader_train.get_closest_frame(frame_query)
-            frame_target=loader_train.get_close_frames(frame_query, 1)[0]
+            frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
             frames_query_selected.append(frame_query)
             frames_target_selected.append(frame_target)
             frames_all_selected.append(frame_query)
@@ -278,23 +299,35 @@ def run():
         keypoints_3d =torch.from_numpy(mesh_sparse.V.copy()).float().to("cuda")
         keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
         frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
-        # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx) )
+        # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx # #get all the frames train in am array, becuase it's faster to have everything already on the gpu
+    # frames_train=[]
+    # frames_test=[]
+    # for i in range(loader_train.nr_samples()):
+    #     frame=loader_train.get_frame_at_idx(i)
+    #     frames_train.append(FramePY(frame))
+    # for i in range(loader_test.nr_samples()):
+    #     frame=loader_test.get_frame_at_idx(i)
+    #     frames_test.append(FramePY(frame))
+    # phases[0].frames=frames_train 
+    # phases[1].frames=frames_test
+    # #Show only the visdom for the testin
+    # phases[0].show_visdom=False
+    # phases[1].show_visdom=True
 
-
-    #get all the frames train in am array, becuase it's faster to have everything already on the gpu
-    frames_train=[]
-    frames_test=[]
-    for i in range(loader_train.nr_samples()):
-        frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame, loader_train))
-    for i in range(loader_test.nr_samples()):
-        frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame, loader_test))
-    phases[0].frames=frames_train 
-    phases[1].frames=frames_test
-    #Show only the visdom for the testin
-    phases[0].show_visdom=False
-    phases[1].show_visdom=True
+    # #get all the frames train in am array, becuase it's faster to have everything already on the gpu
+    # frames_train=[]
+    # frames_test=[]
+    # for i in range(loader_train.nr_samples()):
+    #     frame=loader_train.get_frame_at_idx(i)
+    #     frames_train.append(FramePY(frame))
+    # for i in range(loader_test.nr_samples()):
+    #     frame=loader_test.get_frame_at_idx(i)
+    #     frames_test.append(FramePY(frame))
+    # phases[0].frames=frames_train 
+    # phases[1].frames=frames_test
+    # #Show only the visdom for the testin
+    # phases[0].show_visdom=False
+    # phases[1].show_visdom=True
 
 
 
@@ -344,6 +377,13 @@ def run():
                     rgb_gt=frame.rgb_tensor
 
 
+                    #view gt 
+                    if phase.iter_nr%show_every==0:
+                        rgb_mat=tensor2mat(rgb_gt)
+                        Gui.show(rgb_mat,"rgb_gt")
+
+
+
 
 
 
@@ -351,7 +391,8 @@ def run():
                     with torch.set_grad_enabled(is_training):
 
                         # frames_close=loader_train.get_close_frames(frame, 2)
-                        frames_close=get_close_frames(frame, phase.frames, 2)
+                        discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
+                        frames_close=get_close_frames(loader_train, frame, frames_train, 2, discard_same_idx) #the neighbour are only from the training set
                         TIME_START("forward")
                         rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
                         TIME_END("forward")
@@ -380,7 +421,12 @@ def run():
                             depth_pred=depth_pred.view(-1,1)
                             depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
                             loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
-                            loss+=loss_depth*30
+                            if phase.iter_nr<100:
+                                loss+=loss_depth*50
+                                # loss+=(depth_pred.mean()-0.5)**2 *0.1
+
+                            #attempt 2 at depth loss
+                            # loss+=(depth_pred.mean()-0.5)**2*0.01
 
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
@@ -491,14 +537,18 @@ def run():
                     #         model.eval()
                     #         #create novel view
                     #         if new_frame==None:
-                    #             new_frame=Frame()
-                    #             frame_to_start=loader_train.get_frame_at_idx(0)
+                    #             new_frame=FramePY()
+                    #             frame_to_start=frames_train[0]
                     #             new_frame.tf_cam_world=frame_to_start.tf_cam_world
                     #             new_frame.K=frame_to_start.K.copy()
                     #             new_frame.height=frame_to_start.height
                     #             new_frame.width=frame_to_start.width
+                    #             new_frame.frame=frame_to_start.frame
+                    #             new_frame.rgb_32f=frame_to_start.rgb_32f
+                    #             new_frame.ray_dirs=frame_to_start.ray_dirs
+                    #             new_frame.loader=frame.loader
                     #         #rotate a bit 
-                    #         model_matrix = new_frame.tf_cam_world.inverse()
+                    #         model_matrix = new_frame.frame.tf_cam_world.inverse()
                     #         model_matrix=model_matrix.orbit_y_around_point([0,0,0], 10)
                     #         new_frame.tf_cam_world = model_matrix.inverse()
                     #         # new_frame_subsampled=new_frame.subsample(4)
