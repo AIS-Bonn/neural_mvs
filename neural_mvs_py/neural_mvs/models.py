@@ -3238,6 +3238,8 @@ class RGB_predictor_simple(MetaModule):
         # self.first_conv=BlockSiren(activ=torch.sin, in_channels=3, out_channels=128,  bias=True, is_first_layer=True).cuda()
 
         cur_nr_channels+=32 #for point features
+        cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
+        cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
       
         if use_ray_dirs:
             num_encoding_directions=4
@@ -4652,13 +4654,21 @@ class Net3_SRN(torch.nn.Module):
             uv=compute_uv(frame_close, point3d )
             frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
             dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-            feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
-        img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
-        img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
-        img_features_mean=img_features_concat.mean(dim=0)
-        img_features_std=img_features_concat.std(dim=0)
-        img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
+            # feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
+            feat_sliced_per_frame.append(sliced_local_features) #make it 1 x N x FEATDIM
+        # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+        # img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
+        # img_features_mean=img_features_concat.mean(dim=0)
+        # img_features_std=img_features_concat.std(dim=0)
+        # img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
         # print("img_features_aggregated", img_features_aggregated.shape)
+
+        img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+        ray_dirs_left=frames_close[0].ray_dirs
+        ray_dirs_right=frames_close[1].ray_dirs
+        ray_dirs_left=self.rgb_predictor.learned_pe_dirs(ray_dirs_left)
+        ray_dirs_right=self.rgb_predictor.learned_pe_dirs(ray_dirs_right)
+        img_features_aggregated=torch.cat([img_features_aggregated, ray_dirs_left, ray_dirs_right ], dim=1)
 
 
         TIME_START("rgb_predict")

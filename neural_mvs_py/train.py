@@ -143,11 +143,7 @@ def run():
 
     first_time=True
 
-    # experiment_name="default"
-    # experiment_name="n4"
-    # experiment_name="s_apol_lr5.0_clipno"
-    # experiment_name="s_adam0.001_clipno"
-    experiment_name="s_5f"
+    experiment_name="s_4dirs"
 
     use_ray_compression=False
 
