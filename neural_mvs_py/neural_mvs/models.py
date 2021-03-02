@@ -3667,6 +3667,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
+        # self.feature_fuser = torch.nn.Sequential(
+        #     torch.nn.Linear(64+32, 64),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(64, 64),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(64, 64)
+        # )
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -3740,6 +3747,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             img_features_std=img_features_concat.std(dim=0)
             img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
             feat=torch.cat([feat,img_features_aggregated],1)
+
+            # feat=self.feature_fuser(feat)
 
 
             #create the lstm if not created 

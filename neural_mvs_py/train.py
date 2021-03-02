@@ -169,6 +169,10 @@ def run():
     loader_test=DataLoaderNerf(config_path)
     # loader_test=DataLoaderColmap(config_path)
     # loader_test=DataLoaderVolRef(config_path)
+    loader_train.set_mode_train()
+    loader_test.set_mode_test()
+    loader_train.start()
+    loader_test.start()
 
     #create phases
     phases= [
@@ -368,19 +372,20 @@ def run():
                         # loss+=rgb_loss_l1
 
                         #loss on depth 
-                        keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
-                        keypoint_distances=keypoint_data[0]
-                        keypoint_instances=keypoint_data[1]
-                        keypoints_3d=keypoint_data[2]
-                        depth_pred=depth_pred.view(-1,1)
-                        depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
-                        loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
-                        loss+=loss_depth*10
+                        if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames
+                            keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
+                            keypoint_distances=keypoint_data[0]
+                            keypoint_instances=keypoint_data[1]
+                            keypoints_3d=keypoint_data[2]
+                            depth_pred=depth_pred.view(-1,1)
+                            depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
+                            loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
+                            loss+=loss_depth*10
 
-                        #smoothness loss
-                        # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        # smooth_loss = smooth(depth_pred, rgb_gt)
-                        # loss+=smooth_loss*0.01
+                            #smoothness loss
+                            # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                            # smooth_loss = smooth(depth_pred, rgb_gt)
+                            # loss+=smooth_loss*0.01
 
                         # debug the keypoints 
                         # ray_dirs_mesh=frame.pixels2dirs_mesh()
