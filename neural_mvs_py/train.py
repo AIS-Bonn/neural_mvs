@@ -160,15 +160,8 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader=TinyLoader.create(config_file)
-    # loader_train=DataLoaderShapeNetImg(config_path)
     loader_train=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader=DataLoaderVolRef(config_path)
-    # loader_test=DataLoaderShapeNetImg(config_path)
     loader_test=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderVolRef(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -181,24 +174,15 @@ def run():
     ]
     #model 
     model=None
-    # model=Net().to("cuda")
-    # model=SirenNetwork(in_channels=2, out_channels=3).to("cuda")
-    # model = VAE(nc=3, ngf=128, ndf=128, latent_variable_size=500).to("cuda")
-    # model=DepthPredictor(model_params).to("cuda")
-    # model=Net2(model_params).to("cuda")
     model=Net3_SRN(model_params).to("cuda")
-    # model.train()
-    # model.half()
+    model.train()
 
-    loss_fn=torch.nn.MSELoss()
     scheduler=None
     concat_coord=ConcatCoord() 
     smooth = InverseDepthSmoothnessLoss()
     ssim_l1_criterion = MS_SSIM_L1_LOSS()
 
-    # show_every=39
-    show_every=10
-    # show_every=1
+    show_every=1
 
 
 
@@ -217,32 +201,17 @@ def run():
     phases[0].show_visdom=False
     phases[1].show_visdom=True
 
-    
-    #get the frames into a vector
-    # selected_frame_idx=[0,4] #two cameras at like 45 degrees
-    # selected_frame_idx=[3,5] #also at 45 but probably a bit better
-    # selected_frame_idx=[8,9] #also at 45 but probably a bit better
-    # frames_train=[]
-    # while len(frames_train)<2:
-    #     if(loader_train.has_data() ): 
-    #         frame=loader_train.get_next_frame()
-    #         if frame.frame_idx in selected_frame_idx:
-    #             frames_train.append(frame)
-    #     if loader_train.is_finished():
-    #         loader_train.reset()
-    #         break
+    #show all the train frames 
+    for i in range(loader_train.nr_samples()):
+        frame=loader_train.get_frame_at_idx(i)
+        frustum_mesh=frame.create_frustum_mesh(0.01)
+        frustum_mesh.m_vis.m_line_width=1
+        Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
 
-    # frames_train=[]
-    # frames_train.append( frame_0 )
-    # frames_train.append( loader_train.get_closest_frame(frame_0) )
+ 
     
     #compute 3D 
     sfm=SFM.create()
-    # selected_frame_idx=[0,3] 
-    # selected_frame_idx=[0] 
-    # selected_frame_idx=[1] 
-    # selected_frame_idx=[0,1,2,3] 
-    # selected_frame_idx=np.arange(7) #For nerf
     selected_frame_idx=np.arange(30) #For colmap
     # selected_frame_idx=[10]
     frames_query_selected=[]
@@ -264,14 +233,14 @@ def run():
             meshes_for_query_frames.append(mesh_sparse)
             # Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
 
-            frustum_mesh=frame_query.create_frustum_mesh(0.01)
-            frustum_mesh.m_vis.m_line_width=1
-            Scene.show(frustum_mesh, "frustum_"+str(frame_query.frame_idx) )
+            # frustum_mesh=frame_query.create_frustum_mesh(0.01)
+            # frustum_mesh.m_vis.m_line_width=1
+            # Scene.show(frustum_mesh, "frustum_"+str(frame_query.frame_idx) )
 
-            frustum_mesh=frame_target.create_frustum_mesh(0.01)
-            frustum_mesh.m_vis.m_line_width=1
-            frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0]
-            Scene.show(frustum_mesh, "frustum_T_"+str(frame_target.frame_idx) )
+            # frustum_mesh=frame_target.create_frustum_mesh(0.01)
+            # frustum_mesh.m_vis.m_line_width=1
+            # frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0]
+            # Scene.show(frustum_mesh, "frustum_T_"+str(frame_target.frame_idx) )
 
 
     #fuse all the meshes into one
@@ -296,36 +265,6 @@ def run():
         keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
         frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
         # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx # #get all the frames train in am array, becuase it's faster to have everything already on the gpu
-    # frames_train=[]
-    # frames_test=[]
-    # for i in range(loader_train.nr_samples()):
-    #     frame=loader_train.get_frame_at_idx(i)
-    #     frames_train.append(FramePY(frame))
-    # for i in range(loader_test.nr_samples()):
-    #     frame=loader_test.get_frame_at_idx(i)
-    #     frames_test.append(FramePY(frame))
-    # phases[0].frames=frames_train 
-    # phases[1].frames=frames_test
-    # #Show only the visdom for the testin
-    # phases[0].show_visdom=False
-    # phases[1].show_visdom=True
-
-    # #get all the frames train in am array, becuase it's faster to have everything already on the gpu
-    # frames_train=[]
-    # frames_test=[]
-    # for i in range(loader_train.nr_samples()):
-    #     frame=loader_train.get_frame_at_idx(i)
-    #     frames_train.append(FramePY(frame))
-    # for i in range(loader_test.nr_samples()):
-    #     frame=loader_test.get_frame_at_idx(i)
-    #     frames_test.append(FramePY(frame))
-    # phases[0].frames=frames_train 
-    # phases[1].frames=frames_test
-    # #Show only the visdom for the testin
-    # phases[0].show_visdom=False
-    # phases[1].show_visdom=True
-
-
 
     #depth min max for nerf 
     depth_min=2
@@ -360,20 +299,11 @@ def run():
                         frame=random.choice(phase.frames)
                     else:
                         frame=phase.frames[i]
-                    # frame=phase.loader.get_random_frame() 
-                    # frame=phase.loader.get_frame_at_idx(10) 
-                    # pass
                     TIME_START("all")
-                    # mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
-                    # rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
-                    # rgb_gt=rgb_gt*mask_tensor
-                    # rgb_gt=rgb_gt+0.1
-                    # rgb_mat=tensor2mat(rgb_gt)
-                    # Gui.show(rgb_mat,"rgb_gt")
+                   
                     rgb_gt=frame.rgb_tensor
 
-
-                    #view gt 
+                    #VIEW gt 
                     if phase.iter_nr%show_every==0:
                         rgb_mat=tensor2mat(rgb_gt)
                         Gui.show(rgb_mat,"rgb_gt")
@@ -393,20 +323,16 @@ def run():
                         rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
                         TIME_END("forward")
 
-                        #view pred
+                        #VIEW pred
                         if phase.iter_nr%show_every==0:
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
 
                         #loss
-                        # rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        # rgb_loss_l1=(torch.abs(rgb_gt-rgb_pred)).mean()
                         loss+=rgb_loss_ssim_l1
-                        # loss+=rgb_loss
-                        # loss+=rgb_loss_l1
 
                         #loss on depth 
                         if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames
@@ -419,10 +345,6 @@ def run():
                             loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
                             if phase.iter_nr<100:
                                 loss+=loss_depth*50
-                                # loss+=(depth_pred.mean()-0.5)**2 *0.1
-
-                            #attempt 2 at depth loss
-                            # loss+=(depth_pred.mean()-0.5)**2*0.01
 
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
