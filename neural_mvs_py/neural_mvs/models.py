@@ -3672,13 +3672,19 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.feature_aggregator= FeatureAgregator()
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
+        # self.feature_fuser = torch.nn.Sequential(
+        #     # torch.nn.Linear(64+32, 64),
+        #     # torch.nn.Linear(3+3*num_encodings*2  +32, 64),
+        #     BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+        #     # torch.nn.ReLU(),
+        #     torch.nn.Linear(64, 64),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(64, 64)
+        # )
         self.feature_fuser = torch.nn.Sequential(
-            # torch.nn.Linear(64+32, 64),
-            torch.nn.Linear(3+3*num_encodings*2  +32, 64),
-            torch.nn.ReLU(),
-            torch.nn.Linear(64, 64),
-            torch.nn.ReLU(),
-            torch.nn.Linear(64, 64)
+            BlockNerf(activ=torch.relu, in_channels=3+3*num_encodings*2  +32, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=torch.relu, in_channels=64, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
         #activ
@@ -4730,8 +4736,7 @@ class Net3_SRN(torch.nn.Module):
         ##attempt 4 
         weights=self.frame_weights_computer(frame, frames_close)
         img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
-        # print("weight is", weights)
-        #show the frames and with a line weight depending on the weight
+        # show the frames and with a line weight depending on the weight
         for i in range(len(frames_close)):
             frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
             frustum_mesh.m_vis.m_line_width= (weights[i])*15

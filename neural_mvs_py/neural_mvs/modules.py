@@ -75,10 +75,13 @@ class FrameWeightComputer(torch.nn.Module):
     def __init__(self ):
         super(FrameWeightComputer, self).__init__()
 
-        self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
-        with torch.set_grad_enabled(False):
-            # self.s_weight.fill_(0.5)
-            self.s_weight.fill_(10.0)
+        # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
+        # with torch.set_grad_enabled(False):
+        #     # self.s_weight.fill_(0.5)
+        #     self.s_weight.fill_(10.0)
+
+        ######CREATING A NEW parameter for the s_weight for some reason destroys the rest of the network and it doesnt optimize anymore. Either way, it barely changes so we just set it to 10
+        self.s_weight=10
 
     def forward(self, frame, frames_close):
         cur_dir=frame.look_dir
@@ -88,7 +91,7 @@ class FrameWeightComputer(torch.nn.Module):
             dot= torch.dot( cur_dir.view(-1), dir_neighbour.view(-1) )
             s_dot= self.s_weight*(dot-1)
             exp=torch.exp(s_dot)
-            exponential_weight_towards_neighbour.append(exp)
+            exponential_weight_towards_neighbour.append(exp.view(1))
         all_exp=torch.cat(exponential_weight_towards_neighbour)
         exp_minimum= all_exp.min()
         unnormalized_weights=[]
@@ -129,6 +132,7 @@ class FeatureAgregator(torch.nn.Module):
         img_features_normalized=  (img_features_concat-img_features_mean.unsqueeze(0))**2 #xi- mu
         img_features_normalized_weighted= img_features_normalized*weights
         std= img_features_normalized_weighted.sum(dim=0) #this is just the nominator but the denominator is probably not needed since it's just 1
+        # std=torch.sqrt(std)
 
         final_feat=torch.cat([img_features_mean, std],1)
 
