@@ -4649,11 +4649,22 @@ class Net3_SRN(torch.nn.Module):
     def forward(self, frame, mesh, depth_min, depth_max, frames_close, novel=False):
 
         TIME_START("unet")
-        frames_features=[]
+        # frames_features=[]
+        # for frame_close in frames_close:
+        #     rgb_gt=frame_close.rgb_tensor
+        #     frame_features=self.unet(rgb_gt)
+        #     frames_features.append(frame_features)
+
+        rgb_batch_list=[]
         for frame_close in frames_close:
             rgb_gt=frame_close.rgb_tensor
-            frame_features=self.unet(rgb_gt)
-            frames_features.append(frame_features)
+            rgb_batch_list.append(rgb_gt)
+        rgb_batch=torch.cat(rgb_batch_list,0)
+        #pass through unet 
+        batch_features=self.unet(rgb_batch)
+        frames_features=[]
+        for i in range(len(frames_close)):
+            frames_features.append(batch_features[i:i+1, :,:,:])
         TIME_END("unet")
 
         TIME_START("ray_march")

@@ -148,7 +148,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_8both_sfixed"
+    experiment_name="s_9"
 
     use_ray_compression=False
 
