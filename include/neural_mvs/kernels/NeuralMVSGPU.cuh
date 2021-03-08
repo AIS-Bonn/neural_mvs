@@ -41,12 +41,12 @@ public:
 
 
 
-         void splat_texture(float* texture, const float* values, const float* uv, const int nr_values, const int val_dim, const int texture_size){
+         void splat_texture(float* texture, const float* values, const float* uv, const int nr_values, const int val_dim, const int texture_height, const int texture_width){
    
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("splat_texture")
-                        .instantiate(val_dim, texture_size)
+                        .instantiate(val_dim, texture_height, texture_width)
                         .configure(blocks, blockSize)
                         .launch(nr_values, texture, values, uv );
             CUDA_CHECK_CURESULT(res);
@@ -55,12 +55,12 @@ public:
         }
 
 
-        void slice_texture(float* values_not_normalized_tensor, const float* texture, const float* uv, const int nr_values, const int nr_channels_texture, const int texture_size){
+        void slice_texture(float* values_not_normalized_tensor, const float* texture, const float* uv, const int nr_values, const int nr_channels_texture, const int texture_height, const int texture_width){
    
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("slice_texture")
-                        .instantiate(nr_channels_texture, texture_size)
+                        .instantiate(nr_channels_texture, texture_height, texture_width)
                         .configure(blocks, blockSize)
                         .launch(nr_values, values_not_normalized_tensor, texture, uv );
             CUDA_CHECK_CURESULT(res);
@@ -70,12 +70,12 @@ public:
 
 
    
-        void splat_texture_backward(float* grad_values, float* grad_uv, const float* grad_texture, const float* values, const float* uv, const int nr_values, const int val_dim, const int texture_size){
+        void splat_texture_backward(float* grad_values, float* grad_uv, const float* grad_texture, const float* values, const float* uv, const int nr_values, const int val_dim, const int texture_height, const int texture_width){
    
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("splat_texture_backward")
-                        .instantiate( val_dim, texture_size)
+                        .instantiate( val_dim, texture_height, texture_width)
                         .configure(blocks, blockSize)
                         .launch( nr_values, grad_values, grad_uv, grad_texture, values, uv );
             CUDA_CHECK_CURESULT(res);
@@ -87,12 +87,12 @@ public:
         //                             grad_values.data_ptr<float>(), texture.data_ptr<float>(), uv_tensor.data_ptr<float>(), //input
         //                             nr_values, nr_channels_texture, texture_size); //constant
 
-        void slice_texture_backward(float* grad_texture, float* grad_uv, const float* grad_values_not_normalized, const float* texture, const float* uv, const int nr_values, const int nr_channels_texture, const int texture_size){
+        void slice_texture_backward(float* grad_texture, float* grad_uv, const float* grad_values_not_normalized, const float* texture, const float* uv, const int nr_values, const int nr_channels_texture, const int texture_height, const int texture_width){
    
             dim3 blocks((nr_values - 1) / BLOCK_SIZE + 1, 1, 1);
             dim3 blockSize(BLOCK_SIZE, 1, 1);
             CUresult res= m_program.kernel("slice_texture_backward")
-                        .instantiate( nr_channels_texture, texture_size)
+                        .instantiate( nr_channels_texture, texture_height, texture_width)
                         .configure(blocks, blockSize)
                         .launch( nr_values, grad_texture, grad_uv, grad_values_not_normalized, texture, uv );
             CUDA_CHECK_CURESULT(res);
@@ -121,7 +121,7 @@ public:
 
 
 
-template< int val_dim, int texture_size>
+template< int val_dim, int texture_height, int texture_width>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
 splat_texture(int nr_values, float* texture, const float* values, const float* uv ){
@@ -189,8 +189,8 @@ splat_texture(int nr_values, float* texture, const float* values, const float* u
 
 
     //the uvs are supposed to be in range [-1, 1], now we get them in range [0, texture_size-1]
-    float ix=(cur_uv[0]+1)*0.5*(texture_size-1);
-    float iy=(cur_uv[1]+1)*0.5*(texture_size-1);
+    float ix=(cur_uv[0]+1)*0.5*(texture_width-1);
+    float iy=(cur_uv[1]+1)*0.5*(texture_height-1);
     // printf("ix %f and uv is %f \n", ix, cur_uv[0] );
 
     //get the coordiantes of the neighbouring 4 pixels according to the wikipedia convention  https://en.wikipedia.org/wiki/Bilinear_interpolation
@@ -210,14 +210,14 @@ splat_texture(int nr_values, float* texture, const float* values, const float* u
     int iy_se = iy_nw + 1;
 
     //clip 
-    CLIP_COORDINATES(ix_nw, ix_nw, texture_size);
-    CLIP_COORDINATES(iy_nw, iy_nw, texture_size);
-    CLIP_COORDINATES(ix_ne, ix_ne, texture_size);
-    CLIP_COORDINATES(iy_ne, iy_ne, texture_size);
-    CLIP_COORDINATES(ix_sw, ix_sw, texture_size);
-    CLIP_COORDINATES(iy_sw, iy_sw, texture_size);
-    CLIP_COORDINATES(ix_se, ix_se, texture_size);
-    CLIP_COORDINATES(iy_se, iy_se, texture_size);
+    CLIP_COORDINATES(ix_nw, ix_nw, texture_width);
+    CLIP_COORDINATES(iy_nw, iy_nw, texture_height);
+    CLIP_COORDINATES(ix_ne, ix_ne, texture_width);
+    CLIP_COORDINATES(iy_ne, iy_ne, texture_height);
+    CLIP_COORDINATES(ix_sw, ix_sw, texture_width);
+    CLIP_COORDINATES(iy_sw, iy_sw, texture_height);
+    CLIP_COORDINATES(ix_se, ix_se, texture_width);
+    CLIP_COORDINATES(iy_se, iy_se, texture_height);
 
 
 
@@ -227,10 +227,10 @@ splat_texture(int nr_values, float* texture, const float* values, const float* u
     // const float* q22 = texture + x2*nr_channels_texture + y2*texture_size*nr_channels_texture;
     // const float* q21 = texture + x2*nr_channels_texture + y1*texture_size*nr_channels_texture;
 
-    float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_size*nr_channels_texture;
-    float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_size*nr_channels_texture;
-    float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_size*nr_channels_texture;
-    float* se_val = texture + ix_se*nr_channels_texture + iy_se*texture_size*nr_channels_texture;
+    float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_width*nr_channels_texture;
+    float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_width*nr_channels_texture;
+    float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_width*nr_channels_texture;
+    float* se_val = texture + ix_se*nr_channels_texture + iy_se*texture_width*nr_channels_texture;
 
     //get the weigthings of the pixels
     // float denom = 1.0/( (x2 - x1)*(y2-y1)  + 1e-7 ); //the denominator is mostly just to normalize for the size of the pixel but we can assume a pixel of size 1 and just drop this whole term
@@ -269,7 +269,7 @@ splat_texture(int nr_values, float* texture, const float* values, const float* u
 
 
 
-template<int nr_channels_texture, int texture_size>
+template<int nr_channels_texture, int texture_height, int texture_width>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
 slice_texture( int nr_values, float* values_not_normalized, const float* texture, const float* uv ){
@@ -289,8 +289,8 @@ slice_texture( int nr_values, float* values_not_normalized, const float* texture
     const float* cur_uv = uv+idx*2;
 
     //the uvs are supposed to be in range [-1, 1], now we get them in range [0, texture_size-1]
-    float ix=(cur_uv[0]+1)*0.5*(texture_size-1);
-    float iy=(cur_uv[1]+1)*0.5*(texture_size-1);
+    float ix=(cur_uv[0]+1)*0.5*(texture_width-1);
+    float iy=(cur_uv[1]+1)*0.5*(texture_height-1);
     // printf("ix %f and uv is %f \n", ix, cur_uv[0] );
 
     //get the coordiantes of the neighbouring 4 pixels according to the wikipedia convention  https://en.wikipedia.org/wiki/Bilinear_interpolation
@@ -310,14 +310,14 @@ slice_texture( int nr_values, float* values_not_normalized, const float* texture
     int iy_se = iy_nw + 1;
 
     //clip 
-    CLIP_COORDINATES(ix_nw, ix_nw, texture_size);
-    CLIP_COORDINATES(iy_nw, iy_nw, texture_size);
-    CLIP_COORDINATES(ix_ne, ix_ne, texture_size);
-    CLIP_COORDINATES(iy_ne, iy_ne, texture_size);
-    CLIP_COORDINATES(ix_sw, ix_sw, texture_size);
-    CLIP_COORDINATES(iy_sw, iy_sw, texture_size);
-    CLIP_COORDINATES(ix_se, ix_se, texture_size);
-    CLIP_COORDINATES(iy_se, iy_se, texture_size);
+    CLIP_COORDINATES(ix_nw, ix_nw, texture_width);
+    CLIP_COORDINATES(iy_nw, iy_nw, texture_height);
+    CLIP_COORDINATES(ix_ne, ix_ne, texture_width);
+    CLIP_COORDINATES(iy_ne, iy_ne, texture_height);
+    CLIP_COORDINATES(ix_sw, ix_sw, texture_width);
+    CLIP_COORDINATES(iy_sw, iy_sw, texture_height);
+    CLIP_COORDINATES(ix_se, ix_se, texture_width);
+    CLIP_COORDINATES(iy_se, iy_se, texture_height);
 
 
 
@@ -329,10 +329,10 @@ slice_texture( int nr_values, float* values_not_normalized, const float* texture
 
     // printf("accesing at x %d and y %d\n", ix_nw, iy_nw );
 
-    const float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_size*nr_channels_texture;
-    const float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_size*nr_channels_texture;
-    const float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_size*nr_channels_texture;
-    const float* se_val = texture + ix_se*nr_channels_texture + iy_se*texture_size*nr_channels_texture;
+    const float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_width*nr_channels_texture;
+    const float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_width*nr_channels_texture;
+    const float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_width*nr_channels_texture;
+    const float* se_val = texture + ix_se*nr_channels_texture + iy_se*texture_width*nr_channels_texture;
 
     //get the weigthings of the pixels
     // float denom = 1.0/( (x2 - x1)*(y2-y1)  + 1e-7 ); //the denominator is mostly just to normalize for the size of the pixel but we can assume a pixel of size 1 and just drop this whole term
@@ -367,7 +367,7 @@ slice_texture( int nr_values, float* values_not_normalized, const float* texture
 }
 
 
-template< int val_dim, int texture_size>
+template< int val_dim, int texture_height, int texture_width>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
 splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const float* grad_texture, const float* values, const float* uv ){
@@ -414,8 +414,8 @@ splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const
 
 
     //the uvs are supposed to be in range [-1, 1], now we get them in range [0, texture_size-1]
-    float ix=(cur_uv[0]+1)*0.5*(texture_size-1);
-    float iy=(cur_uv[1]+1)*0.5*(texture_size-1);
+    float ix=(cur_uv[0]+1)*0.5*(texture_width-1);
+    float iy=(cur_uv[1]+1)*0.5*(texture_height-1);
     // printf("ix %f and uv is %f \n", ix, cur_uv[0] );
 
     //get the coordiantes of the neighbouring 4 pixels according to the wikipedia convention  https://en.wikipedia.org/wiki/Bilinear_interpolation
@@ -435,14 +435,14 @@ splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const
     int iy_se = iy_nw + 1;
 
     //clip 
-    CLIP_COORDINATES(ix_nw, ix_nw, texture_size);
-    CLIP_COORDINATES(iy_nw, iy_nw, texture_size);
-    CLIP_COORDINATES(ix_ne, ix_ne, texture_size);
-    CLIP_COORDINATES(iy_ne, iy_ne, texture_size);
-    CLIP_COORDINATES(ix_sw, ix_sw, texture_size);
-    CLIP_COORDINATES(iy_sw, iy_sw, texture_size);
-    CLIP_COORDINATES(ix_se, ix_se, texture_size);
-    CLIP_COORDINATES(iy_se, iy_se, texture_size);
+    CLIP_COORDINATES(ix_nw, ix_nw, texture_width);
+    CLIP_COORDINATES(iy_nw, iy_nw, texture_height);
+    CLIP_COORDINATES(ix_ne, ix_ne, texture_width);
+    CLIP_COORDINATES(iy_ne, iy_ne, texture_height);
+    CLIP_COORDINATES(ix_sw, ix_sw, texture_width);
+    CLIP_COORDINATES(iy_sw, iy_sw, texture_height);
+    CLIP_COORDINATES(ix_se, ix_se, texture_width);
+    CLIP_COORDINATES(iy_se, iy_se, texture_height);
 
 
 
@@ -452,10 +452,10 @@ splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const
     // const float* q22 = texture + x2*nr_channels_texture + y2*texture_size*nr_channels_texture;
     // const float* q21 = texture + x2*nr_channels_texture + y1*texture_size*nr_channels_texture;
 
-    const float* d_nw_val = grad_texture + ix_nw*nr_channels_texture + iy_nw*texture_size*nr_channels_texture;
-    const float* d_ne_val = grad_texture + ix_ne*nr_channels_texture + iy_ne*texture_size*nr_channels_texture;
-    const float* d_sw_val = grad_texture + ix_sw*nr_channels_texture + iy_sw*texture_size*nr_channels_texture;
-    const float* d_se_val = grad_texture + ix_se*nr_channels_texture + iy_se*texture_size*nr_channels_texture;
+    const float* d_nw_val = grad_texture + ix_nw*nr_channels_texture + iy_nw*texture_width*nr_channels_texture;
+    const float* d_ne_val = grad_texture + ix_ne*nr_channels_texture + iy_ne*texture_width*nr_channels_texture;
+    const float* d_sw_val = grad_texture + ix_sw*nr_channels_texture + iy_sw*texture_width*nr_channels_texture;
+    const float* d_se_val = grad_texture + ix_se*nr_channels_texture + iy_se*texture_width*nr_channels_texture;
 
     //get the weigthings of the pixels
     // float denom = 1.0/( (x2 - x1)*(y2-y1)  + 1e-7 ); //the denominator is mostly just to normalize for the size of the pixel but we can assume a pixel of size 1 and just drop this whole term
@@ -502,8 +502,8 @@ splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const
 
     //unnormalize the grad_uv back to the [-1.1] constraint
     // https://github.com/pytorch/pytorch/blob/f064c5aa33483061a48994608d890b968ae53fb5/aten/src/THNN/generic/SpatialGridSamplerBilinear.c
-    grad_u = grad_u * (texture_size - 1) *0.5;
-    grad_v = grad_v * (texture_size - 1) *0.5;
+    grad_u = grad_u * (texture_width - 1) *0.5;
+    grad_v = grad_v * (texture_height - 1) *0.5;
 
     //put them in the tensor
     cur_grad_uv[0]=grad_u;
@@ -534,7 +534,7 @@ splat_texture_backward( int nr_values, float* grad_values, float* grad_uv, const
 
 
 
-template< int nr_channels_texture, int texture_size>
+template< int nr_channels_texture, int texture_height, int texture_width>
 __global__ void 
 __launch_bounds__(BLOCK_SIZE) //since the block size is known at compile time we can specify it to the kernel and therefore cuda doesnt need to use heuristics based on code complexity to minimize registry usage
 slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const float* grad_values_not_normalized, const float* texture, const float* uv ){
@@ -556,8 +556,8 @@ slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const
 
 
     //the uvs are supposed to be in range [-1, 1], now we get them in range [0, texture_size-1]
-    float ix=(cur_uv[0]+1)*0.5*(texture_size-1);
-    float iy=(cur_uv[1]+1)*0.5*(texture_size-1);
+    float ix=(cur_uv[0]+1)*0.5*(texture_width-1);
+    float iy=(cur_uv[1]+1)*0.5*(texture_height-1);
 
     //get the coordiantes of the neighbouring 4 pixels according to the wikipedia convention  https://en.wikipedia.org/wiki/Bilinear_interpolation
     //get the coordiantes of the neighbouring 4 pixels according to the convention of https://github.com/pytorch/pytorch/blob/f064c5aa33483061a48994608d890b968ae53fb5/aten/src/THNN/generic/SpatialGridSamplerBilinear.c
@@ -576,14 +576,14 @@ slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const
     int iy_se = iy_nw + 1;
 
     //clip 
-    CLIP_COORDINATES(ix_nw, ix_nw, texture_size);
-    CLIP_COORDINATES(iy_nw, iy_nw, texture_size);
-    CLIP_COORDINATES(ix_ne, ix_ne, texture_size);
-    CLIP_COORDINATES(iy_ne, iy_ne, texture_size);
-    CLIP_COORDINATES(ix_sw, ix_sw, texture_size);
-    CLIP_COORDINATES(iy_sw, iy_sw, texture_size);
-    CLIP_COORDINATES(ix_se, ix_se, texture_size);
-    CLIP_COORDINATES(iy_se, iy_se, texture_size);
+    CLIP_COORDINATES(ix_nw, ix_nw, texture_width);
+    CLIP_COORDINATES(iy_nw, iy_nw, texture_height);
+    CLIP_COORDINATES(ix_ne, ix_ne, texture_width);
+    CLIP_COORDINATES(iy_ne, iy_ne, texture_height);
+    CLIP_COORDINATES(ix_sw, ix_sw, texture_width);
+    CLIP_COORDINATES(iy_sw, iy_sw, texture_height);
+    CLIP_COORDINATES(ix_se, ix_se, texture_width);
+    CLIP_COORDINATES(iy_se, iy_se, texture_height);
 
 
     //GRAD TEXTURE 
@@ -593,10 +593,10 @@ slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const
     // float* dq22 = grad_texture + x2*nr_channels_texture + y2*texture_size*nr_channels_texture;
     // float* dq21 = grad_texture + x2*nr_channels_texture + y1*texture_size*nr_channels_texture;
 
-    float* d_nw_val = grad_texture + ix_nw*nr_channels_texture + iy_nw*texture_size*nr_channels_texture;
-    float* d_ne_val = grad_texture + ix_ne*nr_channels_texture + iy_ne*texture_size*nr_channels_texture;
-    float* d_sw_val = grad_texture + ix_sw*nr_channels_texture + iy_sw*texture_size*nr_channels_texture;
-    float* d_se_val = grad_texture + ix_se*nr_channels_texture + iy_se*texture_size*nr_channels_texture;
+    float* d_nw_val = grad_texture + ix_nw*nr_channels_texture + iy_nw*texture_width*nr_channels_texture;
+    float* d_ne_val = grad_texture + ix_ne*nr_channels_texture + iy_ne*texture_width*nr_channels_texture;
+    float* d_sw_val = grad_texture + ix_sw*nr_channels_texture + iy_sw*texture_width*nr_channels_texture;
+    float* d_se_val = grad_texture + ix_se*nr_channels_texture + iy_se*texture_width*nr_channels_texture;
 
     //get the weigthings of the pixels
     // float denom = 1.0/( (x2 - x1)*(y2-y1)  + 1e-7 ); //the denominator is mostly just to normalize for the size of the pixel but we can assume a pixel of size 1 and just drop this whole term
@@ -656,10 +656,10 @@ slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const
     
     //GRAD UV
     //get a pointer to the 4 pixels onto which we splat following the convention of wikipedia https://en.wikipedia.org/wiki/Bilinear_interpolation
-    const float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_size*nr_channels_texture;
-    const float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_size*nr_channels_texture;
-    const float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_size*nr_channels_texture;
-    const float* se_val = texture + ix_se*nr_channels_texture + iy_se*texture_size*nr_channels_texture;
+    const float* nw_val = texture + ix_nw*nr_channels_texture + iy_nw*texture_width*nr_channels_texture;
+    const float* ne_val = texture + ix_ne*nr_channels_texture + iy_ne*texture_width*nr_channels_texture;
+    const float* sw_val = texture + ix_sw*nr_channels_texture + iy_sw*texture_width*nr_channels_texture;
+    const float* se_val = texture + ix_se*nr_channels_texture + iy_se*texture_width*nr_channels_texture;
     float grad_u=0;
     float grad_v=0;
     for(int i=0; i<nr_channels_texture; i++){
@@ -677,8 +677,8 @@ slice_texture_backward(int nr_values, float* grad_texture, float* grad_uv, const
     
     //unnormalize the grad_uv back to the [-1.1] constraint
     // https://github.com/pytorch/pytorch/blob/f064c5aa33483061a48994608d890b968ae53fb5/aten/src/THNN/generic/SpatialGridSamplerBilinear.c
-    grad_u = grad_u * (texture_size - 1) *0.5;
-    grad_v = grad_v * (texture_size - 1) *0.5;
+    grad_u = grad_u * (texture_width - 1) *0.5;
+    grad_v = grad_v * (texture_height - 1) *0.5;
 
     //put them in the tensor
     cur_grad_uv[0]=grad_u;

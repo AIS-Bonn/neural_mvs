@@ -167,6 +167,8 @@ def run():
     #create loaders
     loader_train=DataLoaderNerf(config_path)
     loader_test=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderColmap(config_path)
+    # loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()

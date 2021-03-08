@@ -59,13 +59,13 @@ def show_3D_points(points_3d_tensor, name):
 
 class SplatTexture(Function):
     @staticmethod
-    def forward(ctx, values_tensor, uv_tensor, texture_size):
+    def forward(ctx, values_tensor, uv_tensor, texture_height, texture_width):
 
         ctx.save_for_backward(values_tensor, uv_tensor)
         # ctx.neural_mvs=neural_mvs
 
         # texture = neural_mvs.splat_texture(values_tensor, uv_tensor, texture_size)
-        texture = NeuralMVS.splat_texture(values_tensor, uv_tensor, texture_size)
+        texture = NeuralMVS.splat_texture(values_tensor, uv_tensor, texture_height, texture_width)
 
         return texture
 
