@@ -393,7 +393,7 @@ class BNReluConv(MetaModule):
 
        
         print("initializing with kaiming uniform")
-        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='tanh')
+        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
         if self.bias is not None:
             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
             bound = 1 / math.sqrt(fan_in)
@@ -409,9 +409,9 @@ class BNReluConv(MetaModule):
 
         in_channels=x.shape[1]
 
-
-        if self.activ !=None: 
+        if self.do_norm:
             x=self.norm(x)
+        if self.activ !=None: 
             x=self.activ(x)
         x = self.conv(x, params=get_subdict(params, 'conv') )
        
@@ -867,16 +867,18 @@ class ResnetBlock2D(torch.nn.Module):
         # self.conv1=BlockForResnet(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
         # self.conv2=BlockForResnet(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
 
-        self.conv1=BlockPAC(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
-        self.conv2=BlockPAC(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
+        # self.conv1=BlockPAC(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
+        # self.conv2=BlockPAC(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
 
-        # self.conv1=ConvRelu(out_channels, kernel_size=3, stride=1, padding=1, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False)
-        # self.conv2=ConvRelu(out_channels, kernel_size=3, stride=1, padding=1, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False)
+        self.conv1=BNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
+        self.conv2=BNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
 
     def forward(self, x, guide):
         identity=x
-        x=self.conv1(x, guide)
-        x=self.conv2(x, guide)
+        # x=self.conv1(x, guide)
+        # x=self.conv2(x, guide)
+        x=self.conv1(x)
+        x=self.conv2(x)
         x+=identity
         return x
 
