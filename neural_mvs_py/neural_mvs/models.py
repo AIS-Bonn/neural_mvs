@@ -3738,6 +3738,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         for iter_nr in range(self.nr_iters):
             # print("iter is ", iter_nr)
+            TIME_START("raymarch_iter")
         
             #compute the features at this position 
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
@@ -3746,6 +3747,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             #concat also the features from images 
             feat_sliced_per_frame=[]
+            TIME_START("raymarch_allslice")
             for i in range(len(frames_close)):
                 frame_close=frames_close[i].frame
                 frame_features=frames_features[i]
@@ -3753,6 +3755,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
                 dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
                 feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+            TIME_END("raymarch_allslice")
             # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
             # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
             #attempt 1
@@ -3762,14 +3765,17 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
             
             #attempt 2 
+            TIME_START("raymarch_aggr")
             img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
 
             feat=torch.cat([feat,img_features_aggregated],1)
 
             feat=self.feature_fuser(feat)
+            TIME_END("raymarch_aggr")
 
 
             #create the lstm if not created 
+            TIME_START("raymarch_lstm")
             if self.lstm==None:
                 self.lstm = torch.nn.LSTMCell(input_size=feat.shape[1], hidden_size=self.lstm_hidden_size ).to("cuda")
                 self.lstm.apply(init_recurrent_weights)
@@ -3781,6 +3787,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
+            TIME_END("raymarch_lstm")
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
             signed_distance=torch.abs(signed_distance) #the distance only increases
             #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
@@ -3800,6 +3807,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             # if iter_nr==self.nr_iters-1:
                 # show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
+            TIME_END("raymarch_iter")
 
         #get the depth at this final 3d position
         depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
