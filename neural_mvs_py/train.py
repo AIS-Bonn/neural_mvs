@@ -165,10 +165,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    loader_train=DataLoaderNerf(config_path)
-    loader_test=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderColmap(config_path)
+    # loader_train=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
+    loader_train=DataLoaderColmap(config_path)
+    loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -363,9 +363,12 @@ def run():
                             keypoints_3d=keypoint_data[2]
                             depth_pred=depth_pred.view(-1,1)
                             depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
-                            loss_depth= (( keypoint_distances- depth_pred_keypoints)**2).mean()
-                            if phase.iter_nr<100:
-                                loss+=loss_depth*50
+                            mask_keypoints= torch.index_select(frame.mask_tensor.view(-1,1), 0, keypoint_instances.long()) #the parts that are in the background need no loss on the depth
+                            loss_depth= (( keypoint_distances- depth_pred_keypoints)**2)
+                            loss_depth=loss_depth*mask_keypoints
+                            loss_depth= loss_depth.mean()
+                            if phase.iter_nr<1000:
+                                loss+=loss_depth*100
 
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
