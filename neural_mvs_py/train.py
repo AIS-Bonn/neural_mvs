@@ -79,6 +79,11 @@ class FramePY():
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         self.rgb_tensor=self.rgb_tensor*self.mask_tensor
+
+        # bg_color= torch.ones([1, 3, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
+        # bg_color.fill_(0.5)
+        # self.rgb_tensor=torch.where(self.mask_tensor > 0, self.rgb_tensor, bg_color)
+
         self.rgb_32f=tensor2mat(self.rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
@@ -148,7 +153,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_2unetnobias"
+    experiment_name="s_5rg0.003"
 
     use_ray_compression=False
 
@@ -459,9 +464,9 @@ def run():
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr() )
-                            # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
-                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=torch.optim.AdamW( 
                             #     [
                             #         {'params': model.ray_marcher.parameters()},

@@ -885,7 +885,7 @@ class UNet(torch.nn.Module):
             cur_nr_channels=after_finefy_nr_channels
             self.up_stages_list.append( nn.Sequential(
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
             ))
             print("up stage which outputs nr of layers ", cur_nr_channels)
 
@@ -900,7 +900,8 @@ class UNet(torch.nn.Module):
         #     # self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[is_last_layer, is_last_layer], with_dropout=False, do_norm=True ) )
         #     self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
-        self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        # self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        self.last_conv =  GNReluConv(in_channels=cur_nr_channels, out_channels=nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False ).cuda()
 
         self.relu=torch.nn.ReLU(inplace=False)
         self.concat_coord=ConcatCoord() 
@@ -3329,7 +3330,9 @@ class RGB_predictor_simple(MetaModule):
             # cur_nr_channels+=128 #point
             cur_nr_channels+=dirs_channels
         self.pred_rgb=MetaSequential( 
+            # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
@@ -3375,6 +3378,7 @@ class RGB_predictor_simple(MetaModule):
             dim_ray_dir=ray_directions.shape[1]
             ray_directions=ray_directions.repeat(1, nr_points_per_ray) #repeat as many times as samples that you have in a ray
             ray_directions=ray_directions.view(-1,dim_ray_dir)
+            # print("x has mean and std ", x.mean(), " and std ", x.std(), " ray dirs has mean ", ray_directions.mean(), " and std ", ray_directions.std() )
             x=torch.cat([x, ray_directions], 1)
 
         # if point_features!=None:
@@ -4860,19 +4864,19 @@ class Net3_SRN(torch.nn.Module):
         depth=depth.permute(2,0,1).unsqueeze(0)
 
 
-        # #DEBUG 
-        if novel:
-            #show the PCAd features of the closest frame
-            img_features=frames_features[0]
-            height=img_features.shape[2]
-            width=img_features.shape[3]
-            img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-            img_features_for_pca=img_features_for_pca.view(height*width, -1)
-            pca=PCA.apply(img_features_for_pca)
-            pca=pca.view(height, width, 3)
-            pca=pca.permute(2,0,1).unsqueeze(0)
-            pca_mat=tensor2mat(pca)
-            Gui.show(pca_mat, "pca_mat")
+        # # #DEBUG 
+        # if novel:
+        #     #show the PCAd features of the closest frame
+        #     img_features=frames_features[0]
+        #     height=img_features.shape[2]
+        #     width=img_features.shape[3]
+        #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+        #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
+        #     pca=PCA.apply(img_features_for_pca)
+        #     pca=pca.view(height, width, 3)
+        #     pca=pca.permute(2,0,1).unsqueeze(0)
+        #     pca_mat=tensor2mat(pca)
+        #     Gui.show(pca_mat, "pca_mat")
 
         return rgb_pred, depth
         
