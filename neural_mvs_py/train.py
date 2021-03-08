@@ -153,7 +153,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_2unetnogn"
+    experiment_name="s_3concatrgb"
 
     use_ray_compression=False
 
