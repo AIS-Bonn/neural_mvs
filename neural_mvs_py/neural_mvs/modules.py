@@ -385,8 +385,8 @@ class BNReluConv(MetaModule):
         if with_dropout:
             self.drop=torch.nn.Dropout2d(0.2)
 
-       
-        self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
+        if do_norm:
+            self.norm = torch.nn.BatchNorm2d(in_channels).cuda()
         # self.norm = torch.nn.GroupNorm(1, in_channels).cuda()
         self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
         
@@ -395,6 +395,74 @@ class BNReluConv(MetaModule):
         print("initializing with kaiming uniform")
         torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
         if self.bias is not None:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+    
+
+    def forward(self, x, params=None):
+        if params is None:
+            params = OrderedDict(self.named_parameters())
+        # print("params is", params)
+
+        # x=self.cc(x)
+
+        in_channels=x.shape[1]
+
+        if self.do_norm:
+            x=self.norm(x)
+        if self.activ !=None: 
+            x=self.activ(x)
+        x = self.conv(x, params=get_subdict(params, 'conv') )
+       
+
+        return x
+
+
+class GNReluConv(MetaModule):
+    def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.LeakyReLU(inplace=False, negative_slope=0.1), init=None ):
+    # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.SELU(inplace=False), init=None ):
+        super(GNReluConv, self).__init__()
+        self.out_channels=out_channels
+        self.kernel_size=kernel_size
+        self.stride=stride
+        self.padding=padding
+        self.dilation=dilation
+        self.bias=bias 
+        self.conv= None
+        self.norm= None
+        # self.relu=torch.nn.ReLU(inplace=False)
+        self.activ=activ
+        self.with_dropout=with_dropout
+        self.transposed=transposed
+        # self.cc=ConcatCoord()
+        self.init=init
+        self.do_norm=do_norm
+        self.is_first_layer=is_first_layer
+
+        if with_dropout:
+            self.drop=torch.nn.Dropout2d(0.2)
+
+        if do_norm:
+            nr_groups=32
+            #if the groups is not diivsalbe so for example if we have 80 params
+            if in_channels%nr_groups!=0:
+                nr_groups= int(in_channels/4)
+            self.norm = torch.nn.GroupNorm(nr_groups, in_channels).cuda()
+            # self.norm = torch.nn.GroupNorm(in_channels, in_channels).cuda()
+            # self.norm = torch.nn.GroupNorm( int(in_channels/4), in_channels).cuda()
+        # self.norm = torch.nn.GroupNorm(1, in_channels).cuda()
+        self.conv= MetaSequential( MetaConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        
+
+       
+        print("initializing with kaiming uniform")
+        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
+        if self.bias is not False:
             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
@@ -870,8 +938,8 @@ class ResnetBlock2D(torch.nn.Module):
         # self.conv1=BlockPAC(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
         # self.conv2=BlockPAC(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
 
-        self.conv1=BNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
-        self.conv2=BNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
+        self.conv1=GNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
+        self.conv2=GNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
 
     def forward(self, x, guide):
         identity=x

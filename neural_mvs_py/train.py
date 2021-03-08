@@ -148,7 +148,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_10conv"
+    experiment_name="s_13gnnoabs"
 
     use_ray_compression=False
 

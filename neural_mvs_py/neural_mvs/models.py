@@ -853,8 +853,11 @@ class UNet(torch.nn.Module):
 
         #cnn for encoding
         self.resnet_list=torch.nn.ModuleList([])
-        for i in range(6): 
+        nr_layers=6
+        for i in range(nr_layers): 
             # print("creating curnnrchannels, ", cur_nr_channels)
+            is_last_layer=i==nr_layers-1
+            # self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[is_last_layer, is_last_layer], with_dropout=False, do_norm=True ) )
             self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
         self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
@@ -3749,12 +3752,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
             feat_sliced_per_frame=[]
             TIME_START("raymarch_allslice")
             for i in range(len(frames_close)):
+                TIME_START("raymarch_sliceiter")
                 frame_close=frames_close[i].frame
                 frame_features=frames_features[i]
                 uv=compute_uv(frame_close, world_coords[-1])
                 frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
                 dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
                 feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+                TIME_END("raymarch_sliceiter")
             TIME_END("raymarch_allslice")
             # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
             # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
