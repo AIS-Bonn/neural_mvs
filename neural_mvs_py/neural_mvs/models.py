@@ -865,7 +865,7 @@ class UNet(torch.nn.Module):
             ))
             self.nr_layers_ending_stage.append(cur_nr_channels)
             after_coarsening_nr_channels=cur_nr_channels*2
-            self.coarsen_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False )  )
+            self.coarsen_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
 
@@ -881,7 +881,7 @@ class UNet(torch.nn.Module):
             after_finefy_nr_channels=int(cur_nr_channels/2)
             #we now concat the features from the corresponding stage
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
-            self.squeeze_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False )  )
+            self.squeeze_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
             cur_nr_channels=after_finefy_nr_channels
             self.up_stages_list.append( nn.Sequential(
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
@@ -3331,9 +3331,9 @@ class RGB_predictor_simple(MetaModule):
             cur_nr_channels+=dirs_channels
         self.pred_rgb=MetaSequential( 
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
@@ -3765,8 +3765,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #     torch.nn.Linear(64, 64)
         # )
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.relu, in_channels=3+3*num_encodings*2  +32, out_channels=64,  bias=True ).cuda(),
-            BlockNerf(activ=torch.relu, in_channels=64, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +32, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
             BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
