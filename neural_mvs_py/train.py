@@ -153,7 +153,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_4gelu"
+    experiment_name="s_12hierarchical"
 
     use_ray_compression=False
 
