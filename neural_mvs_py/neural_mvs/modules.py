@@ -452,6 +452,9 @@ class GNReluConv(MetaModule):
             #if the groups is not diivsalbe so for example if we have 80 params
             if in_channels%nr_groups!=0:
                 nr_groups= int(in_channels/4)
+            if in_channels==32:
+                nr_groups= int(in_channels/4)
+            # print("nr groups is ", nr_groups, " in channels ", in_channels)
             self.norm = torch.nn.GroupNorm(nr_groups, in_channels).cuda()
             # self.norm = torch.nn.GroupNorm(in_channels, in_channels).cuda()
             # self.norm = torch.nn.GroupNorm( int(in_channels/4), in_channels).cuda()
