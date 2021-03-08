@@ -148,7 +148,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_13gnnoabs"
+    experiment_name="s_unet"
 
     use_ray_compression=False
 
@@ -165,10 +165,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader_train=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    loader_train=DataLoaderColmap(config_path)
-    loader_test=DataLoaderColmap(config_path)
+    loader_train=DataLoaderNerf(config_path)
+    loader_test=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderColmap(config_path)
+    # loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()

@@ -941,7 +941,7 @@ class ResnetBlock2D(torch.nn.Module):
         self.conv1=GNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=False, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=is_first_layer )
         self.conv2=GNReluConv(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilations[0], bias=biases[0], with_dropout=with_dropout, transposed=False, do_norm=do_norm, activ=activ, is_first_layer=False )
 
-    def forward(self, x, guide):
+    def forward(self, x):
         identity=x
         # x=self.conv1(x, guide)
         # x=self.conv2(x, guide)
