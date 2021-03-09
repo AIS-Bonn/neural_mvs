@@ -78,6 +78,48 @@ def compute_uv(frame, points_3D_world):
 
     return uv_tensor
 
+def compute_uv_batched(frames_list, points_3D_world):
+    if points_3D_world.shape[1] != 3:
+        print("expecting the points3d to be Nx3 but it is ", points_3D_world.shape)
+        exit(1)
+    if len(points_3D_world.shape) != 2:
+        print("expecting the points3d to have 2 dimensions corresponding to Nx3 but it is ", points_3D_world.shape)
+        exit(1)
+
+
+
+    feat_sliced_per_frame=[]
+    feat_sliced_per_frame_manual=[]
+    points3d_world_for_uv=points_3D_world.view(1,-1,3).repeat( len(frames_list) ,1, 1) #Make it into NR_frames x N x 3
+    R_list=[]
+    t_list=[]
+    K_list=[]
+    for i in range(len(frames_list)):
+        frame=frames_list[i]
+        R_list.append( frame.R_tensor.view(1,3,3) )
+        t_list.append( frame.t_tensor.view(1,1,3) )
+        K_list.append( frame.K_tensor.view(1,3,3) )
+    R_batched=torch.cat(R_list,0)
+    t_batched=torch.cat(t_list,0)
+    K_batched=torch.cat(K_list,0)
+    #project 
+    points_3D_cam=torch.matmul(R_batched, points3d_world_for_uv.transpose(1,2) ).transpose(1,2)  + t_batched
+    points_screen = torch.matmul(K_batched, points_3D_cam.transpose(1,2) ).transpose(1,2)  
+    points_2d = points_screen[:, :, 0:2] / ( points_screen[:, :, 2:3] +0.0001 )
+    points_2d[:,:,1] = frame.height- points_2d[:,:,1] 
+
+
+    #get in range 0,1
+    points_2d[:,:,0]  = points_2d[:,:,0]/frame.width  ######WATCH out we assume that all the frames are the same width and height
+    points_2d[:,:,1]  = points_2d[:,:,1]/frame.height 
+    uv_tensor = points_2d
+
+    #may be needed 
+    uv_tensor= uv_tensor*2 -1 #get in range [-1,1]
+
+
+    return uv_tensor
+
 
 
 class FrameWeightComputer(torch.nn.Module):
@@ -132,14 +174,15 @@ class FeatureAgregator(torch.nn.Module):
     def forward(self, frame, frames_close, feat_sliced_per_frame, weights):
 
         #similar to https://ibrnet.github.io/static/paper.pdf
-        img_features_concat=torch.cat(feat_sliced_per_frame,0) #Nr_frames x N x FEATDIM
+        # feat_sliced_per_frame is Nr_frames x N x FEATDIM
+        # print("feat_sliced_per_frame", feat_sliced_per_frame.shape)
         weights=weights.view(-1,1,1)
-        img_features_concat_weighted=img_features_concat*weights
+        img_features_concat_weighted=feat_sliced_per_frame*weights
 
         img_features_mean= img_features_concat_weighted.sum(dim=0)
 
         # STD https://stats.stackexchange.com/a/6536
-        img_features_normalized=  (img_features_concat-img_features_mean.unsqueeze(0))**2 #xi- mu
+        img_features_normalized=  (feat_sliced_per_frame-img_features_mean.unsqueeze(0))**2 #xi- mu
         img_features_normalized_weighted= img_features_normalized*weights
         std= img_features_normalized_weighted.sum(dim=0) #this is just the nominator but the denominator is probably not needed since it's just 1
         # std=torch.sqrt(std)
