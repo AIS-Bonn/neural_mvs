@@ -153,7 +153,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_4"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -350,7 +350,7 @@ def run():
                         frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
                         # print("frames_close", len(frames_close))
                         TIME_START("forward")
-                        rgb_pred, depth_pred=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
+                        rgb_pred, depth_pred, signed_distances_for_marchlvl=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
                         TIME_END("forward")
 
                      
@@ -379,6 +379,19 @@ def run():
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                             # smooth_loss = smooth(depth_pred, rgb_gt)
                             # loss+=smooth_loss*0.01
+
+                        # #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
+                        # if is_training: 
+                        #     for i in range(len(signed_distances_for_marchlvl)):
+                        #         signed_dist=signed_distances_for_marchlvl[i]
+                        #         # loss+= (signed_dist**2).mean()*100*i #first distance is allowed to move, and the more we move the more we expect it to stop moving
+                        #         weight=2**i
+                        #         if weight>1000:
+                        #             weight=1000
+                        #         loss+= (signed_dist**2).mean()*weight*0.1 #first distance is allowed to move, and the more we move the more we expect it to stop moving
+
+
+
 
 
                         

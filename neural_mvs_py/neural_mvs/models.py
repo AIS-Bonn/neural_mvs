@@ -3903,7 +3903,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # points3D = camera_center + depth_per_pixel*ray_dirs
 
 
-        return new_world_coords, depth
+        return new_world_coords, depth, None, None
         # return points3D, depth_per_pixel
 
 
@@ -4084,7 +4084,186 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
         return new_world_coords, depth
 
+#it masks off the pixels that are already converged
+class DifferentiableRayMarcherMasked(torch.nn.Module):
+    def __init__(self):
+        super(DifferentiableRayMarcherMasked, self).__init__()
 
+        num_encodings=8
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # cur_nr_channels = in_channels + 3*num_encodings*2
+
+        #model 
+        self.lstm_hidden_size = 16
+        # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
+        self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
+        # self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
+        self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
+        # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
+        # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
+        self.frame_weights_computer= FrameWeightComputer()
+        self.feature_aggregator= FeatureAgregator()
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
+        # self.feature_fuser = torch.nn.Sequential(
+        #     # torch.nn.Linear(64+32, 64),
+        #     # torch.nn.Linear(3+3*num_encodings*2  +32, 64),
+        #     BlockNerf(activ=torch.relu, in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+        #     # torch.nn.ReLU(),
+        #     torch.nn.Linear(64, 64),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(64, 64)
+        # )
+        self.feature_fuser = torch.nn.Sequential(
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +32, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
+        )
+
+        #activ
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
+
+        #params 
+        self.nr_iters=10
+
+      
+    def forward(self, frame, depth_min, frames_close, frames_features, novel=False):
+
+        if novel:
+            depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+            depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
+        else:
+            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+
+        # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
+
+        #Ray direction in world coordinates
+        # ray_dirs_mesh=frame.pixels2dirs_mesh()
+        # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        ray_dirs=frame.ray_dirs
+
+        #compute points_2d 
+        # points2d_screen_mesh=frame.pixels2coords()
+        # points2d_screen=torch.from_numpy(points2d_screen_mesh.V.copy()).to("cuda").float()
+
+        #unproject to 3D
+        # K_inv= torch.from_numpy(  np.linalg.inv(frame.K.copy())    ).to("cuda")
+        # tf_world_cam =torch.from_numpy( frame.tf_cam_world.inverse().matrix() ).to("cuda")
+        # point_3D_camera_coord= K_inv * points2d_screen; 
+        # point_3D_camera_coord= point_3D_camera_coord*depth_per_pixel
+        # Eigen::Vector3d point_3D_world_coord=tf_world_cam*point_3D_camera_coord;
+
+        #attempt 2 unproject to 3D 
+        camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+        camera_center=camera_center.view(1,3)
+        points3D = camera_center + depth_per_pixel*ray_dirs
+        # show_3D_points(points3D, "points_3d_init")
+
+        init_world_coords=points3D
+        initial_depth=depth_per_pixel
+        world_coords = [init_world_coords]
+        depths = [initial_depth]
+        signed_distances_for_marchlvl=[]
+        states = [None]
+
+        weights=self.frame_weights_computer(frame, frames_close)
+
+        for iter_nr in range(self.nr_iters):
+            # print("iter is ", iter_nr)
+            TIME_START("raymarch_iter")
+        
+            #compute the features at this position 
+            # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            feat=self.learned_pe(world_coords[-1])
+
+            #concat also the features from images 
+            feat_sliced_per_frame=[]
+            TIME_START("raymarch_allslice")
+            for i in range(len(frames_close)):
+                TIME_START("raymarch_sliceiter")
+                frame_close=frames_close[i].frame
+                frame_features=frames_features[i]
+                uv=compute_uv(frame_close, world_coords[-1])
+                frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+                dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+                feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+                TIME_END("raymarch_sliceiter")
+            TIME_END("raymarch_allslice")
+            # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
+            # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
+            #attempt 1
+            # img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
+            # img_features_mean=img_features_concat.mean(dim=0)
+            # img_features_std=img_features_concat.std(dim=0)
+            # img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
+            
+            #attempt 2 
+            TIME_START("raymarch_aggr")
+            img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
+
+            feat=torch.cat([feat,img_features_aggregated],1)
+
+            feat=self.feature_fuser(feat)
+            TIME_END("raymarch_aggr")
+
+
+            #create the lstm if not created 
+            TIME_START("raymarch_lstm")
+            if self.lstm==None:
+                self.lstm = torch.nn.LSTMCell(input_size=feat.shape[1], hidden_size=self.lstm_hidden_size ).to("cuda")
+                self.lstm.apply(init_recurrent_weights)
+                lstm_forget_gate_init(self.lstm)
+
+            #run through the lstm
+            state = self.lstm(feat, states[-1])
+            if state[0].requires_grad:
+                state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+
+            signed_distance= self.out_layer(state[0])
+            TIME_END("raymarch_lstm")
+            # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
+            signed_distance=torch.abs(signed_distance) #the distance only increases
+            #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
+            # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
+            # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
+            depth_scaling=1.0/(1.0*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
+            signed_distance=signed_distance*depth_scaling
+            # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
+            
+            #debug signed_distance 
+            signed_distance_vis=signed_distance.view(1,1, frame.height, frame.width)
+            signed_distance_vis=signed_distance_vis/depth_scaling
+            signed_distance_vis_mat=tensor2mat(signed_distance_vis) 
+            Gui.show(signed_distance_vis_mat, "signed_distance_"+str(iter_nr))
+
+
+            # print("ray_dirs is ", ray_dirs.shape)
+            # print("signed distance is ", signed_distance.shape)
+
+            new_world_coords = world_coords[-1] + ray_dirs * signed_distance
+            states.append(state)
+            world_coords.append(new_world_coords)
+            signed_distances_for_marchlvl.append(signed_distance)
+
+            # if iter_nr==self.nr_iters-1:
+                # show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
+            # show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
+            TIME_END("raymarch_iter")
+
+        #get the depth at this final 3d position
+        depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
+
+        # points3D = camera_center + depth_per_pixel*ray_dirs
+
+        #return also the world coords at every march
+        world_coords.pop(0)
+
+
+        return new_world_coords, depth, world_coords, signed_distances_for_marchlvl
+        # return points3D, depth_per_pixel
 
 
 
@@ -4899,6 +5078,7 @@ class Net3_SRN(torch.nn.Module):
         self.unet=UNet( nr_channels_start=16, nr_channels_output=16)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
+        # self.ray_marcher=DifferentiableRayMarcherMasked()
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
@@ -4946,13 +5126,51 @@ class Net3_SRN(torch.nn.Module):
         TIME_END("unet")
 
         TIME_START("ray_march")
-        point3d, depth = self.ray_marcher(frame, depth_min, frames_close, frames_features, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, depth_min, frames_close, frames_features, novel)
         TIME_END("ray_march")
+
+        # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
+        # print("len signed_distances_for_marchlvl", len(signed_distances_for_marchlvl))
 
 
         # ray_dirs_mesh=frame.pixels2dirs_mesh()
         # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
         ray_dirs=frame.ray_dirs
+
+
+        # ###predict RGB for every march lvl of the lstm 
+        # rgb_pred_for_marchlvl=[]
+        # TIME_START("rgb_pred_allmarch")
+        # for i in range(len(points3d_for_marchlvl)):
+        #     points3d_for_lvl= points3d_for_marchlvl[i]
+        #     #concat also the features from images 
+        #     feat_sliced_per_frame=[]
+        #     for i in range(len(frames_close)):
+        #         frame_close=frames_close[i].frame
+        #         frame_features=frames_features[i]
+        #         uv=compute_uv(frame_close, points3d_for_lvl )
+        #         frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+        #         dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+        #         feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
+            
+        #     ##attempt 4 
+        #     weights=self.frame_weights_computer(frame, frames_close)
+        #     img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
+            
+        #     radiance_field_flattened = self.rgb_predictor(points3d_for_lvl, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+
+        #     rgb_pred=radiance_field_flattened[:, 0:3]
+        #     rgb_pred=rgb_pred.view(frame.height, frame.width,3)
+        #     rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+        #     rgb_pred_for_marchlvl.append(rgb_pred) 
+        # TIME_END("rgb_pred_allmarch")
+
+
+
+
+
+
+
 
 
         #concat also the features from images 
@@ -4964,63 +5182,7 @@ class Net3_SRN(torch.nn.Module):
             frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
             dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
             feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
-            # feat_sliced_per_frame.append(sliced_local_features) #make it 1 x N x FEATDIM
-        img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
-        img_features_mean=img_features_concat.mean(dim=0)
-        img_features_std=img_features_concat.std(dim=0)
-        img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
-        # print("img_features_aggregated", img_features_aggregated.shape)
-
-        # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
-        # ray_dirs_left=frames_close[0].ray_dirs
-        # ray_dirs_right=frames_close[1].ray_dirs
-        # ray_dirs_left=self.rgb_predictor.learned_pe_dirs(ray_dirs_left)
-        # ray_dirs_right=self.rgb_predictor.learned_pe_dirs(ray_dirs_right)
-        # img_features_aggregated=torch.cat([img_features_aggregated, ray_dirs_left, ray_dirs_right ], dim=1)
-
-
-
-        #attemt3, weighted mean and std similar to https://ibrnet.github.io/static/paper.pdf
-        #TODO 
-        # cur_dir=frame.look_dir
-        # exponential_weight_towards_neighbour=[]
-        # for i in range(len(frames_close)):
-        #     dir_neighbour=frames_close[i].look_dir
-        #     dot= torch.dot( cur_dir.view(-1), dir_neighbour.view(-1) )
-        #     s_dot= self.s_weight*(dot-1)
-        #     exp=torch.exp(s_dot)
-        #     exponential_weight_towards_neighbour.append(exp)
-        # all_exp=torch.cat(exponential_weight_towards_neighbour)
-        # exp_minimum= all_exp.min()
-        # unnormalized_weights=[]
-        # for i in range(len(frames_close)):
-        #     cur_exp= exponential_weight_towards_neighbour[i]
-        #     exp_sub_min= cur_exp-exp_minimum
-        #     unnormalized_weight= torch.relu(exp_sub_min)
-        #     unnormalized_weights.append(unnormalized_weight)
-        #     # print("unnormalized_weight", unnormalized_weight)
-        # all_unormalized_weights=torch.cat(unnormalized_weights)
-        # weight_sum=all_unormalized_weights.sum()
-        # weights=[]
-        # for i in range(len(frames_close)):
-        #     unnormalized_weight= unnormalized_weights[i]
-        #     weight= unnormalized_weight/weight_sum
-        #     weights.append(weight)
-        # weights=torch.cat(weights)
-        # print("weights", weights)
-        # print("cur frame idx", frame.frame_idx, " close frames is ", frames_close[0].frame_idx, " ",  frames_close[1].frame_idx   )
-        #weight the featues and then mean them
-        # img_features_concat=torch.cat(feat_sliced_per_frame,0)
-        # weights=weights.view(-1,1,1)
-        # img_features_concat_weighted=img_features_concat*weights
-        # img_features_mean= img_features_concat_weighted.sum(dim=0)/len(frames_close)
-        #STD https://stats.stackexchange.com/a/6536
-
-        #put the mean and std togather 
-        # img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
-        # img_features_aggregated=torch.cat([img_features_mean],1)
-
-        # print("s is ", self.s_weight)
+          
 
         ##attempt 4 
         weights=self.frame_weights_computer(frame, frames_close)
@@ -5064,7 +5226,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, depth
+        return rgb_pred, depth, signed_distances_for_marchlvl
         
 
 
