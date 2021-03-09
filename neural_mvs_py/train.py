@@ -156,7 +156,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_12diffunet"
+    experiment_name="s_17grid_actrue"
 
     use_ray_compression=False
 

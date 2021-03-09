@@ -3776,6 +3776,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
+        self.concat_coord=ConcatCoord()
+
         #activ
         self.relu=torch.nn.ReLU()
         self.sigmoid=torch.nn.Sigmoid()
@@ -3860,6 +3862,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             torch.cuda.synchronize()
             TIME_START("raymarch_ATTEMPT") 
             feat_sliced_per_frame=[]
+            feat_sliced_per_frame_manual=[]
             points3d_world_for_uv=world_coords[-1].view(1,-1,3).repeat( len(frames_close) ,1, 1) #Make it into NR_frames x N x 3
             R_list=[]
             t_list=[]
@@ -3876,11 +3879,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
             points_3D_cam=torch.matmul(R_batched, points3d_world_for_uv.transpose(1,2) ).transpose(1,2)  + t_batched
             points_screen = torch.matmul(K_batched, points_3D_cam.transpose(1,2) ).transpose(1,2)  
             points_2d = points_screen[:, :, 0:2] / ( points_screen[:, :, 2:3] +0.0001 )
-            points_2d[:,1] = frame.height- points_2d[:,1] 
+            points_2d[:,:,1] = frame.height- points_2d[:,:,1] 
         
 
             #get in range 0,1
-            points_2d[:,:,0]  = points_2d[:,:,0]/frame.width 
+            points_2d[:,:,0]  = points_2d[:,:,0]/frame.width  ######WATCH out we assume that all the frames are the same width and height
             points_2d[:,:,1]  = points_2d[:,:,1]/frame.height 
             uv_tensor = points_2d
 
@@ -3888,15 +3891,95 @@ class DifferentiableRayMarcher(torch.nn.Module):
             uv_tensor= uv_tensor*2 -1 #get in range [-1,1]
             # print("uv tensor is ", uv_tensor.shape)
 
-            #slice 
+
+            # ##################DEBUG for some reason the uv tensors are not the same so we need to debug them 
+            # points_3D_world= world_coords[-1]
+            # frame_close=frames_close[0]
+            # R=frame_close.R_tensor
+            # t=frame_close.t_tensor
+            # K = frame_close.K_tensor
+            # points_3D_cam_manual=torch.matmul(R, points_3D_world.transpose(0,1).contiguous() ).transpose(0,1).contiguous()  + t.view(1,3)
+            # points_screen_manual = torch.matmul(K, points_3D_cam_manual.transpose(0,1).contiguous() ).transpose(0,1)  
+            # points_2d_manual = points_screen_manual[:, 0:2] / ( points_screen_manual[:, 2:3] +0.0001 )
+            # points_2d_manual[:,1] = frame.height- points_2d_manual[:,1] 
+            # #get in range 0,1
+            # points_2d_manual[:,0]  = points_2d_manual[:,0]/frame_close.width 
+            # points_2d_manual[:,1]  = points_2d_manual[:,1]/frame_close.height 
+            # uv_tensor_manual = points_2d_manual
+            # #may be needed 
+            # uv_tensor_manual= uv_tensor_manual*2 -1 #get in range [-1,1]
+            # ##show all the tensors 
+            # # print("uv is for frame ", " is ", uv_tensor, " manual us ", uv_tensor_manual)
+            # # print("points_3D_cam", points_3D_cam)
+            # # print("points_3D_cam_manual", points_3D_cam_manual)
+            # # print("uv diff max", (uv_tensor-uv_tensor_manual).max() )
+            # # print("uv diff ", ((uv_tensor-uv_tensor_manual)**2).mean() )
+            # # print("uv tensor min max ", uv_tensor.min(), uv_tensor.max())
+            # # print("uv tensor_manual min max ", uv_tensor_manual.min(), uv_tensor_manual.max())
+
+
+
+            # # #slice 1
+            # for i in range(len(frames_close)):
+            #     frame_close=frames_close[i]
+            #     frame_features=frames_features[i]
+            #     uv=(uv_tensor[i:i+1,:, :]).squeeze()
+            #     # print("uv is ", uv.shape)
+            #     uv_manual=compute_uv(frame_close, world_coords[-1])
+            #     diff= ((uv-uv_manual)**2).mean()
+            #     # print("for frame i ",i, " diff is ", diff)
+            #     # print("uv is for frame ", i , " is ", uv, " manual us ", uv_manual)
+
+            #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+            #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+            #     feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+            # exit(1)
+
+            # slice with grid_sample
+            feat_batch=torch.cat(frames_features,0)
+            uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
+            sliced_feat=torch.nn.functional.grid_sample( feat_batch, uv_tensor, align_corners=True )
             for i in range(len(frames_close)):
-                frame_close=frames_close[i]
-                frame_features=frames_features[i]
-                uv=(uv_tensor[i:i+1,:, :]).squeeze()
-                # print("uv is ", uv.shape)
-                frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
-                dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-                feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+                sliced_local_features= sliced_feat[i:i+1,:,:,: ]
+                feat_dim=sliced_local_features.shape[1]
+                sliced_local_features=sliced_local_features.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
+                feat_sliced_per_frame.append(sliced_local_features.view(1,-1,feat_dim) )  #make it 1 x N x FEATDIM
+
+            
+            # ##### DEBU THE SLICING
+            # # #slice 1
+            # for i in range(len(frames_close)):
+            #     frame_close=frames_close[i]
+            #     frame_features=frames_features[i]
+            #     uv_manual=compute_uv(frame_close, world_coords[-1])
+            #     # frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+
+            #     #CHANGE the image that we slice from
+            #     frame_features_for_slicing= torch.zeros(( 1,1,frame.height,frame.width), device=torch.device("cuda") )
+            #     frame_features_for_slicing=self.concat_coord(frame_features_for_slicing)
+            #     frame_features_for_slicing=frame_features_for_slicing.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+
+            #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv_manual)
+            #     feat_sliced_per_frame_manual.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+            #     # diff= ((feat_sliced_per_frame[i] - feat_sliced_per_frame_manual[i])**2).mean()
+            #     # print("diff frame ",i, " is ", diff, " max is", ((feat_sliced_per_frame[i] - feat_sliced_per_frame_manual[i])).max() )
+            #     # print("feat_sliced_per_frame", feat_sliced_per_frame[i].shape)
+            #     # print("feat_sliced_per_frame_manual", feat_sliced_per_frame_manual[i].shape)
+            #     uv=uv_tensor[i:i+1,:,:,: ]
+            #     print("uv_tensor_batched ", uv)
+            #     print("uv_manual ", uv_manual)
+            #     print("feat_sliced_per_frame", feat_sliced_per_frame[i])
+            #     print("feat_sliced_per_frame_manual", feat_sliced_per_frame_manual[i])
+            #     frame_features_for_slicing=frame_features_for_slicing.unsqueeze(0).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            #     sliced_feat_with_grid=torch.nn.functional.grid_sample( frame_features_for_slicing, uv, align_corners=True )
+            #     feat_dim=sliced_feat_with_grid.shape[1]
+            #     sliced_feat_with_grid=sliced_feat_with_grid.permute(0,2,3,1) #from N,C,H,W  to N,H,W,C
+            #     sliced_feat_with_grid=sliced_feat_with_grid.view(-1, feat_dim)
+            #     print("frame i", i)
+            #     print("sliced_local_features", sliced_local_features )
+            #     print("sliced_feat_with_grid", sliced_feat_with_grid )
+            # exit()
+
 
             torch.cuda.synchronize()
             TIME_END("raymarch_ATTEMPT") 
