@@ -3926,6 +3926,13 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
+        # self.feature_fuser = torch.nn.Sequential(
+        #     torch.nn.Conv2d(3+3*num_encodings*2  +32, 64, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+        #     torch.nn.GELU(),
+        #     torch.nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+        # )
+        
+
         #activ
         self.relu=torch.nn.ReLU()
         self.sigmoid=torch.nn.Sigmoid()
@@ -3955,10 +3962,10 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
 
         #go from each level of the hierarchy and ray march from there 
-        for i in range(len(frames_subsampled)):
-            frame_subsampled=frames_subsampled[i]
+        for res_iter in range(len(frames_subsampled)):
+            frame_subsampled=frames_subsampled[res_iter]
 
-            if i==0:
+            if res_iter==0:
                 if novel:
                     depth_per_pixel= torch.ones([frame_subsampled.height*frame_subsampled.width,1], dtype=torch.float32, device=torch.device("cuda")) 
                     depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
@@ -3966,7 +3973,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                     depth_per_pixel = torch.zeros((frame_subsampled.height*frame_subsampled.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
             else: 
                 ## if any other level above the coarsest one, then we upsample the depth using nerest neighbour
-                depth_per_pixel =depth.view( 1,1, frames_subsampled[i-1].height, frames_subsampled[i-1].width ) #make it into N,C,H,W
+                depth_per_pixel =depth.view( 1,1, frames_subsampled[res_iter-1].height, frames_subsampled[res_iter-1].width ) #make it into N,C,H,W
                 # depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='nearest')
                 depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
                 depth_per_pixel=depth_per_pixel.view(frame_subsampled.height*frame_subsampled.width, 1) #make it into Nx1
@@ -4022,7 +4029,11 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
                 feat=torch.cat([feat,img_features_aggregated],1)
 
+                # feat=feat.view(1, frame_subsampled.height, frame_subsampled.width, feat.shape[1])
+                # feat=feat.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                 feat=self.feature_fuser(feat)
+                # feat=feat.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+                # feat=feat.view(-1,feat.shape[3])
                 TIME_END("raymarch_aggr")
 
 
@@ -4058,8 +4069,9 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 states.append(state)
                 world_coords.append(new_world_coords)
 
-                # if iter_nr==self.nr_iters-1:
-                    # show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
+                # print("stage ", res_iter , " lstm iter ", iter_nr)
+                if iter_nr==self.nr_iters-1:
+                    show_3D_points(new_world_coords, "points_3d_"+str(res_iter))
                 TIME_END("raymarch_iter")
 
             #get the depth at this final 3d position
@@ -4881,8 +4893,8 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         self.unet=UNet( nr_channels_start=16, nr_channels_output=16)
-        # self.ray_marcher=DifferentiableRayMarcher()
-        self.ray_marcher=DifferentiableRayMarcherHierarchical()
+        self.ray_marcher=DifferentiableRayMarcher()
+        # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)

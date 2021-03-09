@@ -153,7 +153,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_12hierarchical"
+    experiment_name="s_"
 
     use_ray_compression=False
 
