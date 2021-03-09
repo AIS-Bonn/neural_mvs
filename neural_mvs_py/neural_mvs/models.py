@@ -3923,23 +3923,24 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
         
         #make a series of frames subsaqmpled
-        frame_clone=frame.frame
         frames_subsampled=[]
-        frames_subsampled.append(frame_clone)
+        frames_subsampled.append(frame)
         for i in range(self.nr_resolutions):
-            frame_clone=frame_clone.subsample(2)
-            frames_subsampled.append(frame_clone)
+            frames_subsampled.append(frame.subsampled_frames[i])
         frames_subsampled.reverse()
 
         #debug the frames
-        for i in range(len(frames_subsampled)):
-            frame_subsampled=frames_subsampled[i]
+        # for i in range(len(frames_subsampled)):
+            # frame_subsampled=frames_subsampled[i]
             # print("frames is ", frame_subsampled.height)
 
 
         #go from each level of the hierarchy and ray march from there 
         for res_iter in range(len(frames_subsampled)):
             frame_subsampled=frames_subsampled[res_iter]
+
+            # print("res iter", res_iter)
+            # print("height and width is ", frame_subsampled.height, " ", frame_subsampled.width)
 
             if res_iter==0:
                 if novel:
@@ -3954,11 +3955,12 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
                 depth_per_pixel=depth_per_pixel.view(frame_subsampled.height*frame_subsampled.width, 1) #make it into Nx1
 
-            ray_dirs_mesh=frame_subsampled.pixels2dirs_mesh()
-            ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+            ray_dirs=frame_subsampled.ray_dirs
+
+            # print("ray_dirs is ", ray_dirs.shape)
 
             #attempt 2 unproject to 3D 
-            camera_center=torch.from_numpy( frame_subsampled.pos_in_world() ).to("cuda")
+            camera_center=torch.from_numpy( frame_subsampled.frame.pos_in_world() ).to("cuda")
             camera_center=camera_center.view(1,3)
             points3D = camera_center + depth_per_pixel*ray_dirs
 
@@ -3978,38 +3980,24 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 #compute the features at this position 
                 feat=self.learned_pe(world_coords[-1])
 
-                #concat also the features from images 
-                feat_sliced_per_frame=[]
-                TIME_START("raymarch_allslice")
-                for i in range(len(frames_close)):
-                    TIME_START("raymarch_sliceiter")
-                    frame_close=frames_close[i].frame
-                    frame_features=frames_features[i]
-                    uv=compute_uv(frame_close, world_coords[-1])
-                    frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
-                    dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-                    feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
-                    TIME_END("raymarch_sliceiter")
-                TIME_END("raymarch_allslice")
-                # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
-                # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
-                #attempt 1
-                # img_features_concat=torch.cat(feat_sliced_per_frame,0) #we concat and compute mean and std similar to https://ibrnet.github.io/static/paper.pdf
-                # img_features_mean=img_features_concat.mean(dim=0)
-                # img_features_std=img_features_concat.std(dim=0)
-                # img_features_aggregated=torch.cat([img_features_mean,img_features_std],1)
+                uv_tensor=compute_uv_batched(frames_close, world_coords[-1] )
+
+
+                # slice with grid_sample
+                uv_tensor=uv_tensor.view(-1, frame_subsampled.height, frame_subsampled.width, 2)
+                sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=True ) #sliced features is N,C,H,W
+                feat_dim=sliced_feat_batched.shape[1]
+                sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
+                sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
+            
                 
                 #attempt 2 
                 TIME_START("raymarch_aggr")
-                img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
+                img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
 
                 feat=torch.cat([feat,img_features_aggregated],1)
 
-                # feat=feat.view(1, frame_subsampled.height, frame_subsampled.width, feat.shape[1])
-                # feat=feat.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                 feat=self.feature_fuser(feat)
-                # feat=feat.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-                # feat=feat.view(-1,feat.shape[3])
                 TIME_END("raymarch_aggr")
 
 
@@ -4032,29 +4020,26 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
                 # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
                 # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
-                # depth_scaling=1.0/(1.0*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
                 
 
-                # print("ray_dirs is ", ray_dirs.shape)
-                # print("signed distance is ", signed_distance.shape)
 
                 new_world_coords = world_coords[-1] + ray_dirs * signed_distance
                 states.append(state)
                 world_coords.append(new_world_coords)
 
-                # print("stage ", res_iter , " lstm iter ", iter_nr)
-                if iter_nr==self.nr_iters-1:
-                    show_3D_points(new_world_coords, "points_3d_"+str(res_iter))
-                TIME_END("raymarch_iter")
+                # if iter_nr==self.nr_iters-1:
+                    # show_3D_points(new_world_coords, "points_3d_"+str(res_iter))
+
+
 
             #get the depth at this final 3d position
             depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
 
-        return new_world_coords, depth
+        return new_world_coords, depth, None, None
 
 #it masks off the pixels that are already converged
 class DifferentiableRayMarcherMasked(torch.nn.Module):

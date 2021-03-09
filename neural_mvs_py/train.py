@@ -72,7 +72,7 @@ def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, disc
     return frames_selected
 
 class FramePY():
-    def __init__(self, frame):
+    def __init__(self, frame, create_subsamples=True):
         #get mask 
         self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
         self.mask=frame.mask
@@ -92,8 +92,10 @@ class FramePY():
         self.t_tensor=torch.from_numpy( frame.tf_cam_world.translation() ).to("cuda")
         self.K_tensor = torch.from_numpy( frame.K ).to("cuda")
         #weight and hegiht
-        self.height=self.rgb_tensor.shape[2]
-        self.width=self.rgb_tensor.shape[3]
+        # self.height=self.rgb_tensor.shape[2]
+        # self.width=self.rgb_tensor.shape[3]
+        self.height=frame.height
+        self.width=frame.width
         #misc
         self.frame_idx=frame.frame_idx
         # self.loader=loader
@@ -115,6 +117,17 @@ class FramePY():
         # self.cloud=frame.depth2world_xyz_mesh()
         # self.cloud=frame.assign_color(self.cloud)
         # self.cloud.remove_vertices_at_zero()
+
+        #make a list of subsampled frames
+        if create_subsamples:
+            self.subsampled_frames=[]
+            for i in range(3):
+                if i==0:
+                    frame_subsampled=frame.subsample(2)
+                else:
+                    frame_subsampled=frame_subsampled.subsample(2)
+                self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
+
     def create_frustum_mesh(self, scale):
         frame=Frame()
         frame.K=self.K
@@ -156,7 +169,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_2clean"
+    experiment_name="s_4"
 
     use_ray_compression=False
 
