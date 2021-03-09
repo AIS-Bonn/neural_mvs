@@ -153,7 +153,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_12diffunet"
 
     use_ray_compression=False
 

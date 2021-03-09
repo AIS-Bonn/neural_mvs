@@ -845,7 +845,7 @@ class UNet(torch.nn.Module):
 
         #params
         self.start_nr_channels=nr_channels_start
-        self.nr_stages=4
+        self.nr_stages=5
         self.compression_factor=1.0
 
 
@@ -862,10 +862,13 @@ class UNet(torch.nn.Module):
             print("cur nr_channels ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             ))
             self.nr_layers_ending_stage.append(cur_nr_channels)
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
+            if after_coarsening_nr_channels> 128:
+                after_coarsening_nr_channels=128
+
             self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
@@ -873,15 +876,15 @@ class UNet(torch.nn.Module):
 
         self.bottleneck=nn.Sequential(
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             )
 
         self.up_stages_list = torch.nn.ModuleList([])
         self.squeeze_list = torch.nn.ModuleList([])
         for i in range(self.nr_stages):
-            after_finefy_nr_channels=int(cur_nr_channels/2)
             #we now concat the features from the corresponding stage
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
+            after_finefy_nr_channels=int(cur_nr_channels/2)
             self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
             cur_nr_channels=after_finefy_nr_channels
             self.up_stages_list.append( nn.Sequential(
