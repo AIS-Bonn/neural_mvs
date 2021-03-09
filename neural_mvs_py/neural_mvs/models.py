@@ -3750,7 +3750,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.lstm_hidden_size = 16
         # self.lstm = torch.nn.LSTMCell(input_size=self.n_feature_channels, hidden_size=hidden_size)
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
-        self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
+        # self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
+        self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         self.frame_weights_computer= FrameWeightComputer()
@@ -3917,7 +3918,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #model 
         self.lstm_hidden_size = 16
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
-        self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
+        # self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
+        self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
         self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
         self.slice_texture= SliceTextureModule()
