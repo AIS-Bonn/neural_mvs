@@ -3835,18 +3835,74 @@ class DifferentiableRayMarcher(torch.nn.Module):
             feat=self.learned_pe(world_coords[-1])
 
             #concat also the features from images 
+            # feat_sliced_per_frame=[]
+            # TIME_START("raymarch_allslice")
+            # for i in range(len(frames_close)):
+            #     TIME_START("raymarch_sliceiter")
+            #     frame_close=frames_close[i]
+            #     frame_features=frames_features[i]
+            #     uv=compute_uv(frame_close, world_coords[-1])
+            #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
+            #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+            #     feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
+            #     TIME_END("raymarch_sliceiter")
+            # TIME_END("raymarch_allslice")
+
+            # TIME_START("raymarch_TEST") 
+            # for i in range(5):
+            #     uv=compute_uv(frame_close, world_coords[-1])
+            #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous()
+            #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
+            # TIME_END("raymarch_TEST") 
+
+
+            #attemot 2 to make the slicign faster by using batched operation
+            torch.cuda.synchronize()
+            TIME_START("raymarch_ATTEMPT") 
             feat_sliced_per_frame=[]
-            TIME_START("raymarch_allslice")
+            points3d_world_for_uv=world_coords[-1].view(1,-1,3).repeat( len(frames_close) ,1, 1) #Make it into NR_frames x N x 3
+            R_list=[]
+            t_list=[]
+            K_list=[]
             for i in range(len(frames_close)):
-                TIME_START("raymarch_sliceiter")
-                frame_close=frames_close[i].frame
+                frame_close=frames_close[i]
+                R_list.append( frame_close.R_tensor.view(1,3,3) )
+                t_list.append( frame_close.t_tensor.view(1,1,3) )
+                K_list.append( frame_close.K_tensor.view(1,3,3) )
+            R_batched=torch.cat(R_list,0)
+            t_batched=torch.cat(t_list,0)
+            K_batched=torch.cat(K_list,0)
+            #project 
+            points_3D_cam=torch.matmul(R_batched, points3d_world_for_uv.transpose(1,2) ).transpose(1,2)  + t_batched
+            points_screen = torch.matmul(K_batched, points_3D_cam.transpose(1,2) ).transpose(1,2)  
+            points_2d = points_screen[:, :, 0:2] / ( points_screen[:, :, 2:3] +0.0001 )
+            points_2d[:,1] = frame.height- points_2d[:,1] 
+        
+
+            #get in range 0,1
+            points_2d[:,:,0]  = points_2d[:,:,0]/frame.width 
+            points_2d[:,:,1]  = points_2d[:,:,1]/frame.height 
+            uv_tensor = points_2d
+
+            #may be needed 
+            uv_tensor= uv_tensor*2 -1 #get in range [-1,1]
+            # print("uv tensor is ", uv_tensor.shape)
+
+            #slice 
+            for i in range(len(frames_close)):
+                frame_close=frames_close[i]
                 frame_features=frames_features[i]
-                uv=compute_uv(frame_close, world_coords[-1])
+                uv=(uv_tensor[i:i+1,:, :]).squeeze()
+                # print("uv is ", uv.shape)
                 frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
                 dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
                 feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0))  #make it 1 x N x FEATDIM
-                TIME_END("raymarch_sliceiter")
-            TIME_END("raymarch_allslice")
+
+            torch.cuda.synchronize()
+            TIME_END("raymarch_ATTEMPT") 
+            
+
+
             # img_features_aggregated=torch.cat(feat_sliced_per_frame,1)
             # img_features_aggregated= feat_sliced_per_frame[0] - feat_sliced_per_frame[1]
             #attempt 1
@@ -5179,7 +5235,7 @@ class Net3_SRN(torch.nn.Module):
         #concat also the features from images 
         feat_sliced_per_frame=[]
         for i in range(len(frames_close)):
-            frame_close=frames_close[i].frame
+            frame_close=frames_close[i]
             frame_features=frames_features[i]
             uv=compute_uv(frame_close, point3d )
             frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C

@@ -88,6 +88,9 @@ class FramePY():
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
         self.K=frame.K
+        self.R_tensor=torch.from_numpy( frame.tf_cam_world.linear() ).to("cuda")
+        self.t_tensor=torch.from_numpy( frame.tf_cam_world.translation() ).to("cuda")
+        self.K_tensor = torch.from_numpy( frame.K ).to("cuda")
         #weight and hegiht
         self.height=self.rgb_tensor.shape[2]
         self.width=self.rgb_tensor.shape[3]
