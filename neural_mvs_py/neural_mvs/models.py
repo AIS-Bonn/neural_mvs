@@ -846,6 +846,7 @@ class UNet(torch.nn.Module):
         #params
         self.start_nr_channels=nr_channels_start
         self.nr_stages=4
+        self.compression_factor=1.0
 
 
 
@@ -860,19 +861,19 @@ class UNet(torch.nn.Module):
         for i in range(self.nr_stages):
             print("cur nr_channels ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             ))
             self.nr_layers_ending_stage.append(cur_nr_channels)
-            after_coarsening_nr_channels=cur_nr_channels*2
-            self.coarsen_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
+            after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
+            self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
 
 
         self.bottleneck=nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             )
 
         self.up_stages_list = torch.nn.ModuleList([])
@@ -881,11 +882,11 @@ class UNet(torch.nn.Module):
             after_finefy_nr_channels=int(cur_nr_channels/2)
             #we now concat the features from the corresponding stage
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
-            self.squeeze_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
+            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
             cur_nr_channels=after_finefy_nr_channels
             self.up_stages_list.append( nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             ))
             print("up stage which outputs nr of layers ", cur_nr_channels)
 
@@ -900,6 +901,7 @@ class UNet(torch.nn.Module):
         #     # self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[is_last_layer, is_last_layer], with_dropout=False, do_norm=True ) )
         #     self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
+        # print("last conv is ", cur_nr_channels)
         self.last_conv = torch.nn.Conv2d(cur_nr_channels+3, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         # self.last_conv =  GNReluConv(in_channels=cur_nr_channels, out_channels=nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False ).cuda()
 
