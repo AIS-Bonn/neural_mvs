@@ -3824,7 +3824,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             # slice with grid_sample
             uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
-            sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=True ) #sliced features is N,C,H,W
+            sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
             sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
@@ -3989,7 +3989,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
                 # slice with grid_sample
                 uv_tensor=uv_tensor.view(-1, frame_subsampled.height, frame_subsampled.width, 2)
-                sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=True ) #sliced features is N,C,H,W
+                sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
                 feat_dim=sliced_feat_batched.shape[1]
                 sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
                 sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
@@ -5149,7 +5149,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor=compute_uv_batched(frames_close, point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=True ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
         sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
