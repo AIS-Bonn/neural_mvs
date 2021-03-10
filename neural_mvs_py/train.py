@@ -172,7 +172,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_13herch"
+    experiment_name="s_3stdsqrt"
 
     use_ray_compression=False
 

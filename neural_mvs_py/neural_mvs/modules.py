@@ -185,7 +185,17 @@ class FeatureAgregator(torch.nn.Module):
         img_features_normalized=  (feat_sliced_per_frame-img_features_mean.unsqueeze(0))**2 #xi- mu
         img_features_normalized_weighted= img_features_normalized*weights
         std= img_features_normalized_weighted.sum(dim=0) #this is just the nominator but the denominator is probably not needed since it's just 1
-        # std=torch.sqrt(std)
+        # print("stdm in", std.min())
+        std=torch.sqrt(std+0.0001) #adding a small espilon to avoid sqrt(negative number) which then cuases nans
+
+        # #similar to what vladnet has
+        # diff_to_mean = (feat_sliced_per_frame-img_features_mean.unsqueeze(0)) #xi- mu
+        # img_features_normalized_weighted= diff_to_mean*weights
+        # std= img_features_normalized_weighted.sum(dim=0) #Nxfead_dim
+        # #we normalize columnswise as vladnet does it
+        # norm=std.norm(dim=0, keepdim=True)
+        # std=std/norm
+
 
         final_feat=torch.cat([img_features_mean, std],1)
 
