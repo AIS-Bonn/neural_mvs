@@ -173,7 +173,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_13adl2_0.001"
+    experiment_name="s_16norgbconcat"
 
     use_ray_compression=False
 

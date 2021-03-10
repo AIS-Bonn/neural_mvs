@@ -905,7 +905,7 @@ class UNet(torch.nn.Module):
         #     self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
         # print("last conv is ", cur_nr_channels)
-        self.last_conv = torch.nn.Conv2d(cur_nr_channels+3, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         # self.last_conv =  GNReluConv(in_channels=cur_nr_channels, out_channels=nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False ).cuda()
 
         self.relu=torch.nn.ReLU(inplace=False)
@@ -956,7 +956,7 @@ class UNet(torch.nn.Module):
             x=self.up_stages_list[i](x)
 
         # print("x before the final conv has mean ", x.mean(), " and std ", x.std())
-        x=torch.cat([x,initial_x],1) 
+        # x=torch.cat([x,initial_x],1) #bad idea to concat the rgb here. It introduces way too much high frequency in the output which makes the ray marker get stuck in not knowing wheere to predict the depth so that the slicing slcies the correct features. IF we dont concat, then the unet features are kinda smooth and they act like a wise basin of converges that tell the lstm, to predict a depth close a certain position so that the features it slices will be better
         x=self.last_conv(x)
         
         return x
