@@ -172,7 +172,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_3stdsqrt"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -189,10 +189,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader_train=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    loader_train=DataLoaderColmap(config_path)
-    loader_test=DataLoaderColmap(config_path)
+    loader_train=DataLoaderNerf(config_path)
+    loader_test=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderColmap(config_path)
+    # loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -444,6 +444,15 @@ def run():
                         signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
                         points3D[signed_dist_mask]=0.0
                         show_3D_points(points3D, "points_3d", color=rgb_pred)
+
+                        #view normal
+                        points3D_img=points3D.view(1, frame.height, frame.width, 3)
+                        points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        normal=compute_normal(points3D_img)
+                        normal_vis=(normal+1.0)*0.5
+                        normal_mat=tensor2mat(normal_vis)
+                        Gui.show(normal_mat, "normal")
+
 
 
 

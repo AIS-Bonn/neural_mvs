@@ -120,6 +120,40 @@ def compute_uv_batched(frames_list, points_3D_world):
 
     return uv_tensor
 
+def compute_normal(points3d_img):
+    assert len(points3d_img.shape) == 4, points3d_img.shape
+
+    #since the gradient is not defined at the boders, we pad the image with zeros
+    # points3d_img_padded = torch.nn.functional.pad(points3d_img, [0,1,0,1], mode='constant', value=0)
+    points3d_img_x= torch.nn.functional.pad(points3d_img, [0,1,0,0], mode='constant', value=0)
+    points3d_img_y= torch.nn.functional.pad(points3d_img, [0,0,0,1], mode='constant', value=0)
+    # print("points3d_img_padded", points3d_img_padded.shape)
+
+    grad_x=points3d_img_x[:, :, :, :-1] - points3d_img_x[:, :, :, 1:]
+    grad_y=points3d_img_y[:, :, :-1, :] - points3d_img_y[:, :, 1:, :]
+    # print("grad x is ", grad_x.shape)
+
+    #make the gradx and grady in Nx3
+    height=points3d_img.shape[2]
+    width=points3d_img.shape[3]
+    nr_channels=points3d_img.shape[1]
+    grad_x=grad_x.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+    grad_y=grad_y.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+    grad_x=grad_x.view(-1, nr_channels)
+    grad_y=grad_y.view(-1, nr_channels)
+    cross=torch.cross(grad_x, grad_y, dim=1)
+    # print("corss x is ", cross.shape)
+
+    normal_norm=cross.norm(dim=1, keepdim=True)
+    normal=cross/normal_norm
+    # print("normal is ", normal.shape)
+
+
+    #make into image
+    normal=normal.view(-1, height, width, nr_channels)
+    normal=normal.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+
+    return normal
 
 
 class FrameWeightComputer(torch.nn.Module):
