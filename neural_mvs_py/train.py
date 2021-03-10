@@ -169,7 +169,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_4"
+    experiment_name="s_5sd_last_w100"
 
     use_ray_compression=False
 
@@ -396,7 +396,7 @@ def run():
                             # smooth_loss = smooth(depth_pred, rgb_gt)
                             # loss+=smooth_loss*0.01
 
-                        # #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
+                        #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
                         # if is_training: 
                         #     for i in range(len(signed_distances_for_marchlvl)):
                         #         signed_dist=signed_distances_for_marchlvl[i]
@@ -405,6 +405,13 @@ def run():
                         #         if weight>1000:
                         #             weight=1000
                         #         loss+= (signed_dist**2).mean()*weight*0.1 #first distance is allowed to move, and the more we move the more we expect it to stop moving
+
+                        #loss on the signed distance, making it be zero but only for the last level
+                        # if is_training: 
+                        #     signed_dist=signed_distances_for_marchlvl[ -1 ]
+                        #     signed_dist=signed_dist.view(1,1,frame.height, frame.width)
+                        #     signed_dist=signed_dist*frame.mask_tensor
+                        #     loss+= (signed_dist**2).mean()*100 #first distance is allowed to move, and the more we move the more we expect it to stop moving
 
 
 
