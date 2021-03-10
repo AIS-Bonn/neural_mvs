@@ -169,7 +169,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_9concatsd"
 
     use_ray_compression=False
 

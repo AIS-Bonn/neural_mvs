@@ -3324,6 +3324,7 @@ class RGB_predictor_simple(MetaModule):
         cur_nr_channels+=32 #for point features
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
+        cur_nr_channels+=1 #concating also the signed distnace
       
         if use_ray_dirs:
             num_encoding_directions=4
@@ -5165,6 +5166,9 @@ class Net3_SRN(torch.nn.Module):
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
         
 
+        #concat also the signed distnace at the last iteration of the lstm 
+        signed_dist=signed_distances_for_marchlvl[ -1 ]
+        img_features_aggregated=torch.cat([img_features_aggregated, signed_dist],1)
 
 
 
