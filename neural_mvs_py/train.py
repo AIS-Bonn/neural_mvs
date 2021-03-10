@@ -81,7 +81,6 @@ class FramePY():
             self.mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
-        print("rgb tensor has shape ", self.rgb_tensor.shape, " frame height width", frame.height, " ", frame.width)
         self.rgb_tensor=self.rgb_tensor*self.mask_tensor
 
         # bg_color= torch.ones([1, 3, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
