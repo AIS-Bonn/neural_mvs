@@ -3325,6 +3325,7 @@ class RGB_predictor_simple(MetaModule):
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         cur_nr_channels+=1 #concating also the signed distnace
+        # cur_nr_channels+=3 #concating also the normals
       
         if use_ray_dirs:
             num_encoding_directions=4
@@ -5171,6 +5172,14 @@ class Net3_SRN(torch.nn.Module):
         #concat also the signed distnace at the last iteration of the lstm 
         signed_dist=signed_distances_for_marchlvl[ -1 ]
         img_features_aggregated=torch.cat([img_features_aggregated, signed_dist],1)
+
+        # #concat also the nromals  THEY ACTUALLY hur the perfomance because the normals are way to noisy, espetially at the beggining
+        # points3D_img=point3d.view(1, frame.height, frame.width, 3)
+        # points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        # normal_img=compute_normal(points3D_img)
+        # normal=normal_img.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
+        # normal=normal.view(-1,3)
+        # img_features_aggregated=torch.cat([img_features_aggregated, normal],1)
 
 
 

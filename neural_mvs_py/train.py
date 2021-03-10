@@ -172,7 +172,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_3"
 
     use_ray_compression=False
 
@@ -440,16 +440,15 @@ def run():
                         points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
                         #mask also the points that still have a signed distance 
                         signed_dist=signed_distances_for_marchlvl[ -1 ]
-                        signed_dist_mask= signed_dist>0.05
+                        signed_dist_mask= signed_dist>0.03
                         signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
                         points3D[signed_dist_mask]=0.0
-                        show_3D_points(points3D, "points_3d", color=rgb_pred)
 
                         #view normal
                         points3D_img=points3D.view(1, frame.height, frame.width, 3)
                         points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        normal=compute_normal(points3D_img)
-                        normal_vis=(normal+1.0)*0.5
+                        normal_img=compute_normal(points3D_img)
+                        normal_vis=(normal_img+1.0)*0.5
                         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
                         signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
                         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
@@ -458,6 +457,17 @@ def run():
                         normal_vis[signed_dist_mask_img]=0.0
                         normal_mat=tensor2mat(normal_vis)
                         Gui.show(normal_mat, "normal")
+
+                        #mask based on grazing angle between normal and view angle
+                        normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                        normal=normal.view(-1,3)
+                        dot_view_normal= (frame.ray_dirs * normal).sum(dim=1,keepdim=True)
+                        dot_view_normal_mask= dot_view_normal<-0.3 #ideally the dot will be -1
+                        dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
+                        points3D[dot_view_normal_mask]=0.0
+
+                        #show things
+                        show_3D_points(points3D, "points_3d", color=rgb_pred)
 
 
 
