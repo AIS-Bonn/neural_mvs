@@ -145,7 +145,7 @@ def compute_normal(points3d_img):
     # print("corss x is ", cross.shape)
 
     normal_norm=cross.norm(dim=1, keepdim=True)
-    normal=cross/normal_norm
+    normal=cross/(normal_norm+0.00001)
     # print("normal is ", normal.shape)
 
 

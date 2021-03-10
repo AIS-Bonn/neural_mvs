@@ -450,6 +450,12 @@ def run():
                         points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                         normal=compute_normal(points3D_img)
                         normal_vis=(normal+1.0)*0.5
+                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
+                        signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
+                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        normal_vis[rgb_pred_zeros_mask_img]=0.0
+                        normal_vis[signed_dist_mask_img]=0.0
                         normal_mat=tensor2mat(normal_vis)
                         Gui.show(normal_mat, "normal")
 
