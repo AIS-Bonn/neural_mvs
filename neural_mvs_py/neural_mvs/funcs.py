@@ -50,9 +50,18 @@ def lstm_forget_gate_init(lstm_layer):
 
 
 
-def show_3D_points(points_3d_tensor, name):
+def show_3D_points(points_3d_tensor, name, color=None):
     mesh=Mesh()
     mesh.V=points_3d_tensor.detach().double().reshape((-1, 3)).cpu().numpy()
+
+    if color is not None:
+        color_channels_last=color.permute(0,2,3,1).detach() # from n,c,h,w to N,H,W,C
+        color_channels_last=color_channels_last.view(-1,3).contiguous()
+        # color_channels_last=color_channels_last.permute() #from bgr to rgb
+        color_channels_last=torch.index_select(color_channels_last, 1, torch.LongTensor([2,1,0]).cuda() ) #switch the columns so that we grom from bgr to rgb
+        mesh.C=color_channels_last.detach().double().reshape((-1, 3)).cpu().numpy()
+        mesh.m_vis.set_color_pervertcolor()
+
     mesh.m_vis.m_show_points=True
     Scene.show(mesh, name)
 
