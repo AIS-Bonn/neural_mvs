@@ -30,6 +30,7 @@ from optimizers.over9000.apollo import *
 
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
+import neural_mvs.warmup_scheduler as warmup  #https://github.com/Tony-Y/pytorch_warmup
 
 #debug 
 from easypbr import Gui
@@ -172,7 +173,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_3"
+    experiment_name="s_13adl2_0.001"
 
     use_ray_compression=False
 
@@ -369,7 +370,7 @@ def run():
                         frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
                         # print("frames_close", len(frames_close))
                         TIME_START("forward")
-                        rgb_pred, depth_pred, signed_distances_for_marchlvl=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
+                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
                         TIME_END("forward")
 
                      
@@ -377,7 +378,8 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        loss+=rgb_loss_ssim_l1
+                        # loss+=rgb_loss_ssim_l1
+                        loss+=rgb_loss
 
                         #loss on depth 
                         if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames
@@ -415,6 +417,12 @@ def run():
                         #     signed_dist=signed_dist.view(1,1,frame.height, frame.width)
                         #     signed_dist=signed_dist*frame.mask_tensor
                         #     loss+= (signed_dist**2).mean()*100 #first distance is allowed to move, and the more we move the more we expect it to stop moving
+
+                        #loss on the stdm at the finaly of the ray tracing the std of the features shoulb be zeo
+                        # if is_training: 
+                            # loss+=(std**2).mean()
+                            # print("st loss ", (std**2).mean())
+
 
 
 
@@ -532,10 +540,11 @@ def run():
                         if first_time:
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            # optimizer=Apollo( model.parameters(), lr=train_params.lr() )
+                            # optimizer=Apollo( model.parameters(), lr=train_params.lr(), warmup=500 )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=Lookahead(optimizer, alpha=0.5, k=6)
                             # optimizer=torch.optim.AdamW( 
                             #     [
                             #         {'params': model.ray_marcher.parameters()},
@@ -544,6 +553,7 @@ def run():
 
                             #  )
                             scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=500)
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
@@ -555,6 +565,7 @@ def run():
                     if is_training:
                         if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                        # warmup_scheduler.dampen()
                         optimizer.zero_grad()
                         cb.before_backward_pass()
                         TIME_START("backward")

@@ -5161,6 +5161,8 @@ class Net3_SRN(torch.nn.Module):
         ##attempt 4 
         weights=self.frame_weights_computer(frame, frames_close)
         img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
+        std= img_features_aggregated[:, -16]
+
         # show the frames and with a line weight depending on the weight
         for i in range(len(frames_close)):
             frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
@@ -5211,7 +5213,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, depth, signed_distances_for_marchlvl
+        return rgb_pred, depth, signed_distances_for_marchlvl, std
         
 
 
