@@ -3973,6 +3973,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             initial_depth=depth_per_pixel
             world_coords = [init_world_coords]
             depths = [initial_depth]
+            signed_distances_for_marchlvl=[]
             states = [None]
 
 
@@ -4033,6 +4034,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 new_world_coords = world_coords[-1] + ray_dirs * signed_distance
                 states.append(state)
                 world_coords.append(new_world_coords)
+                signed_distances_for_marchlvl.append(signed_distance)
 
                 # if iter_nr==self.nr_iters-1:
                     # show_3D_points(new_world_coords, "points_3d_"+str(res_iter))
@@ -4043,7 +4045,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
 
-        return new_world_coords, depth, None, None
+        return new_world_coords, depth, None, signed_distances_for_marchlvl
 
 #it masks off the pixels that are already converged
 class DifferentiableRayMarcherMasked(torch.nn.Module):
