@@ -74,10 +74,14 @@ def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, disc
 class FramePY():
     def __init__(self, frame, create_subsamples=True):
         #get mask 
-        self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
-        self.mask=frame.mask
+        if not frame.mask.empty():
+            self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+            self.mask=frame.mask
+        else:
+            self.mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
         #get rgb with mask applied 
         self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
+        print("rgb tensor has shape ", self.rgb_tensor.shape, " frame height width", frame.height, " ", frame.width)
         self.rgb_tensor=self.rgb_tensor*self.mask_tensor
 
         # bg_color= torch.ones([1, 3, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
@@ -186,10 +190,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    loader_train=DataLoaderNerf(config_path)
-    loader_test=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderColmap(config_path)
+    # loader_train=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
+    loader_train=DataLoaderColmap(config_path)
+    loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
