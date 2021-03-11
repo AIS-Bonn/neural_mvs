@@ -967,7 +967,7 @@ class BlockSiren(MetaModule):
         return x
 
 class BlockNerf(MetaModule):
-    def __init__(self, in_channels, out_channels, bias, activ=torch.nn.ReLU(inplace=False) ):
+    def __init__(self, in_channels, out_channels, bias, activ=torch.nn.ReLU(inplace=False), init="default" ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
@@ -976,7 +976,7 @@ class BlockNerf(MetaModule):
         super(BlockNerf, self).__init__()
         self.bias=bias 
         self.activ=activ
-        # self.init=init
+        self.init=init
         
 
         self.relu=torch.nn.ReLU()
@@ -987,14 +987,26 @@ class BlockNerf(MetaModule):
         self.conv= MetaSequential( MetaLinear(in_channels, out_channels, bias=self.bias ).cuda()  )
 
 
-
-       
-        print("initializing with kaiming uniform")
-        torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
-        if self.bias is not None:
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
-            bound = 1 / math.sqrt(fan_in)
-            torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+        ##if the init is set, it will take precedence over the initializaion from the corresponding activ
+        
+        if init=="default":
+            if self.activ==torch.nn.GELU() or self.activ==torch.nn.ReLU() or self.activ==None:
+                torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
+            if self.activ==torch.sigmoid:
+                torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='sigmoid')
+            if self.bias is not None:
+                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+        elif init=="sigmoid":
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='sigmoid')
+            if self.bias is not None:
+                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+        else: 
+            print("unknown initialization", init)
+            exit(1)
 
 
     def forward(self, x, params=None):

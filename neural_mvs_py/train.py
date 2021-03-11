@@ -173,7 +173,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_16norgbconcat"
+    experiment_name="s_17sigmoidinit"
 
     use_ray_compression=False
 

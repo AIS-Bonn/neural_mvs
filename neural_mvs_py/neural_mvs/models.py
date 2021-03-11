@@ -3341,7 +3341,7 @@ class RGB_predictor_simple(MetaModule):
             BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
-            BlockNerf(activ=None, in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            BlockNerf(activ=None, init="sigmoid", in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
             )
 
 
