@@ -553,7 +553,7 @@ def run():
 
                             #  )
                             scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
-                            # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=500)
+                            # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=200)
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 

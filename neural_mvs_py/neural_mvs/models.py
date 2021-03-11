@@ -5070,7 +5070,7 @@ class Net3_SRN(torch.nn.Module):
       
     def forward(self, frame, mesh, depth_min, depth_max, frames_close, novel=False):
 
-        TIME_START("unet")
+        TIME_START("unet_everything")
         # frames_features=[]
         # for frame_close in frames_close:
         #     rgb_gt=frame_close.rgb_tensor
@@ -5083,11 +5083,13 @@ class Net3_SRN(torch.nn.Module):
             rgb_batch_list.append(rgb_gt)
         rgb_batch=torch.cat(rgb_batch_list,0)
         #pass through unet 
+        TIME_START("unet")
         frames_features=self.unet(rgb_batch)
+        TIME_END("unet")
         frames_features_list=[]
         for i in range(len(frames_close)):
             frames_features_list.append(frames_features[i:i+1, :,:,:])
-        TIME_END("unet")
+        TIME_END("unet_everything")
 
         TIME_START("ray_march")
         point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, depth_min, frames_close, frames_features, novel)
@@ -5199,19 +5201,19 @@ class Net3_SRN(torch.nn.Module):
         depth=depth.permute(2,0,1).unsqueeze(0)
 
 
-        # # #DEBUG 
-        # if novel:
-        #     #show the PCAd features of the closest frame
-        #     img_features=frames_features[0]
-        #     height=img_features.shape[2]
-        #     width=img_features.shape[3]
-        #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-        #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
-        #     pca=PCA.apply(img_features_for_pca)
-        #     pca=pca.view(height, width, 3)
-        #     pca=pca.permute(2,0,1).unsqueeze(0)
-        #     pca_mat=tensor2mat(pca)
-        #     Gui.show(pca_mat, "pca_mat")
+        # #DEBUG 
+        if novel:
+            #show the PCAd features of the closest frame
+            img_features=frames_features_list[0]
+            height=img_features.shape[2]
+            width=img_features.shape[3]
+            img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+            img_features_for_pca=img_features_for_pca.view(height*width, -1)
+            pca=PCA.apply(img_features_for_pca)
+            pca=pca.view(height, width, 3)
+            pca=pca.permute(2,0,1).unsqueeze(0)
+            pca_mat=tensor2mat(pca)
+            Gui.show(pca_mat, "pca_mat")
 
         return rgb_pred, depth, signed_distances_for_marchlvl, std
         
