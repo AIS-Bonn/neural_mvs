@@ -8,6 +8,7 @@ import numpy as np
 import time
 import math
 from neuralmvs import NeuralMVS
+from neuralmvs import SFM
 from easypbr import * 
 
 #Just to have something close to the macros we have in c++

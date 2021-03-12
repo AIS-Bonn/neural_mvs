@@ -15,10 +15,10 @@
 #include <opencv2/core/eigen.hpp>
 
 
-//ceres 
-#include "ceres/ceres.h"
-#include "ceres/rotation.h"
-using namespace ceres;
+// //ceres 
+// #include "ceres/ceres.h"
+// #include "ceres/rotation.h"
+// using namespace ceres;
 
 
 //loguru
@@ -40,6 +40,7 @@ using namespace configuru;
 #include "eigen_utils.h"
 #include "easy_pbr/Mesh.h"
 #include "easy_pbr/Gui.h"
+#include "easy_pbr/Scene.h"
 
 
 
@@ -131,6 +132,57 @@ struct ReprojectionError {
     Eigen::Matrix3d m_K;
     Eigen::Affine3d m_tf_cam_world;
 };
+
+//in this contructor we put the things that are not going to be optimized
+struct SphereFitError {
+  SphereFitError(Eigen::Vector3d point3d )
+      : m_point3d(point3d)   {}
+
+
+  //things that will be optimized go here
+  template <typename T>
+  bool operator()(
+                  const T* const sphere_center,
+                  const T* const sphere_radius,
+                  T* residuals) const {
+
+
+    //typedefs
+    typedef Eigen::Matrix<T, 3, 1> Vec3;
+    // typedef Eigen::Transform<T, 3, Eigen::Affine> Affine3d;
+    // typedef Eigen::Matrix<T, 3, 3> Mat3x3;
+
+
+    Vec3 sphere_center_eigen; 
+    sphere_center_eigen.x()=sphere_center[0];
+    sphere_center_eigen.y()=sphere_center[1];
+    sphere_center_eigen.z()=sphere_center[2];
+
+    T sphere_radius_eigen=sphere_radius[0];
+
+    // ( |P_i - C|^2 - r^2 )^2
+    T distance_to_sphere=  (m_point3d.cast<T>()-sphere_center_eigen).norm() - sphere_radius_eigen;
+
+   
+
+    residuals[0] = distance_to_sphere;
+
+
+    return true;
+  }
+
+   // Factory to hide the construction of the CostFunction object from
+   // the client code.
+   static ceres::CostFunction* Create( Eigen::Vector3d point3d) {
+     return (new ceres::AutoDiffCostFunction<SphereFitError, 1, 3, 1>( //the first number is the number of residuals we output,  the rest of the number is the dimensions that we optimize of the inputs to the operator() 
+                 new SphereFitError( point3d )));
+   }
+ 
+
+    Eigen::Vector3d m_point3d;
+};
+
+
 
 
 
@@ -325,7 +377,7 @@ std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> SFM::comp
 
     //triangulate https://stackoverflow.com/a/16299909
     // https://answers.opencv.org/question/171898/sfm-triangulatepoints-input-array-assertion-failed/
-    VLOG(1) << "traingulate";
+    // VLOG(1) << "traingulate";
 
 
     // //attempt 2
@@ -452,7 +504,7 @@ std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> SFM::comp
 
 
     //attempt 4 using ray intersection 
-    int nr_points=matches.size();
+    // int nr_points=matches.size();
     // mesh->V.resize( nr_points, 3 );
     std::vector<Eigen::VectorXd> points_3d;
     // https://stackoverflow.com/questions/29188686/finding-the-intersect-location-of-two-rays
@@ -700,6 +752,136 @@ void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy
 
     easy_pbr::Gui::show(img, name);
 
+}
+
+
+//compute weights 
+std::vector<float> SFM::compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames){
+    // https://people.cs.clemson.edu/~dhouse/courses/404/notes/barycentric.pdf
+    // https://stackoverflow.com/questions/2924795/fastest-way-to-compute-point-to-triangle-distance-in-3d
+    // https://math.stackexchange.com/questions/544946/determine-if-projection-of-3d-point-onto-plane-is-within-a-triangle
+
+    //to compute the weights we use barycentric coordinates. 
+    //this has several steps, first project the current frame into the triangle defiend by the close_frames. 
+    //compute barycentric coords
+    //if the barycentric coords are not within [0,1], clamp them
+
+    //checks
+    CHECK(close_frames.size()==3) <<"This assumes we are using 3 frames as close frames because we want to compute barycentric coords";
+
+    //make triangle
+    Eigen::Vector3d cur_pos= frame.pos_in_world().cast<double>();
+    Eigen::Vector3d p1= close_frames[0].pos_in_world().cast<double>();
+    Eigen::Vector3d p2= close_frames[1].pos_in_world().cast<double>();
+    Eigen::Vector3d p3= close_frames[2].pos_in_world().cast<double>();
+
+    //get barycentirc coords of the projection https://math.stackexchange.com/a/544947
+    Eigen::Vector3d u=p2-p1;
+    Eigen::Vector3d v=p3-p1;
+    Eigen::Vector3d n=u.cross(v);
+    Eigen::Vector3d w=cur_pos-p1;
+
+    float w_p3= u.cross(w).dot(n)/ (n.dot(n));
+    float w_p2= w.cross(v).dot(n)/ (n.dot(n));
+    float w_p1= 1.0-w_p2-w_p3;
+
+    //to get weights as if the point was inside the triangle, we clamp the barycentric coordinates (I don't know if this is needed yeat)
+
+    //return tha values
+    std::vector<float> vals;
+    vals.push_back(w_p1);
+    vals.push_back(w_p2);
+    vals.push_back(w_p3);
+
+    return vals;
+
+
+}
+
+
+std::tuple<Eigen::Vector3d, double> SFM::fit_sphere( const Eigen::MatrixXd& points){
+
+    //get an approximate center and radius
+    Eigen::VectorXd init_center=points.colwise().mean();
+    VLOG(1) << "init center " << init_center;
+    Eigen::VectorXd min_point = points.colwise().minCoeff();   
+    Eigen::VectorXd max_point = points.colwise().maxCoeff();   
+    float init_radius= 0.5* (max_point-min_point).norm();
+    VLOG(1) << "radius is " << init_radius; 
+
+    
+    //establish a error function similar to https://stackoverflow.com/q/10344119
+    ceres::Problem problem;
+    std::vector<double> sphere_center(3);
+    std::vector<double> sphere_radius(1);
+    sphere_center[0] =init_center.x();
+    sphere_center[1] =init_center.y();
+    sphere_center[2] =init_center.z();
+    sphere_radius[0]= init_radius;
+    for (int i=0; i<points.rows(); i++){
+        Eigen::Vector3d point3d= points.row(i);
+        ceres::CostFunction* cost_function = SphereFitError::Create( point3d );
+        problem.AddResidualBlock(cost_function,
+                               NULL /* squared loss */,
+                            sphere_center.data(),
+                            sphere_radius.data());
+
+        
+    }
+
+    //solve
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.minimizer_progress_to_stdout = true;
+    options.max_num_iterations=400;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    VLOG(1) << summary.FullReport();
+
+
+    //read the sphere params
+    Eigen::Vector3d sphere_center_final;
+    double sphere_radius_final;
+    sphere_center_final.x()=sphere_center[0];
+    sphere_center_final.y()=sphere_center[1];
+    sphere_center_final.z()=sphere_center[2];
+    sphere_radius_final= sphere_radius[0];
+
+    return std::make_tuple(sphere_center_final, sphere_radius_final);
+
+
+}
+
+// compute triangulation 
+// https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
+void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
+    //we assume the frames are laid in a somewhat sphere.
+    // we want to compute a delauany triangulation of them. For this we folow   https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
+    // which says we can use steregraphic projection and then do a delaunay in 2D and then lift it back to 3D which will yield a valid triangulation of the points on the sphere. 
+    
+    //get all the points from the frames into a EigenMatrix
+    Eigen::MatrixXd points;
+    points.resize(frames.size(),3);
+    for (size_t i=0; i<frames.size(); i++){
+        points.row(i) = frames[i].pos_in_world().cast<double>();
+    }
+
+    auto sphere_params=fit_sphere(points);
+    Eigen::Vector3d sphere_center = std::get<0>(sphere_params);
+    double sphere_radius = std::get<1>(sphere_params);
+
+    //make sphere and check that it looks ok
+    auto sphere= easy_pbr::Mesh::create();
+    sphere->create_sphere(sphere_center, sphere_radius);
+    sphere->m_vis.m_show_mesh=false;
+    sphere->m_vis.m_show_points=true;
+    easy_pbr::Scene::show(sphere,"sphere");
+
+
+    VLOG(1) << "sphere center_final " << sphere_center; 
+    VLOG(1) << "sphere radius_final " << sphere_radius; 
+
+    
 }
 
 

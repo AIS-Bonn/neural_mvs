@@ -234,11 +234,11 @@ def run():
     phases[1].show_visdom=True
 
     #show all the train and test frames 
-    # for i in range(loader_train.nr_samples()):
-    #     frame=loader_train.get_frame_at_idx(i)
-    #     frustum_mesh=frame.create_frustum_mesh(0.02)
-    #     frustum_mesh.m_vis.m_line_width=1
-    #     Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
+    for i in range(loader_train.nr_samples()):
+        frame=loader_train.get_frame_at_idx(i)
+        frustum_mesh=frame.create_frustum_mesh(0.02)
+        frustum_mesh.m_vis.m_line_width=1
+        Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
     # for i in range(loader_test.nr_samples()):
     #     frame=loader_test.get_frame_at_idx(i)
     #     frustum_mesh=frame.create_frustum_mesh(0.02)
@@ -303,6 +303,10 @@ def run():
         keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
         frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
         # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx # #get all the frames train in am array, becuase it's faster to have everything already on the gpu
+
+
+    #get the triangulation of the frames 
+    SFM.compute_triangulation(loader_train.get_all_frames())
 
     #depth min max for nerf 
     depth_min=2
@@ -378,8 +382,8 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        # loss+=rgb_loss_ssim_l1
-                        loss+=rgb_loss
+                        loss+=rgb_loss_ssim_l1
+                        # loss+=rgb_loss
 
                         #loss on depth 
                         if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames

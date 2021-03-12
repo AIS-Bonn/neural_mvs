@@ -1,5 +1,10 @@
 #pragma once
 
+//ceres (ADDING THIS first before any loguru stuff because otherwise ceres overwrites the LOG functions)
+#include "ceres/ceres.h"
+#include "ceres/rotation.h"
+using namespace ceres;
+
 #include <memory>
 #include <stdarg.h>
 #include <tuple>
@@ -13,6 +18,8 @@
 #include "jitify/jitify.hpp"
 #include <Eigen/Dense>
 // #include "neural_mvs/kernels/NeuralMVSGPU.cuh"
+
+#include "easy_pbr/Frame.h"
 
 #include "Shader.h"
 #include "GBuffer.h"
@@ -48,7 +55,9 @@ public:
     static std::tuple<torch::Tensor, torch::Tensor> splat_texture_backward(torch::Tensor& grad_texture, torch::Tensor& values_tensor, torch::Tensor& uv_tensor );
     static std::tuple<torch::Tensor, torch::Tensor> slice_texture_backward(torch::Tensor& grad_values, torch::Tensor& texture, torch::Tensor& uv_tensor );
 
-    static torch::Tensor subsample( const torch::Tensor& tensor, const int subsample_factor, const std::string subsample_type ); //assumes the tensor input is in format H,W,C
+    // static torch::Tensor subsample( const torch::Tensor& tensor, const int subsample_factor, const std::string subsample_type ); //assumes the tensor input is in format H,W,C
+    // static std::vector<float> compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames);
+    // static void compute_triangulation(std::vector<easy_pbr::Frame>& frames);
 
 
 private:

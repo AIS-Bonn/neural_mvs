@@ -1,5 +1,10 @@
 #pragma once
 
+//ceres (ADDING THIS first before any loguru stuff because otherwise ceres overwrites the LOG functions)
+#include "ceres/ceres.h"
+#include "ceres/rotation.h"
+using namespace ceres;
+
 #include <memory>
 #include <stdarg.h>
 #include <tuple>
@@ -28,6 +33,9 @@ public:
     // std::shared_ptr<easy_pbr::Mesh> compute_3D_keypoints_from_frames(const std::vector<easy_pbr::Frame>& frames);
     std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> compute_3D_keypoints_from_frames(const easy_pbr::Frame& frame_query, const easy_pbr::Frame& frame_target);
 
+    static std::vector<float> compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames);
+    static void compute_triangulation(std::vector<easy_pbr::Frame>& frames);
+
    
 
 private:
@@ -44,6 +52,8 @@ std::vector<cv::KeyPoint>& target_keypoints,  const int img_size, std::vector<bo
     Eigen::Vector3f intersect_rays( const Eigen::Vector3f& origin_query, const Eigen::Vector3f& dir_query, const Eigen::Vector3f& origin_target, const Eigen::Vector3f& dir_target);
 
     void debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy_pbr::Mesh> mesh, std::vector<cv::KeyPoint>& keypoints, const std::string name);
+
+    static std::tuple<Eigen::Vector3d, double> fit_sphere( const Eigen::MatrixXd& points);
 
    
 };

@@ -1,5 +1,10 @@
 #include "neural_mvs/NeuralMVS.cuh"
 
+// //ceres 
+// #include "ceres/ceres.h"
+// #include "ceres/rotation.h"
+// using namespace ceres;
+
 #include <glad/glad.h> // Initialize with gladLoadGL()
 // Include glfw3.h after our OpenGL definitions
 #include <GLFW/glfw3.h>
@@ -18,6 +23,11 @@
 #include "easy_pbr/Gui.h"
 #include "UtilsGL.h"
 
+
+// //ceres 
+// #include "ceres/ceres.h"
+// #include "ceres/rotation.h"
+// using namespace ceres;
 
 
 // #include "igl/adjacency_list.h"
@@ -337,30 +347,102 @@ std::tuple<torch::Tensor, torch::Tensor> NeuralMVS::slice_texture_backward( torc
 
 }
 
-torch::Tensor NeuralMVS::subsample( const torch::Tensor& tensor, const int subsample_factor, const std::string subsample_type ){
+// torch::Tensor NeuralMVS::subsample( const torch::Tensor& tensor, const int subsample_factor, const std::string subsample_type ){
 
-    if( subsample_type!="area" && subsample_type!="nearest"){
-        LOG(FATAL) << " Subsample type " << subsample_type << " is not a known type";
-    }
+//     if( subsample_type!="area" && subsample_type!="nearest"){
+//         LOG(FATAL) << " Subsample type " << subsample_type << " is not a known type";
+//     }
     
-    torch::Tensor tensor_in=tensor.permute({2, 0, 1}).unsqueeze(0).contiguous(); //from H,W,C to N,C,H,W
+//     torch::Tensor tensor_in=tensor.permute({2, 0, 1}).unsqueeze(0).contiguous(); //from H,W,C to N,C,H,W
 
-    cv::Mat img= tensor2mat(tensor_in);
-    cv::Mat img_resized;
-    if(subsample_type=="area"){
-        cv::resize(img, img_resized, cv::Size(), 1.0/subsample_factor, 1.0/subsample_factor, cv::INTER_AREA);
-    }else if(subsample_type=="nearest"){
-        cv::resize(img, img_resized, cv::Size(), 1.0/subsample_factor, 1.0/subsample_factor, cv::INTER_NEAREST);
-    }
+//     cv::Mat img= tensor2mat(tensor_in);
+//     cv::Mat img_resized;
+//     if(subsample_type=="area"){
+//         cv::resize(img, img_resized, cv::Size(), 1.0/subsample_factor, 1.0/subsample_factor, cv::INTER_AREA);
+//     }else if(subsample_type=="nearest"){
+//         cv::resize(img, img_resized, cv::Size(), 1.0/subsample_factor, 1.0/subsample_factor, cv::INTER_NEAREST);
+//     }
 
-    torch::Tensor tensor_out=mat2tensor(img_resized, false);
+//     torch::Tensor tensor_out=mat2tensor(img_resized, false);
 
-    //permute from N,C,H,W to H,W,C
-    tensor_out=tensor_out.squeeze(0).permute({1,2,0});
+//     //permute from N,C,H,W to H,W,C
+//     tensor_out=tensor_out.squeeze(0).permute({1,2,0});
 
-    return tensor_out;
+//     return tensor_out;
 
 
 
-}
+// }
+
+
+// //compute weights 
+// std::vector<float> NeuralMVS::compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames){
+//     // https://people.cs.clemson.edu/~dhouse/courses/404/notes/barycentric.pdf
+//     // https://stackoverflow.com/questions/2924795/fastest-way-to-compute-point-to-triangle-distance-in-3d
+//     // https://math.stackexchange.com/questions/544946/determine-if-projection-of-3d-point-onto-plane-is-within-a-triangle
+
+//     //to compute the weights we use barycentric coordinates. 
+//     //this has several steps, first project the current frame into the triangle defiend by the close_frames. 
+//     //compute barycentric coords
+//     //if the barycentric coords are not within [0,1], clamp them
+
+//     //checks
+//     CHECK(close_frames.size()==3) <<"This assumes we are using 3 frames as close frames because we want to compute barycentric coords";
+
+//     //make triangle
+//     Eigen::Vector3d cur_pos= frame.pos_in_world().cast<double>();
+//     Eigen::Vector3d p1= close_frames[0].pos_in_world().cast<double>();
+//     Eigen::Vector3d p2= close_frames[1].pos_in_world().cast<double>();
+//     Eigen::Vector3d p3= close_frames[2].pos_in_world().cast<double>();
+
+//     //get barycentirc coords of the projection https://math.stackexchange.com/a/544947
+//     Eigen::Vector3d u=p2-p1;
+//     Eigen::Vector3d v=p3-p1;
+//     Eigen::Vector3d n=u.cross(v);
+//     Eigen::Vector3d w=cur_pos-p1;
+
+//     float w_p3= u.cross(w).dot(n)/ (n.dot(n));
+//     float w_p2= w.cross(v).dot(n)/ (n.dot(n));
+//     float w_p1= 1.0-w_p2-w_p3;
+
+//     //to get weights as if the point was inside the triangle, we clamp the barycentric coordinates (I don't know if this is needed yeat)
+
+//     //return tha values
+//     std::vector<float> vals;
+//     vals.push_back(w_p1);
+//     vals.push_back(w_p2);
+//     vals.push_back(w_p3);
+
+//     return vals;
+
+
+// }
+
+//compute triangulation 
+// https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
+// void NeuralMVS::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
+//     //we assume the frames are laid in a somewhat sphere.
+//     // we want to compute a delauany triangulation of them. For this we folow   https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
+//     // which says we can use steregraphic projection and then do a delaunay in 2D and then lift it back to 3D which will yield a valid triangulation of the points on the sphere. 
+    
+//     //get all the points from the frames into a EigenMatrix
+//     Eigen::MatrixXf points;
+//     points.resize(frames.size(),3);
+//     for (size_t i=0; i<frames.size(); i++){
+//         points.row(i) = frames[i].pos_in_world();
+//     }
+
+//     //get an approximate center and radius
+//     Eigen::MatrixXf init_center=points.colwise().mean();
+//     std::cout << "init center" << init_center << std::endl;
+//     VLOG(1) << "init center " << init_center;
+
+//     //compute the radius adn center of the sphere
+    
+// }
+
+//compute closest frame 
+// https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
+
+
 

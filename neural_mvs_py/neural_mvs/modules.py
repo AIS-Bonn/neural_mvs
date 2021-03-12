@@ -196,6 +196,17 @@ class FrameWeightComputer(torch.nn.Module):
             weights.append(weight)
         weights=torch.cat(weights)
 
+        # ##attempt 2 by just using barycentric coords
+        # frames_close_list=[]
+        # for framepy in frames_close:
+        #     frames_close_list.append(framepy.frame)
+        # weights_vec=SFM.compute_frame_weights(frame.frame, frames_close_list)
+        # # print("weigrs vec is ", weights_vec)
+        # weights=torch.from_numpy( np.array(weights_vec) ).float().to("cuda")
+        # #clamp them
+        # weights=torch.clamp(weights,0.0, 1.0)
+
+
         return weights
 
 
