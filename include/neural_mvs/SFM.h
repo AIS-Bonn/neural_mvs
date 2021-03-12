@@ -3,7 +3,7 @@
 //ceres (ADDING THIS first before any loguru stuff because otherwise ceres overwrites the LOG functions)
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
-using namespace ceres;
+
 
 #include <memory>
 #include <stdarg.h>

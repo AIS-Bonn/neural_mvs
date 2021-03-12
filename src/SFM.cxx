@@ -1,5 +1,7 @@
 #include "neural_mvs/SFM.h"
 
+
+
 //c++
 #include <string>
 
@@ -13,12 +15,6 @@
 #include "opencv2/features2d/features2d.hpp"
 // #include "opencv2/sfm/triangulation.hpp"
 #include <opencv2/core/eigen.hpp>
-
-
-// //ceres 
-// #include "ceres/ceres.h"
-// #include "ceres/rotation.h"
-// using namespace ceres;
 
 
 //loguru
@@ -41,6 +37,10 @@ using namespace configuru;
 #include "easy_pbr/Mesh.h"
 #include "easy_pbr/Gui.h"
 #include "easy_pbr/Scene.h"
+
+#include <igl/triangle/triangulate.h>
+
+
 
 
 
@@ -866,6 +866,7 @@ void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
         points.row(i) = frames[i].pos_in_world().cast<double>();
     }
 
+    //fit sphere
     auto sphere_params=fit_sphere(points);
     Eigen::Vector3d sphere_center = std::get<0>(sphere_params);
     double sphere_radius = std::get<1>(sphere_params);
@@ -875,7 +876,34 @@ void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
     sphere->create_sphere(sphere_center, sphere_radius);
     sphere->m_vis.m_show_mesh=false;
     sphere->m_vis.m_show_points=true;
-    easy_pbr::Scene::show(sphere,"sphere");
+    // easy_pbr::Scene::show(sphere,"sphere");
+
+    //project sphere using stereographic projection https://en.wikipedia.org/wiki/Stereographic_projection
+    //we use the bottom points of the sphere to start the projection from
+    Eigen::Vector3d bottom_point=sphere_center;
+    bottom_point.y()-=sphere_radius;
+    //plane is the plane that runs through the center of the sphere and has normal pointing up (so int he psoitive y axis), Also a hyperplane in 3d is a 2d plane
+    Eigen::MatrixXd points_intesection(points.rows(),3);
+    Eigen::Hyperplane<double,3> plane = Eigen::Hyperplane<double,3>(Eigen::Vector3d::UnitY(), sphere_center.y());
+    for (size_t i=0; i<frames.size(); i++){
+        Eigen::Vector3d point=points.row(i);
+        Eigen::ParametrizedLine<double,3> line = Eigen::ParametrizedLine<double,3>::Through(bottom_point,point);
+        Eigen::Vector3d point_intersection = line.intersectionPoint( plane ) ;
+        points_intesection.row(i) = point_intersection;
+        // points_intesection.row(i) = bottom_point;
+    }
+    //show the intersection points
+    auto intersect_mesh= easy_pbr::Mesh::create();
+    intersect_mesh->V=points_intesection;
+    intersect_mesh->m_vis.m_show_points=true;
+    easy_pbr::Scene::show(intersect_mesh,"intersect_mesh");
+
+
+    
+    
+
+
+    
 
 
     VLOG(1) << "sphere center_final " << sphere_center; 

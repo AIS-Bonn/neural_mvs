@@ -24,6 +24,29 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 
 ####   GLOBAL OPTIONS   ###https://stackoverflow.com/questions/15201064/cmake-conditional-preprocessor-define-on-code
+# libigl 
+# libigl options: choose between header only and compiled static library
+# Header-only is preferred for small projects. For larger projects the static build
+# considerably reduces the compilation times
+option(LIBIGL_USE_STATIC_LIBRARY "Use libigl as static library" OFF)
+option(LIBIGL_WITH_ANTTWEAKBAR       "Use AntTweakBar"    OFF)
+option(LIBIGL_WITH_CGAL              "Use CGAL"           OFF)
+option(LIBIGL_WITH_COMISO            "Use CoMiso"         OFF)
+option(LIBIGL_WITH_CORK              "Use Cork"           OFF)
+option(LIBIGL_WITH_EMBREE            "Use Embree"         OFF)
+option(LIBIGL_WITH_LIM               "Use LIM"            OFF)
+option(LIBIGL_WITH_MATLAB            "Use Matlab"         OFF)
+option(LIBIGL_WITH_MOSEK             "Use MOSEK"          OFF)
+option(LIBIGL_WITH_OPENGL            "Use OpenGL"         OFF)
+option(LIBIGL_WITH_OPENGL_GLFW       "Use GLFW"           OFF)
+option(LIBIGL_WITH_OPENGL_GLFW_IMGUI "Use ImGui"          OFF)
+option(LIBIGL_WITH_PNG               "Use PNG"            OFF)
+option(LIBIGL_WITH_PYTHON            "Use Python"         OFF)
+option(LIBIGL_WITH_TETGEN            "Use Tetgen"         OFF)
+option(LIBIGL_WITH_TRIANGLE          "Use Triangle"       ON)
+option(LIBIGL_WITH_VIEWER            "Use OpenGL viewer"  OFF)
+option(LIBIGL_WITH_XML               "Use XML"            OFF)
+
 
 
 
@@ -38,7 +61,17 @@ find_package(DataLoaders REQUIRED)
 find_package(Torch REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(Ceres REQUIRED)
+#libigl
+set(LIBIGL_INCLUDE_DIR "${EASYPBR_SRC_PATH}/deps/libigl/include")
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LIBIGL
+    "\nlibigl not found --- You can add it as a submodule it using:\n\tgit add submodule https://github.com/libigl/libigl.git deps/libigl"
+    LIBIGL_INCLUDE_DIR)
+mark_as_advanced(LIBIGL_INCLUDE_DIR)
+list(APPEND CMAKE_MODULE_PATH "${LIBIGL_INCLUDE_DIR}/../cmake")
+include(libigl)
 # find_package(LIBIGL REQUIRED)
+
 # add_subdirectory(${PROJECT_SOURCE_DIR}/deps/pybind11)
 # find_package(catkin REQUIRED COMPONENTS roscpp std_msgs cv_bridge pcl_ros image_transport )
 #opencv contrib things
@@ -58,6 +91,8 @@ include_directories(${DATALOADERS_INCLUDE_DIR})
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${TORCH_INCLUDE_DIRS})
 include_directories(${CERES_INCLUDE_DIRS})
+include_directories(${LIBIGL_INCLUDE_DIR})
+
 # include_directories(${LIBIGL_INCLUDE_DIR})
 # catkin_package( INCLUDE_DIRS include  CATKIN_DEPENDS roscpp std_msgs cv_bridge pcl_ros image_transport )
 
@@ -163,7 +198,7 @@ if(TORCH_PYTHON_LIBRARY)
     set(LIBS ${LIBS} ${TORCH_PYTHON_LIBRARY} )
 endif()
 # set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_sfm )
-set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}  )
+set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} igl::triangle )
 
 
 
