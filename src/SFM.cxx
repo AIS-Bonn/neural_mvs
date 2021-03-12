@@ -756,47 +756,47 @@ void SFM::debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy
 
 
 //compute weights 
-std::vector<float> SFM::compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames){
-    // https://people.cs.clemson.edu/~dhouse/courses/404/notes/barycentric.pdf
-    // https://stackoverflow.com/questions/2924795/fastest-way-to-compute-point-to-triangle-distance-in-3d
-    // https://math.stackexchange.com/questions/544946/determine-if-projection-of-3d-point-onto-plane-is-within-a-triangle
+// std::vector<float> SFM::compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames){
+//     // https://people.cs.clemson.edu/~dhouse/courses/404/notes/barycentric.pdf
+//     // https://stackoverflow.com/questions/2924795/fastest-way-to-compute-point-to-triangle-distance-in-3d
+//     // https://math.stackexchange.com/questions/544946/determine-if-projection-of-3d-point-onto-plane-is-within-a-triangle
 
-    //to compute the weights we use barycentric coordinates. 
-    //this has several steps, first project the current frame into the triangle defiend by the close_frames. 
-    //compute barycentric coords
-    //if the barycentric coords are not within [0,1], clamp them
+//     //to compute the weights we use barycentric coordinates. 
+//     //this has several steps, first project the current frame into the triangle defiend by the close_frames. 
+//     //compute barycentric coords
+//     //if the barycentric coords are not within [0,1], clamp them
 
-    //checks
-    CHECK(close_frames.size()==3) <<"This assumes we are using 3 frames as close frames because we want to compute barycentric coords";
+//     //checks
+//     CHECK(close_frames.size()==3) <<"This assumes we are using 3 frames as close frames because we want to compute barycentric coords";
 
-    //make triangle
-    Eigen::Vector3d cur_pos= frame.pos_in_world().cast<double>();
-    Eigen::Vector3d p1= close_frames[0].pos_in_world().cast<double>();
-    Eigen::Vector3d p2= close_frames[1].pos_in_world().cast<double>();
-    Eigen::Vector3d p3= close_frames[2].pos_in_world().cast<double>();
+//     //make triangle
+//     Eigen::Vector3d cur_pos= frame.pos_in_world().cast<double>();
+//     Eigen::Vector3d p1= close_frames[0].pos_in_world().cast<double>();
+//     Eigen::Vector3d p2= close_frames[1].pos_in_world().cast<double>();
+//     Eigen::Vector3d p3= close_frames[2].pos_in_world().cast<double>();
 
-    //get barycentirc coords of the projection https://math.stackexchange.com/a/544947
-    Eigen::Vector3d u=p2-p1;
-    Eigen::Vector3d v=p3-p1;
-    Eigen::Vector3d n=u.cross(v);
-    Eigen::Vector3d w=cur_pos-p1;
+//     //get barycentirc coords of the projection https://math.stackexchange.com/a/544947
+//     Eigen::Vector3d u=p2-p1;
+//     Eigen::Vector3d v=p3-p1;
+//     Eigen::Vector3d n=u.cross(v);
+//     Eigen::Vector3d w=cur_pos-p1;
 
-    float w_p3= u.cross(w).dot(n)/ (n.dot(n));
-    float w_p2= w.cross(v).dot(n)/ (n.dot(n));
-    float w_p1= 1.0-w_p2-w_p3;
+//     float w_p3= u.cross(w).dot(n)/ (n.dot(n));
+//     float w_p2= w.cross(v).dot(n)/ (n.dot(n));
+//     float w_p1= 1.0-w_p2-w_p3;
 
-    //to get weights as if the point was inside the triangle, we clamp the barycentric coordinates (I don't know if this is needed yeat)
+//     //to get weights as if the point was inside the triangle, we clamp the barycentric coordinates (I don't know if this is needed yeat)
 
-    //return tha values
-    std::vector<float> vals;
-    vals.push_back(w_p1);
-    vals.push_back(w_p2);
-    vals.push_back(w_p3);
+//     //return tha values
+//     std::vector<float> vals;
+//     vals.push_back(w_p1);
+//     vals.push_back(w_p2);
+//     vals.push_back(w_p3);
 
-    return vals;
+//     return vals;
 
 
-}
+// }
 
 
 std::tuple<Eigen::Vector3d, double> SFM::fit_sphere( const Eigen::MatrixXd& points){
@@ -871,7 +871,7 @@ Eigen::Vector3d SFM::stereographic_projection(const Eigen::Vector3d& point3d, co
 
 // compute triangulation 
 // https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
-void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
+std::tuple<easy_pbr::MeshSharedPtr, Eigen::Vector3d, double> SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
     //we assume the frames are laid in a somewhat sphere.
     // we want to compute a delauany triangulation of them. For this we folow   https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
     // which says we can use steregraphic projection and then do a delaunay in 2D and then lift it back to 3D which will yield a valid triangulation of the points on the sphere. 
@@ -944,7 +944,100 @@ void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
     VLOG(1) << "sphere center_final " << sphere_center; 
     VLOG(1) << "sphere radius_final " << sphere_radius; 
 
+    return std::make_tuple(triangulated_mesh, sphere_center, sphere_radius);
+
     
+}
+
+//compute_closest_triangle of a triangulated surface using stegraphic projection
+Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d, const Eigen::Vector3d& sphere_center, double sphere_radius){
+
+
+
+    //brute force through all the faces and calcualte the projected point on all the faces, finally we get the closest face
+    double lowest_dist=std::numeric_limits<double>::max();
+    Eigen::Vector3i closest_face;
+
+
+    for (int i=0; i<triangulated_mesh3d->F.rows(); i++){
+        Eigen::Vector3i face= triangulated_mesh3d->F.row(i);
+        Eigen::Matrix3d vertices_for_face(3,3);
+        for (size_t j=0; j<3; j++){
+            vertices_for_face.row(j) = triangulated_mesh3d->V.row( face(j) );
+        }
+        Eigen::Vector3d weights= compute_barycentric_weights_from_triangle_points(point, vertices_for_face);
+        Eigen::Vector3d projected_point =  vertices_for_face.row(0)*weights(0) +vertices_for_face.row(1)*weights(1) + vertices_for_face.row(2)*weights(2);
+        double dist= (projected_point-point).norm();
+        if (dist<lowest_dist){
+            lowest_dist=dist;
+            closest_face=face;
+        }
+    }
+
+    return closest_face;
+
+   
+}
+
+Eigen::Vector3d SFM::compute_barycentric_weights_from_triangle_points( const Eigen::Vector3d& point,  const Eigen::Matrix3d& vertices_for_face ){
+    // https://people.cs.clemson.edu/~dhouse/courses/404/notes/barycentric.pdf
+    // https://stackoverflow.com/questions/2924795/fastest-way-to-compute-point-to-triangle-distance-in-3d
+    // https://math.stackexchange.com/questions/544946/determine-if-projection-of-3d-point-onto-plane-is-within-a-triangle
+
+    //to compute the weights we use barycentric coordinates. 
+    //this has several steps, first project the current frame into the triangle defiend by the close_frames. 
+    //compute barycentric coords
+    //if the barycentric coords are not within [0,1], clamp them
+
+    //checks
+    // CHECK(close_frames.size()==3) <<"This assumes we are using 3 frames as close frames because we want to compute barycentric coords";
+
+    //make triangle
+    Eigen::Vector3d cur_pos= point;
+    Eigen::Vector3d p1= vertices_for_face.row(0);
+    Eigen::Vector3d p2= vertices_for_face.row(1);
+    Eigen::Vector3d p3= vertices_for_face.row(3);
+
+    //get barycentirc coords of the projection https://math.stackexchange.com/a/544947
+    Eigen::Vector3d u=p2-p1;
+    Eigen::Vector3d v=p3-p1;
+    Eigen::Vector3d n=u.cross(v);
+    Eigen::Vector3d w=cur_pos-p1;
+
+    float w_p3= u.cross(w).dot(n)/ (n.dot(n));
+    float w_p2= w.cross(v).dot(n)/ (n.dot(n));
+    float w_p1= 1.0-w_p2-w_p3;
+
+    //to get weights as if the point was inside the triangle, we clamp the barycentric coordinates (I don't know if this is needed yeat)
+
+    //return tha values
+    // std::vector<float> vals;
+    // vals.push_back(w_p1);
+    // vals.push_back(w_p2);
+    // vals.push_back(w_p3);
+
+    Eigen::Vector3d weights;
+    weights.x()=w_p1;
+    weights.y()=w_p2;
+    weights.z()=w_p3;
+
+    return weights;
+
+
+}
+
+//convenicen function
+Eigen::Vector3d SFM::compute_barycentric_weights_from_face_and_mesh_points( const Eigen::Vector3d& point,  const Eigen::Vector3i& face, const Eigen::Matrix3d& points_mesh ){
+
+    Eigen::Matrix3d vertices_for_face(3,3);
+    for (size_t j=0; j<3; j++){
+        vertices_for_face.row(j) = points_mesh.row( face(j) );
+    }
+
+    Eigen::Vector3d weights= compute_barycentric_weights_from_triangle_points(point, vertices_for_face);
+
+    return weights;
+
 }
 
 

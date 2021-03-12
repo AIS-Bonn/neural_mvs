@@ -33,8 +33,11 @@ public:
     // std::shared_ptr<easy_pbr::Mesh> compute_3D_keypoints_from_frames(const std::vector<easy_pbr::Frame>& frames);
     std::tuple< easy_pbr::MeshSharedPtr, Eigen::VectorXf, Eigen::VectorXi> compute_3D_keypoints_from_frames(const easy_pbr::Frame& frame_query, const easy_pbr::Frame& frame_target);
 
-    static std::vector<float> compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames);
-    static void compute_triangulation(std::vector<easy_pbr::Frame>& frames);
+    // static std::vector<float> compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames);
+    static std::tuple<easy_pbr::MeshSharedPtr, Eigen::Vector3d, double> compute_triangulation(std::vector<easy_pbr::Frame>& frames);  //return triangulation, sphere center and sphere radius
+    Eigen::Vector3i compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d, const Eigen::Vector3d& sphere_center, double sphere_radius);
+    Eigen::Vector3d compute_barycentric_weights_from_triangle_points( const Eigen::Vector3d& point,  const Eigen::Matrix3d& vertices_for_face );
+    Eigen::Vector3d compute_barycentric_weights_from_face_and_mesh_points( const Eigen::Vector3d& point,  const Eigen::Vector3i& face, const Eigen::Matrix3d& points_mesh ); //convenience func
 
    
 

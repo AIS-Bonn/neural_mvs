@@ -191,7 +191,7 @@ PYBIND11_MODULE(neuralmvs, m) {
     py::class_<SFM, std::shared_ptr<SFM>   > (m, "SFM")
     .def_static("create", &SFM::create<> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
     .def("compute_3D_keypoints_from_frames", &SFM::compute_3D_keypoints_from_frames)
-    .def_static("compute_frame_weights", &SFM::compute_frame_weights)
+    // .def_static("compute_frame_weights", &SFM::compute_frame_weights)
     .def_static("compute_triangulation", &SFM::compute_triangulation)
     ;
 
