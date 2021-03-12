@@ -82,7 +82,7 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
 
     triangulated_mesh=SFM.compute_triangulation_stegreographic( frame_centers, sphere_center, sphere_radius )
 
-    face= SFM.compute_closest_triangle( frame_py.frame.pos_in_world(), triangulated_mesh )
+    face, weights= SFM.compute_closest_triangle( frame_py.frame.pos_in_world(), triangulated_mesh )
 
     #from the face get the vertices that we triangulated
     # print("frame idx ", frame_idx_0, frame_idx_1, frame_idx_2 )
@@ -96,7 +96,7 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
             selected_frames.append(frame)
     
 
-    return selected_frames
+    return selected_frames, weights
 
 
 class FramePY():
@@ -336,6 +336,7 @@ def run():
     frame_centers, frame_idxs = frames_to_points(frames_train)
     sphere_center, sphere_radius=SFM.fit_sphere(frame_centers)
     print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
+    frame_weights_computer= FrameWeightComputer()
 
     # triangulated_mesh, sphere_center, sphere_radius=SFM.compute_triangulation(loader_train.get_all_frames())
 
@@ -402,11 +403,18 @@ def run():
 
                         # frames_close=loader_train.get_close_frames(frame, 2)
                         discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
-                        # frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
-                        frames_close=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
-                        # print("frames_close", len(frames_close))
+
+                        #closenes here is defined in terms of A
+                        do_close_computation_with_delaunay=True
+                        if not do_close_computation_with_delaunay:
+                            frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
+                            weights= frame_weights_computer(frame, frames_close)
+                        else:
+                            frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
+                            weights= torch.from_numpy(weights.copy()).to("cuda").float() 
+
                         TIME_START("forward")
-                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)
+                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 
                      

@@ -950,7 +950,7 @@ easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::
 }
 
 //compute_closest_triangle of a triangulated surface using stegraphic projection
-Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d){
+std::tuple<Eigen::Vector3i, Eigen::Vector3d> SFM::compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d){
 
 
 
@@ -960,6 +960,7 @@ Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, co
     closest_face.fill(-1);
     Eigen::Vector3d closest_projected_point;
     Eigen::MatrixXd vertices_of_closest_face;
+    Eigen::Vector3d selected_closest_point_weights;
 
 
     for (int i=0; i<triangulated_mesh3d->F.rows(); i++){
@@ -988,6 +989,7 @@ Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, co
             closest_face=face;
             closest_projected_point=projected_point;
             vertices_of_closest_face= vertices_for_face;
+            selected_closest_point_weights=closest_point_weights;
             // VLOG(1) << "----------setting closest face to " <<closest_face.transpose();
         }
     }
@@ -998,19 +1000,16 @@ Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, co
     // VLOG(1) << "lowest dist is " << lowest_dist;
 
     //show the projected point 
-    auto projected_mesh= easy_pbr::Mesh::create();
-    projected_mesh->V.resize(1,3);
-    projected_mesh->V.row(0)=closest_projected_point;
-    // projected_mesh->V.row(1)=vertices_of_closest_face.row(0);
-    // projected_mesh->V.row(2)=vertices_of_closest_face.row(1);
-    // projected_mesh->V.row(3)=vertices_of_closest_face.row(2);
-    projected_mesh->m_vis.m_show_points=true;
-    projected_mesh->m_vis.m_point_size=10;
-    easy_pbr::Scene::show(projected_mesh,"projected_mesh");
+    // auto projected_mesh= easy_pbr::Mesh::create();
+    // projected_mesh->V.resize(1,3);
+    // projected_mesh->V.row(0)=closest_projected_point;
+    // projected_mesh->m_vis.m_show_points=true;
+    // projected_mesh->m_vis.m_point_size=10;
+    // easy_pbr::Scene::show(projected_mesh,"projected_mesh");
 
 
 
-    return closest_face;
+    return std::make_tuple(closest_face, selected_closest_point_weights);
 
    
 }

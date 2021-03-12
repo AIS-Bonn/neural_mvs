@@ -3758,7 +3758,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
-        self.frame_weights_computer= FrameWeightComputer()
+        # self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
@@ -3780,7 +3780,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.nr_iters=10
 
       
-    def forward(self, frame, depth_min, frames_close, frames_features, novel=False):
+    def forward(self, frame, depth_min, frames_close, frames_features, weights, novel=False):
 
 
         if novel:
@@ -3808,7 +3808,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         signed_distances_for_marchlvl=[]
         states = [None]
 
-        weights=self.frame_weights_computer(frame, frames_close)
+        # weights=self.frame_weights_computer(frame, frames_close)
 
         for iter_nr in range(self.nr_iters):
             # print("iter is ", iter_nr)
@@ -5050,7 +5050,7 @@ class Net3_SRN(torch.nn.Module):
         # with torch.set_grad_enabled(False):
             # self.s_weight.fill_(0.5)
             # self.s_weight.fill_(10.0)
-        self.frame_weights_computer= FrameWeightComputer()
+        # self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
 
 
@@ -5068,7 +5068,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, mesh, depth_min, depth_max, frames_close, novel=False):
+    def forward(self, frame, mesh, depth_min, depth_max, frames_close, weights, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5092,7 +5092,7 @@ class Net3_SRN(torch.nn.Module):
         TIME_END("unet_everything")
 
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, depth_min, frames_close, frames_features, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, depth_min, frames_close, frames_features, weights, novel)
         TIME_END("ray_march")
 
         # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
@@ -5161,14 +5161,14 @@ class Net3_SRN(torch.nn.Module):
           
 
         ##attempt 4 
-        weights=self.frame_weights_computer(frame, frames_close)
+        # weights=self.frame_weights_computer(frame, frames_close)
         img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
         std= img_features_aggregated[:, -16]
 
         # show the frames and with a line weight depending on the weight
         for i in range(len(frames_close)):
             frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
-            frustum_mesh.m_vis.m_line_width= (weights[i])*15
+            frustum_mesh.m_vis.m_line_width= (weights[i])*10
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
         
