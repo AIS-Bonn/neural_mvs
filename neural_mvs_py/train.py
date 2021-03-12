@@ -72,6 +72,33 @@ def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, disc
 
     return frames_selected
 
+
+def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx, sphere_center, sphere_radius):
+
+    if discard_same_idx:
+        frame_centers, frame_idxs = frames_to_points(all_frames_py_list, discard_frame_with_idx=frame_py.frame_idx)
+    else:
+        frame_centers, frame_idxs = frames_to_points(all_frames_py_list )
+
+    triangulated_mesh=SFM.compute_triangulation_stegreographic( frame_centers, sphere_center, sphere_radius )
+
+    face= SFM.compute_closest_triangle( frame_py.frame.pos_in_world(), triangulated_mesh )
+
+    #from the face get the vertices that we triangulated
+    # print("frame idx ", frame_idx_0, frame_idx_1, frame_idx_2 )
+    frame_idx_0= frame_idxs[face[0]]
+    frame_idx_1= frame_idxs[face[1]]
+    frame_idx_2= frame_idxs[face[2]]
+
+    selected_frames=[]
+    for frame in all_frames_py_list:
+        if frame.frame_idx==frame_idx_0 or  frame.frame_idx==frame_idx_1 or frame.frame_idx==frame_idx_2:
+            selected_frames.append(frame)
+    
+
+    return selected_frames
+
+
 class FramePY():
     def __init__(self, frame, create_subsamples=True):
         #get mask 
@@ -306,7 +333,11 @@ def run():
 
 
     #get the triangulation of the frames 
-    SFM.compute_triangulation(loader_train.get_all_frames())
+    frame_centers, frame_idxs = frames_to_points(frames_train)
+    sphere_center, sphere_radius=SFM.fit_sphere(frame_centers)
+    print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
+
+    # triangulated_mesh, sphere_center, sphere_radius=SFM.compute_triangulation(loader_train.get_all_frames())
 
     #depth min max for nerf 
     depth_min=2
@@ -371,7 +402,8 @@ def run():
 
                         # frames_close=loader_train.get_close_frames(frame, 2)
                         discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
-                        frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
+                        # frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
+                        frames_close=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
                         # print("frames_close", len(frames_close))
                         TIME_START("forward")
                         rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, mesh_full, depth_min, depth_max, frames_close, novel=not phase.grad)

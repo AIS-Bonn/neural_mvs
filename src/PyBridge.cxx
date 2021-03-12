@@ -192,7 +192,9 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def_static("create", &SFM::create<> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
     .def("compute_3D_keypoints_from_frames", &SFM::compute_3D_keypoints_from_frames)
     // .def_static("compute_frame_weights", &SFM::compute_frame_weights)
-    .def_static("compute_triangulation", &SFM::compute_triangulation)
+    .def_static("fit_sphere", &SFM::fit_sphere)
+    .def_static("compute_triangulation_stegreographic", &SFM::compute_triangulation_stegreographic)
+    .def_static("compute_closest_triangle", &SFM::compute_closest_triangle)
     ;
 
     

@@ -155,6 +155,23 @@ def compute_normal(points3d_img):
 
     return normal
 
+def frames_to_points(frames, discard_frame_with_idx=None ):
+
+    points_list=[]
+    points_frame_idxs_list=[]
+    for i in range(len(frames)):
+        frame=frames[i]
+        if discard_frame_with_idx!=None and frame.frame_idx==discard_frame_with_idx:
+            continue
+        points_list.append( frame.frame.pos_in_world()  )
+        points_frame_idxs_list.append( frame.frame_idx )
+            
+    points = np.asarray(points_list)
+    points_frame_idxs = np.asarray(points_frame_idxs_list)
+
+    return points, points_frame_idxs
+
+
 
 class FrameWeightComputer(torch.nn.Module):
 

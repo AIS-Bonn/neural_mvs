@@ -871,49 +871,49 @@ Eigen::Vector3d SFM::stereographic_projection(const Eigen::Vector3d& point3d, co
 
 // compute triangulation 
 // https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
-std::tuple<easy_pbr::MeshSharedPtr, Eigen::Vector3d, double> SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
+easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::MatrixXd& points,  const Eigen::Vector3d& sphere_center, double sphere_radius ){
     //we assume the frames are laid in a somewhat sphere.
     // we want to compute a delauany triangulation of them. For this we folow   https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
     // which says we can use steregraphic projection and then do a delaunay in 2D and then lift it back to 3D which will yield a valid triangulation of the points on the sphere. 
     
-    //get all the points from the frames into a EigenMatrix
-    Eigen::MatrixXd points;
-    points.resize(frames.size(),3);
-    for (size_t i=0; i<frames.size(); i++){
-        points.row(i) = frames[i].pos_in_world().cast<double>();
-    }
+    // //get all the points from the frames into a EigenMatrix
+    // Eigen::MatrixXd points;
+    // points.resize(frames.size(),3);
+    // for (size_t i=0; i<frames.size(); i++){
+    //     points.row(i) = frames[i].pos_in_world().cast<double>();
+    // }
 
-    //fit sphere
-    auto sphere_params=fit_sphere(points);
-    Eigen::Vector3d sphere_center = std::get<0>(sphere_params);
-    double sphere_radius = std::get<1>(sphere_params);
+    // //fit sphere
+    // auto sphere_params=fit_sphere(points);
+    // Eigen::Vector3d sphere_center = std::get<0>(sphere_params);
+    // double sphere_radius = std::get<1>(sphere_params);
 
-    //make sphere and check that it looks ok
-    auto sphere= easy_pbr::Mesh::create();
-    sphere->create_sphere(sphere_center, sphere_radius);
-    sphere->m_vis.m_show_mesh=false;
-    sphere->m_vis.m_show_points=true;
-    // easy_pbr::Scene::show(sphere,"sphere");
+    // //make sphere and check that it looks ok
+    // auto sphere= easy_pbr::Mesh::create();
+    // sphere->create_sphere(sphere_center, sphere_radius);
+    // sphere->m_vis.m_show_mesh=false;
+    // sphere->m_vis.m_show_points=true;
+    // // easy_pbr::Scene::show(sphere,"sphere");
 
     //project sphere using stereographic projection https://en.wikipedia.org/wiki/Stereographic_projection
     //we use the bottom points of the sphere to start the projection from
     //plane is the plane that runs through the center of the sphere and has normal pointing up (so int he psoitive y axis), Also a hyperplane in 3d is a 2d plane
     Eigen::MatrixXd points_intesection(points.rows(),3);
-    for (size_t i=0; i<frames.size(); i++){
+    for (int i=0; i<points.rows(); i++){
         Eigen::Vector3d point=points.row(i);
         Eigen::Vector3d point_intersection = stereographic_projection(point, sphere_center, sphere_radius) ;
         points_intesection.row(i) = point_intersection;
     }
     //show the intersection points
-    auto intersect_mesh= easy_pbr::Mesh::create();
-    intersect_mesh->V=points_intesection;
-    intersect_mesh->m_vis.m_show_points=true;
-    easy_pbr::Scene::show(intersect_mesh,"intersect_mesh");
+    // auto intersect_mesh= easy_pbr::Mesh::create();
+    // intersect_mesh->V=points_intesection;
+    // intersect_mesh->m_vis.m_show_points=true;
+    // easy_pbr::Scene::show(intersect_mesh,"intersect_mesh");
 
 
     //triangulate 
     Eigen::MatrixXd points_intesection_2d(points.rows(),2); //get the intersection points from the xz plane to just xy so we can run delaunay triangulation
-    for (size_t i=0; i<frames.size(); i++){
+    for (int i=0; i<points.rows(); i++){
         Eigen::Vector2d point;
         point.x()= points_intesection.row(i).x();
         point.y()= points_intesection.row(i).z();
@@ -931,7 +931,7 @@ std::tuple<easy_pbr::MeshSharedPtr, Eigen::Vector3d, double> SFM::compute_triang
 
     // VLOG(1) <<triangulated_mesh->V.rows();
     // VLOG(1) <<points.rows();
-    VLOG(1) << "nr of faces generated" << triangulated_mesh->F.rows();
+    // VLOG(1) << "nr of faces generated" << triangulated_mesh->F.rows();
     triangulated_mesh->V=points;
     triangulated_mesh->m_vis.m_show_mesh=false;
     triangulated_mesh->m_vis.m_show_wireframe=true;
@@ -941,38 +941,74 @@ std::tuple<easy_pbr::MeshSharedPtr, Eigen::Vector3d, double> SFM::compute_triang
     
 
 
-    VLOG(1) << "sphere center_final " << sphere_center; 
-    VLOG(1) << "sphere radius_final " << sphere_radius; 
+    // VLOG(1) << "sphere center_final " << sphere_center; 
+    // VLOG(1) << "sphere radius_final " << sphere_radius; 
 
-    return std::make_tuple(triangulated_mesh, sphere_center, sphere_radius);
+    return triangulated_mesh;
 
     
 }
 
 //compute_closest_triangle of a triangulated surface using stegraphic projection
-Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d, const Eigen::Vector3d& sphere_center, double sphere_radius){
+Eigen::Vector3i SFM::compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d){
 
 
 
     //brute force through all the faces and calcualte the projected point on all the faces, finally we get the closest face
     double lowest_dist=std::numeric_limits<double>::max();
     Eigen::Vector3i closest_face;
+    closest_face.fill(-1);
+    Eigen::Vector3d closest_projected_point;
+    Eigen::MatrixXd vertices_of_closest_face;
 
 
     for (int i=0; i<triangulated_mesh3d->F.rows(); i++){
+        // VLOG(1) << "Face i" << i;
         Eigen::Vector3i face= triangulated_mesh3d->F.row(i);
+        // VLOG(1) << "face is " << face.transpose();
         Eigen::Matrix3d vertices_for_face(3,3);
         for (size_t j=0; j<3; j++){
             vertices_for_face.row(j) = triangulated_mesh3d->V.row( face(j) );
         }
+        // VLOG(1) << "vertices_for_face" << vertices_for_face;
+        // VLOG(1) << "point" << point.transpose();
         Eigen::Vector3d weights= compute_barycentric_weights_from_triangle_points(point, vertices_for_face);
-        Eigen::Vector3d projected_point =  vertices_for_face.row(0)*weights(0) +vertices_for_face.row(1)*weights(1) + vertices_for_face.row(2)*weights(2);
+        //since want to restrict the point to be exactly inside the triangle and not just on the plane that defines it we clamp the weights
+        Eigen::Vector3d closest_point_weights= compute_barycentric_coordinates_of_closest_point_inside_triangle(vertices_for_face, weights);
+
+
+        // VLOG(1) << "weights " << weights.transpose();
+        Eigen::Vector3d projected_point =  vertices_for_face.row(0)*closest_point_weights(0) +vertices_for_face.row(1)*closest_point_weights(1) + vertices_for_face.row(2)*closest_point_weights(2);
+        // VLOG(1) << "projected_point " << projected_point.transpose();
         double dist= (projected_point-point).norm();
+        // VLOG(1) << "dist is "<< dist;
+        // VLOG(1) << "lowest_dist is "<< lowest_dist;
         if (dist<lowest_dist){
             lowest_dist=dist;
             closest_face=face;
+            closest_projected_point=projected_point;
+            vertices_of_closest_face= vertices_for_face;
+            // VLOG(1) << "----------setting closest face to " <<closest_face.transpose();
         }
     }
+
+    //check
+    CHECK( closest_face.minCoeff()!=-1 && closest_face.maxCoeff()<triangulated_mesh3d->V.rows() ) << "Close face was not found and it's " << closest_face << " lowest dist is " << lowest_dist;
+
+    // VLOG(1) << "lowest dist is " << lowest_dist;
+
+    //show the projected point 
+    auto projected_mesh= easy_pbr::Mesh::create();
+    projected_mesh->V.resize(1,3);
+    projected_mesh->V.row(0)=closest_projected_point;
+    // projected_mesh->V.row(1)=vertices_of_closest_face.row(0);
+    // projected_mesh->V.row(2)=vertices_of_closest_face.row(1);
+    // projected_mesh->V.row(3)=vertices_of_closest_face.row(2);
+    projected_mesh->m_vis.m_show_points=true;
+    projected_mesh->m_vis.m_point_size=10;
+    easy_pbr::Scene::show(projected_mesh,"projected_mesh");
+
+
 
     return closest_face;
 
@@ -996,7 +1032,7 @@ Eigen::Vector3d SFM::compute_barycentric_weights_from_triangle_points( const Eig
     Eigen::Vector3d cur_pos= point;
     Eigen::Vector3d p1= vertices_for_face.row(0);
     Eigen::Vector3d p2= vertices_for_face.row(1);
-    Eigen::Vector3d p3= vertices_for_face.row(3);
+    Eigen::Vector3d p3= vertices_for_face.row(2);
 
     //get barycentirc coords of the projection https://math.stackexchange.com/a/544947
     Eigen::Vector3d u=p2-p1;
@@ -1040,6 +1076,36 @@ Eigen::Vector3d SFM::compute_barycentric_weights_from_face_and_mesh_points( cons
 
 }
 
+Eigen::Vector3d SFM::compute_barycentric_coordinates_of_closest_point_inside_triangle( const Eigen::Matrix3d& vertices_for_face, const Eigen::Vector3d& weights ){
+    //following https://stackoverflow.com/a/37923949
+    double u=weights.x();
+    double v=weights.y();
+    double w=weights.z();
+    Eigen::Vector3d p0=vertices_for_face.row(0);
+    Eigen::Vector3d p1=vertices_for_face.row(1);
+    Eigen::Vector3d p2=vertices_for_face.row(2);
+    Eigen::Vector3d p =  vertices_for_face.row(0)*weights(0) +vertices_for_face.row(1)*weights(1) + vertices_for_face.row(2)*weights(2);
+
+    if ( u < 0){
+        double t = (p-p1).dot(p2-p1) / (p2-p1).dot(p2-p1);
+        t=radu::utils::clamp(t, 0.0, 1.0);
+        return Eigen::Vector3d( 0.0f, 1.0f-t, t );
+    }
+    else if ( v < 0 ){
+        double t =(p-p2).dot(p0-p2) / (p0-p2).dot(p0-p2);
+        t=radu::utils::clamp(t, 0.0, 1.0);
+        return Eigen::Vector3d( t, 0.0f, 1.0f-t );
+    }
+    else if ( w < 0 ){
+        double t = (p-p0).dot(p1-p0) / (p1-p0).dot(p1-p0);
+        t=radu::utils::clamp(t, 0.0, 1.0);
+        return Eigen::Vector3d( 1.0f-t, t, 0.0f );
+    }
+    else{
+        return Eigen::Vector3d( u, v, w );
+    }
+
+}
 
 
 //attempt 2 
