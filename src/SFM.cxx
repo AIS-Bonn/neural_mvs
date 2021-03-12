@@ -852,6 +852,23 @@ std::tuple<Eigen::Vector3d, double> SFM::fit_sphere( const Eigen::MatrixXd& poin
 
 }
 
+
+
+Eigen::Vector3d SFM::stereographic_projection(const Eigen::Vector3d& point3d, const Eigen::Vector3d& sphere_center, const double sphere_radius){
+
+    //project sphere using stereographic projection https://en.wikipedia.org/wiki/Stereographic_projection
+    //we use the bottom points of the sphere to start the projection from
+    Eigen::Vector3d bottom_point=sphere_center;
+    bottom_point.y()-=sphere_radius;
+    //plane is the plane that runs through the center of the sphere and has normal pointing up (so int he psoitive y axis), Also a hyperplane in 3d is a 2d plane
+    Eigen::Hyperplane<double,3> plane = Eigen::Hyperplane<double,3>(Eigen::Vector3d::UnitY(), sphere_center.y());
+    Eigen::ParametrizedLine<double,3> line = Eigen::ParametrizedLine<double,3>::Through(bottom_point, point3d );
+    Eigen::Vector3d point_intersection = line.intersectionPoint( plane ) ;
+
+    return point_intersection;
+
+}
+
 // compute triangulation 
 // https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/
 void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
@@ -880,17 +897,12 @@ void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
 
     //project sphere using stereographic projection https://en.wikipedia.org/wiki/Stereographic_projection
     //we use the bottom points of the sphere to start the projection from
-    Eigen::Vector3d bottom_point=sphere_center;
-    bottom_point.y()-=sphere_radius;
     //plane is the plane that runs through the center of the sphere and has normal pointing up (so int he psoitive y axis), Also a hyperplane in 3d is a 2d plane
     Eigen::MatrixXd points_intesection(points.rows(),3);
-    Eigen::Hyperplane<double,3> plane = Eigen::Hyperplane<double,3>(Eigen::Vector3d::UnitY(), sphere_center.y());
     for (size_t i=0; i<frames.size(); i++){
         Eigen::Vector3d point=points.row(i);
-        Eigen::ParametrizedLine<double,3> line = Eigen::ParametrizedLine<double,3>::Through(bottom_point,point);
-        Eigen::Vector3d point_intersection = line.intersectionPoint( plane ) ;
+        Eigen::Vector3d point_intersection = stereographic_projection(point, sphere_center, sphere_radius) ;
         points_intesection.row(i) = point_intersection;
-        // points_intesection.row(i) = bottom_point;
     }
     //show the intersection points
     auto intersect_mesh= easy_pbr::Mesh::create();
@@ -899,8 +911,31 @@ void SFM::compute_triangulation(std::vector<easy_pbr::Frame>& frames){
     easy_pbr::Scene::show(intersect_mesh,"intersect_mesh");
 
 
-    
-    
+    //triangulate 
+    Eigen::MatrixXd points_intesection_2d(points.rows(),2); //get the intersection points from the xz plane to just xy so we can run delaunay triangulation
+    for (size_t i=0; i<frames.size(); i++){
+        Eigen::Vector2d point;
+        point.x()= points_intesection.row(i).x();
+        point.y()= points_intesection.row(i).z();
+        points_intesection_2d.row(i)=point;
+    }
+    auto triangulated_mesh = easy_pbr::Mesh::create();
+    // std::string params="Q"; //DO NOT add "v" for verbose output, for some reason it breaks now and it segment faults somewhere inside. Maybe due to pybind I dunno
+    //Flag Q is for quiet and c is for adding edges along the convex hull of the points otherwise we end up with no triangles in our triangulation
+    std::string params="Qc"; //DO NOT add "v" for verbose output, for some reason it breaks now and it segment faults somewhere inside. Maybe due to pybind I dunno
+    Eigen::MatrixXi E_empty;
+    Eigen::MatrixXd H_empty;
+    Eigen::MatrixXi F_out;
+    Eigen::MatrixXd V_out;
+    igl::triangle::triangulate(points_intesection_2d, E_empty ,H_empty ,params, triangulated_mesh->V, triangulated_mesh->F); 
+
+    // VLOG(1) <<triangulated_mesh->V.rows();
+    // VLOG(1) <<points.rows();
+    VLOG(1) << "nr of faces generated" << triangulated_mesh->F.rows();
+    triangulated_mesh->V=points;
+    triangulated_mesh->m_vis.m_show_mesh=false;
+    triangulated_mesh->m_vis.m_show_wireframe=true;
+    easy_pbr::Scene::show(triangulated_mesh, "triangulated_mesh"); 
 
 
     

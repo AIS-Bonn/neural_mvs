@@ -234,11 +234,11 @@ def run():
     phases[1].show_visdom=True
 
     #show all the train and test frames 
-    for i in range(loader_train.nr_samples()):
-        frame=loader_train.get_frame_at_idx(i)
-        frustum_mesh=frame.create_frustum_mesh(0.02)
-        frustum_mesh.m_vis.m_line_width=1
-        Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
+    # for i in range(loader_train.nr_samples()):
+    #     frame=loader_train.get_frame_at_idx(i)
+    #     frustum_mesh=frame.create_frustum_mesh(0.02)
+    #     frustum_mesh.m_vis.m_line_width=1
+    #     Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
     # for i in range(loader_test.nr_samples()):
     #     frame=loader_test.get_frame_at_idx(i)
     #     frustum_mesh=frame.create_frustum_mesh(0.02)
