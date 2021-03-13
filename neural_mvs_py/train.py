@@ -91,9 +91,20 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
     frame_idx_2= frame_idxs[face[2]]
 
     selected_frames=[]
+    frame_0=None
+    frame_1=None
+    frame_2=None
+    #We have to add them in the same order, so first frame0 andthen 1 and then 2
     for frame in all_frames_py_list:
-        if frame.frame_idx==frame_idx_0 or  frame.frame_idx==frame_idx_1 or frame.frame_idx==frame_idx_2:
-            selected_frames.append(frame)
+        if frame.frame_idx==frame_idx_0:
+            frame_0=frame
+        if frame.frame_idx==frame_idx_1:
+            frame_1=frame
+        if frame.frame_idx==frame_idx_2:
+            frame_2=frame
+    selected_frames.append(frame_0)
+    selected_frames.append(frame_1)
+    selected_frames.append(frame_2)
     
 
     return selected_frames, weights
@@ -374,6 +385,9 @@ def run():
                     else:
                         frame=phase.frames[i]
                     TIME_START("all")
+
+                    # if frame.frame_idx!=0:
+                        # continue
                    
                     rgb_gt=frame.rgb_tensor
 
@@ -412,6 +426,8 @@ def run():
                         else:
                             frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
                             weights= torch.from_numpy(weights.copy()).to("cuda").float() 
+                        # if not is_training:    
+                            # print("weights ", weights)
 
                         TIME_START("forward")
                         rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)

@@ -999,13 +999,13 @@ std::tuple<Eigen::Vector3i, Eigen::Vector3d> SFM::compute_closest_triangle(  con
 
     // VLOG(1) << "lowest dist is " << lowest_dist;
 
-    //show the projected point 
-    // auto projected_mesh= easy_pbr::Mesh::create();
-    // projected_mesh->V.resize(1,3);
-    // projected_mesh->V.row(0)=closest_projected_point;
-    // projected_mesh->m_vis.m_show_points=true;
-    // projected_mesh->m_vis.m_point_size=10;
-    // easy_pbr::Scene::show(projected_mesh,"projected_mesh");
+    // show the projected point 
+    auto projected_mesh= easy_pbr::Mesh::create();
+    projected_mesh->V.resize(1,3);
+    projected_mesh->V.row(0)=closest_projected_point;
+    projected_mesh->m_vis.m_show_points=true;
+    projected_mesh->m_vis.m_point_size=10;
+    easy_pbr::Scene::show(projected_mesh,"projected_mesh");
 
 
 

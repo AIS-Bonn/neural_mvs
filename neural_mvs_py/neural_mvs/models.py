@@ -5166,9 +5166,11 @@ class Net3_SRN(torch.nn.Module):
         std= img_features_aggregated[:, -16]
 
         # show the frames and with a line weight depending on the weight
+        # if novel:
+            # print("weights is ", weights)
         for i in range(len(frames_close)):
             frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
-            frustum_mesh.m_vis.m_line_width= (weights[i])*10
+            frustum_mesh.m_vis.m_line_width= (weights[i])*15
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
         
