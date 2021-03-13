@@ -211,7 +211,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_17sigmoidinit"
+    experiment_name="s_20_prox_5"
 
     use_ray_compression=False
 
@@ -386,8 +386,8 @@ def run():
                         frame=phase.frames[i]
                     TIME_START("all")
 
-                    # if frame.frame_idx!=0:
-                        # continue
+                    # if frame.frame_idx!=83 or is_training:
+                    #     continue
                    
                     rgb_gt=frame.rgb_tensor
 
