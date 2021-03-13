@@ -233,7 +233,7 @@ class FeatureAgregator(torch.nn.Module):
         super(FeatureAgregator, self).__init__()
 
 
-    def forward(self, frame, frames_close, feat_sliced_per_frame, weights):
+    def forward(self, feat_sliced_per_frame, weights):
 
         #similar to https://ibrnet.github.io/static/paper.pdf
         # feat_sliced_per_frame is Nr_frames x N x FEATDIM

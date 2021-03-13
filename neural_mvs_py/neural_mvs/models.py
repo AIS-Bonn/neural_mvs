@@ -23,17 +23,16 @@ from torch.nn.modules.module import _addindent
 from neural_mvs.nerf_utils import *
 
 #latticenet 
-from latticenet_py.lattice.lattice_wrapper import LatticeWrapper
-from latticenet_py.lattice.diceloss import GeneralizedSoftDiceLoss
-from latticenet_py.lattice.lovasz_loss import LovaszSoftmax
-from latticenet_py.lattice.models import LNN
-
-from latticenet_py.callbacks.callback import *
-from latticenet_py.callbacks.viewer_callback import *
-from latticenet_py.callbacks.visdom_callback import *
-from latticenet_py.callbacks.state_callback import *
-from latticenet_py.callbacks.phase import *
-from latticenet_py.lattice.lattice_modules import *
+# from latticenet_py.lattice.lattice_wrapper import LatticeWrapper
+# from latticenet_py.lattice.diceloss import GeneralizedSoftDiceLoss
+# from latticenet_py.lattice.lovasz_loss import LovaszSoftmax
+# from latticenet_py.lattice.models import LNN
+# from latticenet_py.callbacks.callback import *
+# from latticenet_py.callbacks.viewer_callback import *
+# from latticenet_py.callbacks.visdom_callback import *
+# from latticenet_py.callbacks.state_callback import *
+# from latticenet_py.callbacks.phase import *
+# from latticenet_py.lattice.lattice_modules import *
 
 
 ##Network with convgnrelu so that the coord added by concat coord are not destroyed y the gn in gnreluconv
@@ -3760,6 +3759,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
+        self.feature_aggregator_traced=None
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
   
@@ -3817,28 +3817,40 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #compute the features at this position 
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
+            TIME_START("raymarch_pe")
             feat=self.learned_pe(world_coords[-1])
+            TIME_END("raymarch_pe")
 
-
+            TIME_START("raymarch_uv")
             uv_tensor=compute_uv_batched(frames_close, world_coords[-1] )
+            TIME_END("raymarch_uv")
 
 
             # slice with grid_sample
+            TIME_START("raymarch_slice")
             uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
             sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
+            TIME_END("raymarch_slice")
            
             
             #attempt 2 
             TIME_START("raymarch_aggr")
-            img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
-
-            feat=torch.cat([feat,img_features_aggregated],1)
-
-            feat=self.feature_fuser(feat)
+            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights)
+            # if self.feature_aggregator_traced==None:
+                # with torch.jit.optimized_execution(True):
+                    # self.feature_aggregator_traced = torch.jit.trace(self.feature_aggregator, ( sliced_feat_batched, weights), optimize=True )
+            # img_features_aggregated= self.feature_aggregator_traced( sliced_feat_batched, weights)
             TIME_END("raymarch_aggr")
+            
+            TIME_START("raymarch_fuse")
+            # with torch.autograd.profiler.profile(use_cuda=True) as prof:
+            feat=torch.cat([feat,img_features_aggregated],1)
+            feat=self.feature_fuser(feat)
+            # print(prof)
+            TIME_END("raymarch_fuse")
 
 
             #create the lstm if not created 
@@ -5162,7 +5174,8 @@ class Net3_SRN(torch.nn.Module):
 
         ##attempt 4 
         # weights=self.frame_weights_computer(frame, frames_close)
-        img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
+        # img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
+        img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights)
         std= img_features_aggregated[:, -16]
 
         # show the frames and with a line weight depending on the weight
