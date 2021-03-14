@@ -5112,7 +5112,7 @@ class Net3_SRN(torch.nn.Module):
 
         rgb_batch_list=[]
         for frame_close in frames_close:
-            rgb_gt=frame_close.rgb_tensor
+            rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
             rgb_batch_list.append(rgb_gt)
         rgb_batch=torch.cat(rgb_batch_list,0)
         #pass through unet 

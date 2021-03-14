@@ -111,22 +111,20 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
 
 
 class FramePY():
-    def __init__(self, frame, create_subsamples=True):
+    def __init__(self, frame, create_subsamples=False):
         #get mask 
+        #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
         if not frame.mask.empty():
-            self.mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+            mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
             self.mask=frame.mask
         else:
-            self.mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
+            mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
+            self.mask=tensor2mat(mask_tensor)
         #get rgb with mask applied 
-        self.rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
-        self.rgb_tensor=self.rgb_tensor*self.mask_tensor
+        rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
+        rgb_tensor=rgb_tensor*mask_tensor
 
-        # bg_color= torch.ones([1, 3, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
-        # bg_color.fill_(0.5)
-        # self.rgb_tensor=torch.where(self.mask_tensor > 0, self.rgb_tensor, bg_color)
-
-        self.rgb_32f=tensor2mat(self.rgb_tensor)
+        self.rgb_32f=tensor2mat(rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
         self.K=frame.K
@@ -388,7 +386,8 @@ def run():
                     # if frame.frame_idx!=83 or is_training:
                     #     continue
                    
-                    rgb_gt=frame.rgb_tensor
+                    rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
+                    mask_tensor=mat2tensor(frame.mask, False).to("cuda")
 
                     #VIEW gt 
                     if phase.iter_nr%show_every==0:
@@ -448,7 +447,7 @@ def run():
                             keypoints_3d=keypoint_data[2]
                             depth_pred=depth_pred.view(-1,1)
                             depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
-                            mask_keypoints= torch.index_select(frame.mask_tensor.view(-1,1), 0, keypoint_instances.long()) #the parts that are in the background need no loss on the depth
+                            mask_keypoints= torch.index_select(mask_tensor.view(-1,1), 0, keypoint_instances.long()) #the parts that are in the background need no loss on the depth
                             loss_depth= (( keypoint_distances- depth_pred_keypoints)**2)
                             loss_depth=loss_depth*mask_keypoints
                             loss_depth= loss_depth.mean()
