@@ -884,11 +884,11 @@ class UNet(torch.nn.Module):
         self.up_stages_list = torch.nn.ModuleList([])
         self.squeeze_list = torch.nn.ModuleList([])
         for i in range(self.nr_stages):
-            #we now concat the features from the corresponding stage
-            cur_nr_channels+= self.nr_layers_ending_stage.pop()
             after_finefy_nr_channels=int(cur_nr_channels/2)
-            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            #we now concat the features from the corresponding stage
             cur_nr_channels=after_finefy_nr_channels
+            cur_nr_channels+= self.nr_layers_ending_stage.pop()
             self.up_stages_list.append( nn.Sequential(
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
@@ -951,10 +951,10 @@ class UNet(torch.nn.Module):
             # x=self.finefy_list[i](x)
             # print("after finefy ", i, " x is", x.shape)
             vertical_feats= features_ending_stage.pop()
-            x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear')
+            x=self.squeeze_list[i](x) #upsample resolution and reduced the channels
+            x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
             x=torch.cat([x,vertical_feats],1)
             # print("x shape before seuqqeing is ", i, "  ", x.shape)
-            x=self.squeeze_list[i](x)
             # print("x shape after seuqqeing is ", i, "  ", x.shape)
 
             # print("vefore concating ", i, " x is ", x.shape, " vertical featus is ", vertical_feats.shape)
