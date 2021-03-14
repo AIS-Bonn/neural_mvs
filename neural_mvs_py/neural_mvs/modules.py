@@ -179,10 +179,13 @@ class TorchScriptTraceWrapper(torch.nn.Module):
         self.module=module
         self.module_traced=None
 
-    def forward(self, *arg):
+    def forward(self, *args):
+        args_list=[]
+        for arg in args:
+            args_list.append(arg)
         if self.module_traced==None:
-                self.module_traced = torch.jit.trace(self.module, (*arg) )
-        return self.module_traced(*arg)
+                self.module_traced = torch.jit.trace(self.module, args_list )
+        return self.module_traced(*args)
 
 class FrameWeightComputer(torch.nn.Module):
 
