@@ -379,7 +379,6 @@ def run():
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 for i in range(phase.loader.nr_samples()):
-                    model.train(phase.grad)
                     if phase.grad:
                         frame=random.choice(phase.frames)
                     else:

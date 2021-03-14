@@ -3747,7 +3747,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         super(DifferentiableRayMarcher, self).__init__()
 
         num_encodings=8
-        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        self.learned_pe=TorchScriptTraceWrapper( LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True) )
         # cur_nr_channels = in_channels + 3*num_encodings*2
 
         #model 
@@ -5217,19 +5218,19 @@ class Net3_SRN(torch.nn.Module):
         depth=depth.permute(2,0,1).unsqueeze(0)
 
 
-        # #DEBUG 
-        if novel:
-            #show the PCAd features of the closest frame
-            img_features=frames_features_list[0]
-            height=img_features.shape[2]
-            width=img_features.shape[3]
-            img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-            img_features_for_pca=img_features_for_pca.view(height*width, -1)
-            pca=PCA.apply(img_features_for_pca)
-            pca=pca.view(height, width, 3)
-            pca=pca.permute(2,0,1).unsqueeze(0)
-            pca_mat=tensor2mat(pca)
-            Gui.show(pca_mat, "pca_mat")
+        # # #DEBUG 
+        # if novel:
+        #     #show the PCAd features of the closest frame
+        #     img_features=frames_features_list[0]
+        #     height=img_features.shape[2]
+        #     width=img_features.shape[3]
+        #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+        #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
+        #     pca=PCA.apply(img_features_for_pca)
+        #     pca=pca.view(height, width, 3)
+        #     pca=pca.permute(2,0,1).unsqueeze(0)
+        #     pca_mat=tensor2mat(pca)
+        #     Gui.show(pca_mat, "pca_mat")
 
         return rgb_pred, depth, signed_distances_for_marchlvl, std
         

@@ -171,7 +171,18 @@ def frames_to_points(frames, discard_frame_with_idx=None ):
 
     return points, points_frame_idxs
 
+#wraps module, and changes them to become a torchscrip version of them during inference
+class TorchScriptTraceWrapper(torch.nn.Module):
+    def __init__(self, module):
+        super(TorchScriptTraceWrapper, self).__init__()
 
+        self.module=module
+        self.module_traced=None
+
+    def forward(self, *arg):
+        if self.module_traced==None:
+                self.module_traced = torch.jit.trace(self.module, (*arg) )
+        return self.module_traced(*arg)
 
 class FrameWeightComputer(torch.nn.Module):
 
