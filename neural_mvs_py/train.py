@@ -486,55 +486,7 @@ def run():
 
 
 
-
-                        
-                        #VIEW pred
-                        if phase.iter_nr%show_every==0:
-                            rgb_pred_mat=tensor2mat(rgb_pred)
-                            Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-
-                        
-                        #VIEW 3d points   at the end of the ray march
-                        ray_dirs=frame.ray_dirs
-                        camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
-                        camera_center=camera_center.view(1,3)
-                        points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
-                        #get the point that have a color of black (correspond to background) and put them to zero
-                        rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                        rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                        rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                        rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-                        #mask also the points that still have a signed distance 
-                        signed_dist=signed_distances_for_marchlvl[ -1 ]
-                        signed_dist_mask= signed_dist>0.03
-                        signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[signed_dist_mask]=0.0
-
-                        #view normal
-                        points3D_img=points3D.view(1, frame.height, frame.width, 3)
-                        points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        normal_img=compute_normal(points3D_img)
-                        normal_vis=(normal_img+1.0)*0.5
-                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
-                        signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
-                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        normal_vis[rgb_pred_zeros_mask_img]=0.0
-                        normal_vis[signed_dist_mask_img]=0.0
-                        normal_mat=tensor2mat(normal_vis)
-                        Gui.show(normal_mat, "normal")
-
-                        #mask based on grazing angle between normal and view angle
-                        normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                        normal=normal.view(-1,3)
-                        dot_view_normal= (frame.ray_dirs * normal).sum(dim=1,keepdim=True)
-                        dot_view_normal_mask= dot_view_normal<-0.3 #ideally the dot will be -1
-                        dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[dot_view_normal_mask]=0.0
-
-                        #show things
-                        show_3D_points(points3D, "points_3d", color=rgb_pred)
+                 
 
 
 
@@ -640,6 +592,82 @@ def run():
                     #     optimizer.zero_grad()
 
                     TIME_END("all")
+
+
+                    with torch.set_grad_enabled(False):
+                        #VIEW pred
+                        if phase.iter_nr%show_every==0:
+                            rgb_pred_mat=tensor2mat(rgb_pred)
+                            Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
+
+                        
+                        #VIEW 3d points   at the end of the ray march
+                        ray_dirs=frame.ray_dirs
+                        camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+                        camera_center=camera_center.view(1,3)
+                        points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                        #get the point that have a color of black (correspond to background) and put them to zero
+                        rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                        rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                        rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                        rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                        points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                        #mask also the points that still have a signed distance 
+                        signed_dist=signed_distances_for_marchlvl[ -1 ]
+                        signed_dist_mask= signed_dist>0.03
+                        signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
+                        points3D[signed_dist_mask]=0.0
+
+                        #view normal
+                        points3D_img=points3D.view(1, frame.height, frame.width, 3)
+                        points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        normal_img=compute_normal(points3D_img)
+                        normal_vis=(normal_img+1.0)*0.5
+                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
+                        signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
+                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        normal_vis[rgb_pred_zeros_mask_img]=0.0
+                        normal_vis[signed_dist_mask_img]=0.0
+                        normal_mat=tensor2mat(normal_vis)
+                        Gui.show(normal_mat, "normal")
+
+                        #mask based on grazing angle between normal and view angle
+                        normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                        normal=normal.view(-1,3)
+                        dot_view_normal= (frame.ray_dirs * normal).sum(dim=1,keepdim=True)
+                        dot_view_normal_mask= dot_view_normal<-0.3 #ideally the dot will be -1
+                        dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
+                        points3D[dot_view_normal_mask]=0.0
+
+                        #show things
+                        show_3D_points(points3D, "points_3d", color=rgb_pred)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
                     # #novel view
