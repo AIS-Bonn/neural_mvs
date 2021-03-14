@@ -3797,14 +3797,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
         t_list=[]
         K_list=[]
         for i in range(len(frames_close)):
-            frame=frames_close[i]
-            R_list.append( frame.R_tensor.view(1,3,3) )
-            t_list.append( frame.t_tensor.view(1,1,3) )
-            K_list.append( frame.K_tensor.view(1,3,3) )
+            frame_selectd=frames_close[i]
+            R_list.append( frame_selectd.R_tensor.view(1,3,3) )
+            t_list.append( frame_selectd.t_tensor.view(1,1,3) )
+            K_list.append( frame_selectd.K_tensor.view(1,3,3) )
         R_batched=torch.cat(R_list,0)
         t_batched=torch.cat(t_list,0)
         K_batched=torch.cat(K_list,0)
-        ######when we project we assume all the frames have the same size
+        #####when we project we assume all the frames have the same size
         height=frame.height
         width=frame.width
 
@@ -3840,7 +3840,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             TIME_END("raymarch_pe")
 
             TIME_START("raymarch_uv")
-            # uv_tensor=compute_uv_batched(frames_close, world_coords[-1] )
+            # uv_tensor=compute_uv_batched_original(frames_close, world_coords[-1] )
             uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width, world_coords[-1] )
             TIME_END("raymarch_uv")
 
@@ -5186,10 +5186,10 @@ class Net3_SRN(torch.nn.Module):
         t_list=[]
         K_list=[]
         for i in range(len(frames_close)):
-            frame=frames_close[i]
-            R_list.append( frame.R_tensor.view(1,3,3) )
-            t_list.append( frame.t_tensor.view(1,1,3) )
-            K_list.append( frame.K_tensor.view(1,3,3) )
+            frame_selected=frames_close[i]
+            R_list.append( frame_selected.R_tensor.view(1,3,3) )
+            t_list.append( frame_selected.t_tensor.view(1,1,3) )
+            K_list.append( frame_selected.K_tensor.view(1,3,3) )
         R_batched=torch.cat(R_list,0)
         t_batched=torch.cat(t_list,0)
         K_batched=torch.cat(K_list,0)
@@ -5198,7 +5198,7 @@ class Net3_SRN(torch.nn.Module):
         width=frame.width
 
 
-        # uv_tensor=compute_uv_batched(frames_close, point3d )
+        # uv_tensor=compute_uv_batched_original(frames_close, point3d )
         uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
