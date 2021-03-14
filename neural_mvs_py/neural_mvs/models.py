@@ -22,6 +22,9 @@ from torch.nn.modules.module import _addindent
 
 from neural_mvs.nerf_utils import *
 
+# from pytorch_memlab import LineProfiler
+from pytorch_memlab import LineProfiler, profile, profile_every, set_target_gpu, clear_global_line_profiler
+
 #latticenet 
 # from latticenet_py.lattice.lattice_wrapper import LatticeWrapper
 # from latticenet_py.lattice.diceloss import GeneralizedSoftDiceLoss
@@ -868,7 +871,7 @@ class UNet(torch.nn.Module):
             if after_coarsening_nr_channels> 128:
                 after_coarsening_nr_channels=128
 
-            self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
+            self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
 
@@ -884,7 +887,7 @@ class UNet(torch.nn.Module):
             #we now concat the features from the corresponding stage
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
             after_finefy_nr_channels=int(cur_nr_channels/2)
-            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )  )
+            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels=after_finefy_nr_channels
             self.up_stages_list.append( nn.Sequential(
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
@@ -910,7 +913,8 @@ class UNet(torch.nn.Module):
         self.relu=torch.nn.ReLU(inplace=False)
         self.concat_coord=ConcatCoord() 
 
-
+    # @profile
+    # @profile_every(1)
     def forward(self, x):
         if self.first_conv==None:
             self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda() 
@@ -949,7 +953,9 @@ class UNet(torch.nn.Module):
             vertical_feats= features_ending_stage.pop()
             x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear')
             x=torch.cat([x,vertical_feats],1)
+            # print("x shape before seuqqeing is ", i, "  ", x.shape)
             x=self.squeeze_list[i](x)
+            # print("x shape after seuqqeing is ", i, "  ", x.shape)
 
             # print("vefore concating ", i, " x is ", x.shape, " vertical featus is ", vertical_feats.shape)
             x=self.up_stages_list[i](x)
@@ -5111,7 +5117,11 @@ class Net3_SRN(torch.nn.Module):
         rgb_batch=torch.cat(rgb_batch_list,0)
         #pass through unet 
         TIME_START("unet")
+        # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
         frames_features=self.unet(rgb_batch)
+        # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
+        # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
+
         TIME_END("unet")
         frames_features_list=[]
         for i in range(len(frames_close)):
