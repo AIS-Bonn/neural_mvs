@@ -78,7 +78,8 @@ def compute_uv(frame, points_3D_world):
 
     return uv_tensor
 
-def compute_uv_batched(frames_list, points_3D_world):
+# def compute_uv_batched(frames_list, points_3D_world):
+def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D_world):
     if points_3D_world.shape[1] != 3:
         print("expecting the points3d to be Nx3 but it is ", points_3D_world.shape)
         exit(1)
@@ -88,34 +89,50 @@ def compute_uv_batched(frames_list, points_3D_world):
 
 
 
+    TIME_START("repeat")
     feat_sliced_per_frame=[]
     feat_sliced_per_frame_manual=[]
-    points3d_world_for_uv=points_3D_world.view(1,-1,3).repeat( len(frames_list) ,1, 1) #Make it into NR_frames x N x 3
-    R_list=[]
-    t_list=[]
-    K_list=[]
-    for i in range(len(frames_list)):
-        frame=frames_list[i]
-        R_list.append( frame.R_tensor.view(1,3,3) )
-        t_list.append( frame.t_tensor.view(1,1,3) )
-        K_list.append( frame.K_tensor.view(1,3,3) )
-    R_batched=torch.cat(R_list,0)
-    t_batched=torch.cat(t_list,0)
-    K_batched=torch.cat(K_list,0)
+    # points3d_world_for_uv=points_3D_world.view(1,-1,3).repeat( len(frames_list) ,1, 1) #Make it into NR_frames x N x 3
+    points3d_world_for_uv=points_3D_world.view(1,-1,3).repeat( R_batched.shape[0] ,1, 1) #Make it into NR_frames x N x 3
+    TIME_END("repeat")
+    # TIME_START("concat")
+    # # with torch.autograd.profiler.profile(use_cuda=True) as prof:
+    #     R_list=[]
+    #     t_list=[]
+    #     K_list=[]
+    #     for i in range(len(frames_list)):
+    #         frame=frames_list[i]
+    #         R_list.append( frame.R_tensor.view(1,3,3) )
+    #         t_list.append( frame.t_tensor.view(1,1,3) )
+    #         K_list.append( frame.K_tensor.view(1,3,3) )
+    #     R_batched=torch.cat(R_list,0)
+    #     t_batched=torch.cat(t_list,0)
+    #     K_batched=torch.cat(K_list,0)
+    # # print(prof)
+    # TIME_END("concat")
     #project 
-    points_3D_cam=torch.matmul(R_batched, points3d_world_for_uv.transpose(1,2) ).transpose(1,2)  + t_batched
-    points_screen = torch.matmul(K_batched, points_3D_cam.transpose(1,2) ).transpose(1,2)  
+    TIME_START("proj")
+    # with torch.autograd.profiler.profile(use_cuda=True) as prof:
+    points_3D_cam=torch.matmul(points3d_world_for_uv, R_batched.transpose(1,2) )  + t_batched
+    points_screen = torch.matmul(points_3D_cam, K_batched.transpose(1,2) )  
     points_2d = points_screen[:, :, 0:2] / ( points_screen[:, :, 2:3] +0.0001 )
-    points_2d[:,:,1] = frame.height- points_2d[:,:,1] 
+    points_2d[:,:,1] = height- points_2d[:,:,1] 
 
 
     #get in range 0,1
-    points_2d[:,:,0]  = points_2d[:,:,0]/frame.width  ######WATCH out we assume that all the frames are the same width and height
-    points_2d[:,:,1]  = points_2d[:,:,1]/frame.height 
-    uv_tensor = points_2d
-
-    #may be needed 
+    scaling = torch.tensor([width, height]).cuda().view(1,1,2)   ######WATCH out we assume that all the frames are the same width and height
+    uv_tensor=points_2d.div(scaling)
+    # #may be needed 
     uv_tensor= uv_tensor*2 -1 #get in range [-1,1]
+
+
+    #attempt 2
+    # scaling = torch.tensor([1.0/width*2, 1.0/height*2]).cuda().view(1,1,2)   ######WATCH out we assume that all the frames are the same width and height
+    # minus_one= torch.tensor([-1.0]).cuda().view(1,1,1)
+    # uv_tensor = torch.addcmul(minus_one, points_2d,scaling) #-1+ points2d*scaling
+
+    # print(prof)
+    TIME_END("proj")
 
 
     return uv_tensor

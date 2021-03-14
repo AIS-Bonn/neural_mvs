@@ -3792,6 +3792,23 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
 
+
+        R_list=[]
+        t_list=[]
+        K_list=[]
+        for i in range(len(frames_close)):
+            frame=frames_close[i]
+            R_list.append( frame.R_tensor.view(1,3,3) )
+            t_list.append( frame.t_tensor.view(1,1,3) )
+            K_list.append( frame.K_tensor.view(1,3,3) )
+        R_batched=torch.cat(R_list,0)
+        t_batched=torch.cat(t_list,0)
+        K_batched=torch.cat(K_list,0)
+        ######when we project we assume all the frames have the same size
+        height=frame.height
+        width=frame.width
+
+
         #Ray direction in world coordinates
         ray_dirs=frame.ray_dirs
 
@@ -3823,7 +3840,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             TIME_END("raymarch_pe")
 
             TIME_START("raymarch_uv")
-            uv_tensor=compute_uv_batched(frames_close, world_coords[-1] )
+            # uv_tensor=compute_uv_batched(frames_close, world_coords[-1] )
+            uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width, world_coords[-1] )
             TIME_END("raymarch_uv")
 
 
@@ -5164,7 +5182,24 @@ class Net3_SRN(torch.nn.Module):
         # feat_sliced_per_frame=torch.cat(feat_sliced_per_frame,0)
 
 
-        uv_tensor=compute_uv_batched(frames_close, point3d )
+        R_list=[]
+        t_list=[]
+        K_list=[]
+        for i in range(len(frames_close)):
+            frame=frames_close[i]
+            R_list.append( frame.R_tensor.view(1,3,3) )
+            t_list.append( frame.t_tensor.view(1,1,3) )
+            K_list.append( frame.K_tensor.view(1,3,3) )
+        R_batched=torch.cat(R_list,0)
+        t_batched=torch.cat(t_list,0)
+        K_batched=torch.cat(K_list,0)
+        ######when we project we assume all the frames have the same size
+        height=frame.height
+        width=frame.width
+
+
+        # uv_tensor=compute_uv_batched(frames_close, point3d )
+        uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
         sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
