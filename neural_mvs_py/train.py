@@ -211,7 +211,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_20_prox_5"
+    experiment_name="s_11ff1"
 
     use_ray_compression=False
 

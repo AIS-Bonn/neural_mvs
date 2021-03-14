@@ -3765,9 +3765,9 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
   
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +32, out_channels=64,  bias=True ).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
-            BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +32, out_channels=32,  bias=True ).cuda(),
+            # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+            # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
         self.concat_coord=ConcatCoord()
@@ -3839,30 +3839,27 @@ class DifferentiableRayMarcher(torch.nn.Module):
             feat=self.learned_pe(world_coords[-1])
             TIME_END("raymarch_pe")
 
-            TIME_START("raymarch_uv")
-            # uv_tensor=compute_uv_batched_original(frames_close, world_coords[-1] )
+            # TIME_START("raymarch_uv")
+            TIME_START("rm_get_and_aggr")
             uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width, world_coords[-1] )
-            TIME_END("raymarch_uv")
+            # TIME_END("raymarch_uv")
 
 
             # slice with grid_sample
-            TIME_START("raymarch_slice")
+            # TIME_START("raymarch_slice")
             uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
             sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
-            TIME_END("raymarch_slice")
+            # TIME_END("raymarch_slice")
            
             
             #attempt 2 
-            TIME_START("raymarch_aggr")
+            # TIME_START("raymarch_aggr")
             img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights)
-            # if self.feature_aggregator_traced==None:
-                # with torch.jit.optimized_execution(True):
-                    # self.feature_aggregator_traced = torch.jit.trace(self.feature_aggregator, ( sliced_feat_batched, weights), optimize=True )
-            # img_features_aggregated= self.feature_aggregator_traced( sliced_feat_batched, weights)
-            TIME_END("raymarch_aggr")
+            # TIME_END("raymarch_aggr")
+            TIME_END("rm_get_and_aggr")
             
             TIME_START("raymarch_fuse")
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
@@ -3895,7 +3892,6 @@ class DifferentiableRayMarcher(torch.nn.Module):
             signed_distance=signed_distance*depth_scaling
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
             
-
 
             new_world_coords = world_coords[-1] + ray_dirs * signed_distance
             states.append(state)

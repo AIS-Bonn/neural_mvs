@@ -89,12 +89,12 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
 
 
 
-    TIME_START("repeat")
+    # TIME_START("repeat")
     feat_sliced_per_frame=[]
     feat_sliced_per_frame_manual=[]
     # points3d_world_for_uv=points_3D_world.view(1,-1,3).repeat( len(frames_list) ,1, 1) #Make it into NR_frames x N x 3
     points3d_world_for_uv=points_3D_world.view(1,-1,3).repeat( R_batched.shape[0] ,1, 1) #Make it into NR_frames x N x 3
-    TIME_END("repeat")
+    # TIME_END("repeat")
     # TIME_START("concat")
     # # with torch.autograd.profiler.profile(use_cuda=True) as prof:
     #     R_list=[]
@@ -111,7 +111,7 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
     # # print(prof)
     # TIME_END("concat")
     #project 
-    TIME_START("proj")
+    # TIME_START("proj")
     # with torch.autograd.profiler.profile(use_cuda=True) as prof:
     points_3D_cam=torch.matmul(points3d_world_for_uv, R_batched.transpose(1,2) )  + t_batched
     points_screen = torch.matmul(points_3D_cam, K_batched.transpose(1,2) )  
@@ -132,7 +132,7 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
     # uv_tensor = torch.addcmul(minus_one, points_2d,scaling) #-1+ points2d*scaling
 
     # print(prof)
-    TIME_END("proj")
+    # TIME_END("proj")
 
 
     return uv_tensor
@@ -1095,6 +1095,8 @@ class BlockNerf(MetaModule):
                 torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
             if self.activ==torch.sigmoid:
                 torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='sigmoid')
+            if self.activ==torch.tanh:
+                torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='tanh')
             if self.bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
                 bound = 1 / math.sqrt(fan_in)
