@@ -142,7 +142,8 @@ class FramePY():
         self.frame=frame
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
-        self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
         #lookdir and cam center
         self.camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         self.camera_center=self.camera_center.view(1,3)
@@ -361,6 +362,8 @@ def run():
 
     new_frame=None
 
+    torch.cuda.empty_cache()
+
     while True:
 
         for phase in phases:
@@ -388,6 +391,7 @@ def run():
                    
                     rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
                     mask_tensor=mat2tensor(frame.mask, False).to("cuda")
+                    ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
 
                     #VIEW gt 
                     if phase.iter_nr%show_every==0:
@@ -428,7 +432,7 @@ def run():
                             # print("weights ", weights)
 
                         TIME_START("forward")
-                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
+                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 
                      
@@ -601,7 +605,6 @@ def run():
 
                         
                         #VIEW 3d points   at the end of the ray march
-                        ray_dirs=frame.ray_dirs
                         camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
                         camera_center=camera_center.view(1,3)
                         points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
@@ -634,7 +637,7 @@ def run():
                         #mask based on grazing angle between normal and view angle
                         normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                         normal=normal.view(-1,3)
-                        dot_view_normal= (frame.ray_dirs * normal).sum(dim=1,keepdim=True)
+                        dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
                         dot_view_normal_mask= dot_view_normal<-0.3 #ideally the dot will be -1
                         dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
                         points3D[dot_view_normal_mask]=0.0

@@ -3787,7 +3787,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.nr_iters=10
 
       
-    def forward(self, frame, depth_min, frames_close, frames_features, weights, novel=False):
+    def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, novel=False):
 
 
         if novel:
@@ -3816,7 +3816,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
 
         #Ray direction in world coordinates
-        ray_dirs=frame.ray_dirs
+        # ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
 
 
         #attempt 2 unproject to 3D 
@@ -5101,7 +5101,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, mesh, depth_min, depth_max, frames_close, weights, novel=False):
+    def forward(self, frame, ray_dirs, mesh, depth_min, depth_max, frames_close, weights, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5129,7 +5129,7 @@ class Net3_SRN(torch.nn.Module):
         TIME_END("unet_everything")
 
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, depth_min, frames_close, frames_features, weights, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, ray_dirs, depth_min, frames_close, frames_features, weights, novel)
         TIME_END("ray_march")
 
         # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
@@ -5138,7 +5138,7 @@ class Net3_SRN(torch.nn.Module):
 
         # ray_dirs_mesh=frame.pixels2dirs_mesh()
         # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
-        ray_dirs=frame.ray_dirs
+        # ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
 
 
         # ###predict RGB for every march lvl of the lstm 
