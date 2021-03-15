@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_3noabs"
+    experiment_name="s_11reffeat"
 
     use_ray_compression=False
 
@@ -442,7 +442,7 @@ def run():
 
 
                         TIME_START("forward")
-                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 
                      
@@ -450,8 +450,13 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        loss+=rgb_loss_ssim_l1
+                        loss+=rgb_loss_ssim_l1*0.5
                         # loss+=rgb_loss
+                        #loss on the rgb_refiend
+                        rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
+                        rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
+                        loss+=rgb_refined_loss_ssim_l1*0.5
+            
 
                         #loss on depth 
                         if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames
@@ -470,8 +475,8 @@ def run():
 
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                            # smooth_loss = smooth(depth_pred, rgb_gt)
-                            # loss+=smooth_loss*0.01
+                            # smooth_loss = smooth(depth_pred*mask_tensor, rgb_gt)
+                            # loss+=smooth_loss*0.0001
 
                         #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
                         # if is_training: 
@@ -580,7 +585,7 @@ def run():
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=200)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=rgb_refined_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
 
 
@@ -612,6 +617,8 @@ def run():
                         if phase.iter_nr%show_every==0:
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
+                            rgb_refined_mat=tensor2mat(rgb_refined)
+                            Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
 
                         
                         #VIEW 3d points   at the end of the ray march

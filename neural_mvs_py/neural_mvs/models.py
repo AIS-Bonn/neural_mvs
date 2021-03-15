@@ -839,7 +839,7 @@ class SpatialEncoderDense2D(torch.nn.Module):
 
 
 class UNet(torch.nn.Module):
-    def __init__(self, nr_channels_start, nr_channels_output):
+    def __init__(self, nr_channels_start, nr_channels_output, nr_stages):
         super(UNet, self).__init__()
 
 
@@ -847,7 +847,7 @@ class UNet(torch.nn.Module):
 
         #params
         self.start_nr_channels=nr_channels_start
-        self.nr_stages=5
+        self.nr_stages=nr_stages
         self.compression_factor=1.0
 
 
@@ -3341,13 +3341,13 @@ class RGB_predictor_simple(MetaModule):
             # dirs_channels=64
             # cur_nr_channels+=128 #point
             cur_nr_channels+=dirs_channels
-        self.pred_rgb=MetaSequential( 
+        self.pred_feat=MetaSequential( 
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
-            BlockNerf(activ=None, init="sigmoid", in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda()
             )
+        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
 
 
 
@@ -3399,6 +3399,8 @@ class RGB_predictor_simple(MetaModule):
         #predict rgb
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
+        x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
+        last_features=x
         x=  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  
         #concat 
         # print("rgb is", rgb.shape)
@@ -3413,7 +3415,7 @@ class RGB_predictor_simple(MetaModule):
 
 
        
-        return  x
+        return  x, last_features
 
 
 
@@ -5073,13 +5075,14 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=16)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherMasked()
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
+        self.rgb_refiner=UNet( nr_channels_start=64, nr_channels_output=3, nr_stages=3)
         # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
         # with torch.set_grad_enabled(False):
             # self.s_weight.fill_(0.5)
@@ -5249,12 +5252,18 @@ class Net3_SRN(torch.nn.Module):
 
 
         TIME_START("rgb_predict")
-        radiance_field_flattened = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened, last_features = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
         TIME_END("rgb_predict")
 
         rgb_pred=radiance_field_flattened[:, 0:3]
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)
         rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+
+        #refine the prediction with some Unet so we have also some spatial context
+        last_features=last_features.view(frame.height, frame.width,-1)
+        last_features=last_features.permute(2,0,1).unsqueeze(0)
+        rgb_refined=self.rgb_refiner(last_features)
+        # rgb_refined=self.rgb_refiner(rgb_pred)
 
         depth=depth.view(frame.height, frame.width,1)
         depth=depth.permute(2,0,1).unsqueeze(0)
@@ -5274,7 +5283,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, depth, signed_distances_for_marchlvl, std
+        return rgb_pred, rgb_refined, depth, signed_distances_for_marchlvl, std
         
 
 
