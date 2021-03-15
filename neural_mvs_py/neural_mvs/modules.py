@@ -339,6 +339,38 @@ class FeatureAgregator(torch.nn.Module):
         return final_feat
 
 
+#passes the features through a linear layer instead of calculating the mean and variance, so it's kinda dependant on the ordering of the frames now
+class FeatureAgregatorLinear(torch.nn.Module):
+
+    def __init__(self ):
+        super(FeatureAgregatorLinear, self).__init__()
+
+
+        self.pred=MetaSequential( 
+            BlockNerf(activ=torch.nn.GELU(), in_channels=16*3, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=32, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=32, out_channels=32,  bias=True ).cuda()
+            )
+
+    def forward(self, feat_sliced_per_frame, weights):
+
+        # feat_sliced_per_frame is Nr_frames x N x FEATDIM
+        nr_frames= feat_sliced_per_frame.shape[0]
+        nr_pixels= feat_sliced_per_frame.shape[1]
+        feat_dim= feat_sliced_per_frame.shape[2]
+        weights=weights.view(-1,1,1)
+        img_features_concat_weighted=feat_sliced_per_frame*weights
+
+        #get the features to be N x featdim*Nr_frames
+        img_features_concat_weighted=img_features_concat_weighted.permute(1,0,2).view(nr_pixels, nr_frames*feat_dim) # from Nr_frames x N x FEATDIM to  NxNr_framesxFatudim
+        x=self.pred( img_features_concat_weighted )
+        
+
+        return x
+
+
+
+
 
 
 

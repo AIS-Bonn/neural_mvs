@@ -3767,7 +3767,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
-        self.feature_aggregator=  FeatureAgregator() 
+        # self.feature_aggregator=  FeatureAgregator() 
+        self.feature_aggregator=  FeatureAgregatorLinear() 
         self.feature_aggregator_traced=None
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
@@ -5089,6 +5090,7 @@ class Net3_SRN(torch.nn.Module):
             # self.s_weight.fill_(10.0)
         # self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
+        # self.feature_aggregator= FeatureAgregatorLinear()
 
 
         #activ
@@ -5259,11 +5261,12 @@ class Net3_SRN(torch.nn.Module):
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)
         rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
 
-        #refine the prediction with some Unet so we have also some spatial context
-        last_features=last_features.view(frame.height, frame.width,-1)
-        last_features=last_features.permute(2,0,1).unsqueeze(0)
-        rgb_refined=self.rgb_refiner(last_features)
-        # rgb_refined=self.rgb_refiner(rgb_pred)
+        # #refine the prediction with some Unet so we have also some spatial context
+        # last_features=last_features.view(frame.height, frame.width,-1)
+        # last_features=last_features.permute(2,0,1).unsqueeze(0)
+        # rgb_refined=self.rgb_refiner(last_features)
+        # # rgb_refined=self.rgb_refiner(rgb_pred)
+        rgb_refined=None
 
         depth=depth.view(frame.height, frame.width,1)
         depth=depth.permute(2,0,1).unsqueeze(0)

@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_11reffeat"
+    experiment_name="s_3rayagr_noref"
 
     use_ray_compression=False
 
@@ -450,12 +450,12 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        loss+=rgb_loss_ssim_l1*0.5
+                        loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
                         #loss on the rgb_refiend
-                        rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
-                        loss+=rgb_refined_loss_ssim_l1*0.5
+                        # rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
+                        # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
+                        # loss+=rgb_refined_loss_ssim_l1*0.5
             
 
                         #loss on depth 
@@ -585,7 +585,7 @@ def run():
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=200)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=rgb_refined_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
 
 
@@ -617,8 +617,8 @@ def run():
                         if phase.iter_nr%show_every==0:
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                            rgb_refined_mat=tensor2mat(rgb_refined)
-                            Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                            # rgb_refined_mat=tensor2mat(rgb_refined)
+                            # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
 
                         
                         #VIEW 3d points   at the end of the ray march
@@ -635,7 +635,7 @@ def run():
                         signed_dist=signed_distances_for_marchlvl[ -1 ]
                         signed_dist_mask= signed_dist>0.03
                         signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[signed_dist_mask]=0.0
+                        # points3D[signed_dist_mask]=0.0
 
                         #view normal
                         points3D_img=points3D.view(1, frame.height, frame.width, 3)
@@ -647,7 +647,7 @@ def run():
                         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                         signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                         normal_vis[rgb_pred_zeros_mask_img]=0.0
-                        normal_vis[signed_dist_mask_img]=0.0
+                        # normal_vis[signed_dist_mask_img]=0.0
                         normal_mat=tensor2mat(normal_vis)
                         Gui.show(normal_mat, "normal")
 
