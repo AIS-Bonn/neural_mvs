@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_3noabs"
 
     use_ray_compression=False
 
