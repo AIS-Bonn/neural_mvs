@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_12smallunet"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -406,8 +406,8 @@ def run():
                         ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                         rgb_close_batch_list=[]
                         for frame_close in frames_close:
-                            rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
-                            rgb_close_batch_list.append(rgb_gt)
+                            rgb_close_frame=mat2tensor(frame_close.rgb_32f, False).to("cuda")
+                            rgb_close_batch_list.append(rgb_close_frame)
                         rgb_close_batch=torch.cat(rgb_close_batch_list,0)
                     # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
 
