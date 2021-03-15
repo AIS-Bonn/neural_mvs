@@ -363,6 +363,7 @@ def run():
     new_frame=None
 
     torch.cuda.empty_cache()
+    print( torch.cuda.memory_summary() )
 
     while True:
 
@@ -388,10 +389,32 @@ def run():
 
                     # if frame.frame_idx!=83 or is_training:
                     #     continue
-                   
-                    rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
-                    mask_tensor=mat2tensor(frame.mask, False).to("cuda")
-                    ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+
+                    ##PREPARE data 
+                    with torch.set_grad_enabled(False):
+                        discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
+                        do_close_computation_with_delaunay=True
+                        if not do_close_computation_with_delaunay:
+                            frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
+                            weights= frame_weights_computer(frame, frames_close)
+                        else:
+                            frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
+                            weights= torch.from_numpy(weights.copy()).to("cuda").float() 
+                        #prepare rgb data and rest of things
+                        rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
+                        mask_tensor=mat2tensor(frame.mask, False).to("cuda")
+                        ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+                        rgb_close_batch_list=[]
+                        for frame_close in frames_close:
+                            rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
+                            rgb_close_batch_list.append(rgb_gt)
+                        rgb_close_batch=torch.cat(rgb_close_batch_list,0)
+                    # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
+
+                    # print( torch.cuda.memory_summary() )
+
+
+
 
                     #VIEW gt 
                     if phase.iter_nr%show_every==0:
@@ -417,22 +440,9 @@ def run():
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
 
-                        # frames_close=loader_train.get_close_frames(frame, 2)
-                        discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
-
-                        #closenes here is defined in terms of A
-                        do_close_computation_with_delaunay=True
-                        if not do_close_computation_with_delaunay:
-                            frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
-                            weights= frame_weights_computer(frame, frames_close)
-                        else:
-                            frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
-                            weights= torch.from_numpy(weights.copy()).to("cuda").float() 
-                        # if not is_training:    
-                            # print("weights ", weights)
 
                         TIME_START("forward")
-                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
+                        rgb_pred, depth_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 
                      

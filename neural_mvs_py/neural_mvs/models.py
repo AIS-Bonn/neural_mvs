@@ -3753,8 +3753,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         super(DifferentiableRayMarcher, self).__init__()
 
         num_encodings=8
-        # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
-        self.learned_pe=TorchScriptTraceWrapper( LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True) )
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # self.learned_pe=TorchScriptTraceWrapper( LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True) )
         # cur_nr_channels = in_channels + 3*num_encodings*2
 
         #model 
@@ -3765,7 +3765,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
-        self.feature_aggregator= TorchScriptTraceWrapper( FeatureAgregator() )
+        self.feature_aggregator=  FeatureAgregator() 
         self.feature_aggregator_traced=None
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
@@ -5101,7 +5101,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, ray_dirs, mesh, depth_min, depth_max, frames_close, weights, novel=False):
+    def forward(self, frame, ray_dirs, rgb_close_batch, mesh, depth_min, depth_max, frames_close, weights, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5110,15 +5110,15 @@ class Net3_SRN(torch.nn.Module):
         #     frame_features=self.unet(rgb_gt)
         #     frames_features.append(frame_features)
 
-        rgb_batch_list=[]
-        for frame_close in frames_close:
-            rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
-            rgb_batch_list.append(rgb_gt)
-        rgb_batch=torch.cat(rgb_batch_list,0)
+        # rgb_batch_list=[]
+        # for frame_close in frames_close:
+        #     rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
+        #     rgb_batch_list.append(rgb_gt)
+        # rgb_batch=torch.cat(rgb_batch_list,0)
         #pass through unet 
         TIME_START("unet")
         # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
-        frames_features=self.unet(rgb_batch)
+        frames_features=self.unet(rgb_close_batch)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
         # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
 
