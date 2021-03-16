@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_7gaussstd9"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -267,8 +267,8 @@ def run():
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
-    phases[0].show_visdom=False
-    phases[1].show_visdom=True
+    phases[0].show_visdom=True
+    phases[1].show_visdom=False
 
     #show all the train and test frames 
     # for i in range(loader_train.nr_samples()):
