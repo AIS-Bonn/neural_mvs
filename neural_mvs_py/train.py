@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_6small_rgb"
+    experiment_name="s_7gaussstd9"
 
     use_ray_compression=False
 
