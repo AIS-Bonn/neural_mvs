@@ -251,7 +251,7 @@ def run():
     smooth = InverseDepthSmoothnessLoss()
     ssim_l1_criterion = MS_SSIM_L1_LOSS()
 
-    show_every=1
+    show_every=99
 
 
 
@@ -417,9 +417,9 @@ def run():
 
 
                     #VIEW gt 
-                    if phase.iter_nr%show_every==0:
-                        rgb_mat=tensor2mat(rgb_gt)
-                        Gui.show(rgb_mat,"rgb_gt")
+                    # if phase.iter_nr%show_every==0:
+                        # rgb_mat=tensor2mat(rgb_gt)
+                        # Gui.show(rgb_mat,"rgb_gt")
 
                     #view current active frame
                     frustum_mesh=frame.frame.create_frustum_mesh(0.02)
@@ -619,6 +619,11 @@ def run():
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
                             # rgb_refined_mat=tensor2mat(rgb_refined)
                             # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                            #view diff 
+                            diff=( rgb_gt-rgb_pred)**2*10
+                            Gui.show(tensor2mat(diff),"diff_"+phase.name)
+                            #view gt
+                            Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
 
                         
                         #VIEW 3d points   at the end of the ray march
