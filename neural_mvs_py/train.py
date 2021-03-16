@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_2masked"
+    experiment_name="s_6smooth"
 
     use_ray_compression=False
 
@@ -483,7 +483,8 @@ def run():
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                             # smooth_loss = smooth(depth_pred*mask_tensor, rgb_gt)
-                            # loss+=smooth_loss*0.0001
+                            # loss+=smooth_loss* min(phase.iter_nr*0.1,1000)
+                            # print("smooth_loss",smooth_loss)
 
                         #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
                         # if is_training: 
@@ -621,12 +622,18 @@ def run():
 
                     with torch.set_grad_enabled(False):
                         #VIEW pred
+                        #make masks 
+                        mask_pred_thresh=mask_pred<0.9
+                        rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                        rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                        rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                        rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
+                        rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                         if phase.iter_nr%show_every==0:
                             #view diff 
                             diff=( rgb_gt-rgb_pred)**2*10
                             Gui.show(tensor2mat(diff),"diff_"+phase.name)
                             #mask
-                            mask_pred_thresh=mask_pred<0.9
                             rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
@@ -636,6 +643,12 @@ def run():
                             Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
                             Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
                             Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
+                            # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
+                            depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+                            depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0)
+                            depth_vis=depth_vis.repeat(1,3,1,1)
+                            depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
+                            Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
 
                         
                         #VIEW 3d points   at the end of the ray march
@@ -651,9 +664,9 @@ def run():
                         points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
                         #mask also the points that still have a signed distance 
                         signed_dist=signed_distances_for_marchlvl[ -1 ]
-                        signed_dist_mask= signed_dist>0.03
+                        signed_dist_mask= signed_dist.abs()>0.03
                         signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                        # points3D[signed_dist_mask]=0.0
+                        points3D[signed_dist_mask]=0.0
 
                         #view normal
                         points3D_img=points3D.view(1, frame.height, frame.width, 3)

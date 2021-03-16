@@ -3887,13 +3887,20 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 self.lstm = torch.nn.LSTMCell(input_size=feat.shape[1], hidden_size=self.lstm_hidden_size ).to("cuda")
                 self.lstm.apply(init_recurrent_weights)
                 lstm_forget_gate_init(self.lstm)
+                # self.lstm = torch.nn.Sequential(
+                #     BlockNerf(activ=torch.nn.GELU(), in_channels=feat.shape[1], out_channels=32,  bias=True ).cuda(),
+                #     BlockNerf(activ=torch.nn.GELU(), in_channels=32, out_channels=32,  bias=True ).cuda(),
+                #     BlockNerf(activ=None, in_channels=32, out_channels=16,  bias=True ).cuda(),
+                # )
 
             #run through the lstm
             state = self.lstm(feat, states[-1])
+            # state = self.lstm(feat)
             if state[0].requires_grad:
                 state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
+            # signed_distance= self.out_layer(state)
             TIME_END("raymarch_lstm")
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
             # signed_distance=torch.abs(signed_distance) #the distance only increases
