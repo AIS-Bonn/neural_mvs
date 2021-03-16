@@ -3329,7 +3329,7 @@ class RGB_predictor_simple(MetaModule):
         cur_nr_channels+=32 #for point features
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
-        cur_nr_channels+=1 #concating also the signed distnace
+        # cur_nr_channels+=32 #concating also the signed distnace
         # cur_nr_channels+=3 #concating also the normals
       
         if use_ray_dirs:
@@ -3343,11 +3343,11 @@ class RGB_predictor_simple(MetaModule):
             cur_nr_channels+=dirs_channels
         self.pred_feat=MetaSequential( 
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=64,  bias=True ).cuda(),
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=cur_nr_channels,  bias=True ).cuda()
+            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
-        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=cur_nr_channels, out_channels=3,  bias=True ).cuda()    
+        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
 
 
 
@@ -5082,6 +5082,7 @@ class Net3_SRN(torch.nn.Module):
         # self.ray_marcher=DifferentiableRayMarcherMasked()
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
+        # self.embedd_sd=BlockNerf(activ=None, init="sigmoid", in_channels=1, out_channels=32,  bias=True ).cuda()    
         self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
         self.rgb_refiner=UNet( nr_channels_start=64, nr_channels_output=3, nr_stages=3)
         # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
@@ -5238,8 +5239,10 @@ class Net3_SRN(torch.nn.Module):
         
 
         #concat also the signed distnace at the last iteration of the lstm 
-        signed_dist=signed_distances_for_marchlvl[ -1 ]
-        img_features_aggregated=torch.cat([img_features_aggregated, signed_dist],1)
+        #BAD IDEA, concatting the signed distance allows the network to predict weird wobbly depth that still gets mapped to a correct color. The distance left should not be a feature that hte network can use since this is a feature that actually comes from the lstm which is kinda like an aggregation of all the features along the ray. However the RGB predictor should only be allowed to use the feature at the current position because this forces the position to be correct so that the sliced features from the images are as good as possible for predicting color
+        # signed_dist=signed_distances_for_marchlvl[ -1 ]
+        # signed_dist_embedded=self.embedd_sd(signed_dist)
+        # img_features_aggregated=torch.cat([img_features_aggregated, signed_dist_embedded],1)
 
         # #concat also the nromals  THEY ACTUALLY hur the perfomance because the normals are way to noisy, espetially at the beggining
         # points3D_img=point3d.view(1, frame.height, frame.width, 3)

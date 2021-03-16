@@ -201,6 +201,7 @@ def compute_normal(points3d_img):
     grad_x=grad_x.view(-1, nr_channels)
     grad_y=grad_y.view(-1, nr_channels)
     cross=torch.cross(grad_x, grad_y, dim=1)
+    # cross=torch.cross(grad_y, grad_x, dim=1)
     # print("corss x is ", cross.shape)
 
     normal_norm=cross.norm(dim=1, keepdim=True)

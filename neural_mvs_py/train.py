@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_3rayagr_noref"
+    experiment_name="s_6small_rgb"
 
     use_ray_compression=False
 
@@ -642,6 +642,7 @@ def run():
                         points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                         normal_img=compute_normal(points3D_img)
                         normal_vis=(normal_img+1.0)*0.5
+                        # normal_vis=normal_img
                         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
                         signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
                         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
