@@ -251,7 +251,7 @@ def run():
     smooth = InverseDepthSmoothnessLoss()
     ssim_l1_criterion = MS_SSIM_L1_LOSS()
 
-    show_every=99
+    show_every=1
 
 
 
@@ -267,8 +267,8 @@ def run():
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
-    phases[0].show_visdom=True
-    phases[1].show_visdom=False
+    phases[0].show_visdom=False
+    phases[1].show_visdom=True
 
     #show all the train and test frames 
     # for i in range(loader_train.nr_samples()):
@@ -648,6 +648,7 @@ def run():
                         rgb_pred_zeros_mask= rgb_pred_zeros<0.05
                         rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                         points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                        points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
                         #mask also the points that still have a signed distance 
                         signed_dist=signed_distances_for_marchlvl[ -1 ]
                         signed_dist_mask= signed_dist>0.03
@@ -678,6 +679,7 @@ def run():
                         points3D[dot_view_normal_mask]=0.0
 
                         #show things
+                        # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
                         show_3D_points(points3D, "points_3d", color=rgb_pred)
 
 
