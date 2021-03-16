@@ -210,7 +210,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_2masked"
 
     use_ray_compression=False
 
@@ -442,9 +442,12 @@ def run():
 
 
                         TIME_START("forward")
-                        rgb_pred, rgb_refined, depth_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 
+                        #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
+                        #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend
+                        rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt
                      
                         #loss
                         loss=0
@@ -456,6 +459,10 @@ def run():
                         # rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
                         # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
                         # loss+=rgb_refined_loss_ssim_l1*0.5
+
+                        #make the mask to be mostly white
+                        loss_mask=((1.0-mask_pred)**2).mean()
+                        loss+=loss_mask*100
             
 
                         #loss on depth 
@@ -615,15 +622,20 @@ def run():
                     with torch.set_grad_enabled(False):
                         #VIEW pred
                         if phase.iter_nr%show_every==0:
+                            #view diff 
+                            diff=( rgb_gt-rgb_pred)**2*10
+                            Gui.show(tensor2mat(diff),"diff_"+phase.name)
+                            #mask
+                            mask_pred_thresh=mask_pred<0.9
+                            rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
                             # rgb_refined_mat=tensor2mat(rgb_refined)
                             # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
-                            #view diff 
-                            diff=( rgb_gt-rgb_pred)**2*10
-                            Gui.show(tensor2mat(diff),"diff_"+phase.name)
                             #view gt
                             Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
+                            Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
+                            Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
 
                         
                         #VIEW 3d points   at the end of the ray march

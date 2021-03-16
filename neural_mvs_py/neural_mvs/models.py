@@ -3349,6 +3349,7 @@ class RGB_predictor_simple(MetaModule):
             BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
         self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
+        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
 
 
 
@@ -3402,7 +3403,8 @@ class RGB_predictor_simple(MetaModule):
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
         x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
         last_features=x
-        x=  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  
+        rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
+        mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
         #concat 
         # print("rgb is", rgb.shape)
         # print("sigma_a is", sigma_a.shape)
@@ -3416,7 +3418,7 @@ class RGB_predictor_simple(MetaModule):
 
 
        
-        return  x, last_features
+        return  rgb, last_features, mask_pred
 
 
 
@@ -5258,12 +5260,15 @@ class Net3_SRN(torch.nn.Module):
 
 
         TIME_START("rgb_predict")
-        radiance_field_flattened, last_features = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
         TIME_END("rgb_predict")
 
         rgb_pred=radiance_field_flattened[:, 0:3]
         rgb_pred=rgb_pred.view(frame.height, frame.width,3)
         rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+
+        mask_pred=mask_pred.view(frame.height, frame.width,1)
+        mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
 
         # #refine the prediction with some Unet so we have also some spatial context
         # last_features=last_features.view(frame.height, frame.width,-1)
@@ -5290,7 +5295,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, rgb_refined, depth, signed_distances_for_marchlvl, std
+        return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std
         
 
 
