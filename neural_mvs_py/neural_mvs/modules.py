@@ -1267,8 +1267,8 @@ class ResnetBlock2D(torch.nn.Module):
 
     def forward(self, x):
         identity=x
-        # x=self.conv1(x, guide)
-        # x=self.conv2(x, guide)
+        # x=self.conv1(x, x)
+        # x=self.conv2(x, x)
         x=self.conv1(x)
         x=self.conv2(x)
         x+=identity

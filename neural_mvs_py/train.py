@@ -22,11 +22,15 @@ from callbacks.visdom_callback import *
 from callbacks.state_callback import *
 from callbacks.phase import *
 
-from optimizers.over9000.radam import *
+# from optimizers.over9000.radam import *
 from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
 from optimizers.over9000.ranger import *
 from optimizers.over9000.apollo import *
+# from optimizers.ranger2020 import * #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
+from optimizers.adahessian import *
+from optimizers.gradient_centralization.Adam import *
+from optimizers.gradient_centralization.RAdam import *
 
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
@@ -210,7 +214,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_6smooth"
+    experiment_name="adc2_gc_0.001"
 
     use_ray_compression=False
 
@@ -447,7 +451,7 @@ def run():
 
                         #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
                         #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend
-                        rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt
+                        # rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt
                      
                         #loss
                         loss=0
@@ -461,8 +465,8 @@ def run():
                         # loss+=rgb_refined_loss_ssim_l1*0.5
 
                         #make the mask to be mostly white
-                        loss_mask=((1.0-mask_pred)**2).mean()
-                        loss+=loss_mask*100
+                        # loss_mask=((1.0-mask_pred)**2).mean()
+                        # loss+=loss_mask*100
             
 
                         #loss on depth 
@@ -579,8 +583,11 @@ def run():
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr(), warmup=500 )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            # optimizer=Adahessian( model.parameters(), lr=train_params.lr() ) #DO NOT USE, it requires loss.backward(create_graph=True) to compute second derivatives but that doesnt work because the grid sampler doenst have second deiv
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
-                            optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=torch.optim.SGD( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay(), momentum=0.9, nesterov=True )
                             # optimizer=Lookahead(optimizer, alpha=0.5, k=6)
                             # optimizer=torch.optim.AdamW( 
                             #     [
@@ -607,6 +614,7 @@ def run():
                         cb.before_backward_pass()
                         TIME_START("backward")
                         loss.backward()
+                        # loss.backward(create_graph=True) #IS NEEDED BY ADAHESIAN but it doesnt work becasue grid sampler doesnt have a second derrivative
                         TIME_END("backward")
                         cb.after_backward_pass()
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
@@ -634,7 +642,7 @@ def run():
                             diff=( rgb_gt-rgb_pred)**2*10
                             Gui.show(tensor2mat(diff),"diff_"+phase.name)
                             #mask
-                            rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
+                            # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
                             rgb_pred_mat=tensor2mat(rgb_pred)
                             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
                             # rgb_refined_mat=tensor2mat(rgb_refined)
@@ -645,7 +653,8 @@ def run():
                             Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
                             # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
                             depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                            depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0)
+                            depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
+                            # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
                             depth_vis=depth_vis.repeat(1,3,1,1)
                             depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
                             Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
@@ -692,7 +701,8 @@ def run():
                         points3D[dot_view_normal_mask]=0.0
 
                         #show things
-                        # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
+                        # if is_training:
+                            # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
                         show_3D_points(points3D, "points_3d", color=rgb_pred)
 
 
