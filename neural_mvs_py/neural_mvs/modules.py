@@ -355,11 +355,19 @@ class FeatureAgregatorLinear(torch.nn.Module):
 
     def forward(self, feat_sliced_per_frame, weights):
 
+
         # feat_sliced_per_frame is Nr_frames x N x FEATDIM
         nr_frames= feat_sliced_per_frame.shape[0]
         nr_pixels= feat_sliced_per_frame.shape[1]
         feat_dim= feat_sliced_per_frame.shape[2]
         weights=weights.view(-1,1,1)
+
+        #since we don't want the network to overfit to a perticular  order of the Nr_frames, we randomize their order 
+        randperm=torch.randperm(nr_frames)
+        feat_sliced_per_frame=feat_sliced_per_frame[randperm,:,:]
+        weights=weights[randperm,:,:]
+
+
         img_features_concat_weighted=feat_sliced_per_frame*weights
 
         #get the features to be N x featdim*Nr_frames
