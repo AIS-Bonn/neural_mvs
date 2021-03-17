@@ -30,7 +30,7 @@ from optimizers.over9000.apollo import *
 from optimizers.adahessian import *
 import optimizers.gradient_centralization.ranger2020 as GC_Ranger #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
 import optimizers.gradient_centralization.Adam as GC_Adam
-# from optimizers.gradient_centralization.RAdam import *
+import optimizers.gradient_centralization.RAdam as GC_RAdam
 
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
@@ -214,7 +214,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_randperm"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -581,6 +581,7 @@ def run():
                         if first_time:
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr(), warmup=500 )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=GC_Ranger.Ranger( model.parameters(), lr=train_params.lr() )
@@ -597,7 +598,7 @@ def run():
                             #     ], lr=train_params.lr(), weight_decay=train_params.weight_decay()
 
                             #  )
-                            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=200)
                             optimizer.zero_grad()
 
