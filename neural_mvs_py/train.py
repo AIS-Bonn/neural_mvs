@@ -27,10 +27,10 @@ from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
 from optimizers.over9000.ranger import *
 from optimizers.over9000.apollo import *
-# from optimizers.ranger2020 import * #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
 from optimizers.adahessian import *
-from optimizers.gradient_centralization.Adam import *
-from optimizers.gradient_centralization.RAdam import *
+import optimizers.gradient_centralization.ranger2020 as GC_Ranger #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
+import optimizers.gradient_centralization.Adam as GC_Adam
+# from optimizers.gradient_centralization.RAdam import *
 
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
@@ -583,10 +583,11 @@ def run():
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr(), warmup=500 )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
+                            # optimizer=GC_Ranger.Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Adahessian( model.parameters(), lr=train_params.lr() ) #DO NOT USE, it requires loss.backward(create_graph=True) to compute second derivatives but that doesnt work because the grid sampler doenst have second deiv
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=torch.optim.SGD( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay(), momentum=0.9, nesterov=True )
                             # optimizer=Lookahead(optimizer, alpha=0.5, k=6)
                             # optimizer=torch.optim.AdamW( 
