@@ -214,7 +214,7 @@ def run():
 
     first_time=True
 
-    experiment_name="adc2_gc_0.001"
+    experiment_name="s_"
 
     use_ray_compression=False
 
@@ -671,7 +671,7 @@ def run():
                         rgb_pred_zeros_mask= rgb_pred_zeros<0.05
                         rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                         points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-                        points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
+                        # points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
                         #mask also the points that still have a signed distance 
                         signed_dist=signed_distances_for_marchlvl[ -1 ]
                         signed_dist_mask= signed_dist.abs()>0.03

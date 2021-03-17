@@ -1372,26 +1372,17 @@ class LearnedPE(MetaModule):
             print("LeanerPE forward: x should be a NxM matrix so 2 dimensions but it actually has ", x.shape,  " so the lenght is ", len(x.shape) )
             exit(1)
         
-        x_input=x
+        # x_input=x
 
         # print("self.conv.weight", self.conv.weight)
 
         # print("x ", x.shape)
-        x = self.conv(x, params=get_subdict(params, 'conv'), incremental=True)
+        x_proj = self.conv(x, params=get_subdict(params, 'conv'), incremental=True)
         # print("learned pe is ", self.conv.weight)
         # print("after conv", x.shape)
         # x=90*x
-        x_sin=torch.sin(x)
-        x_cos=torch.cos(x)
-        x=torch.cat([x_sin, x_cos],1)
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
 
-        x=torch.cat([x,x_input],1)
-
-        # print("after sin")
-        # x=x.contiguous()
-          
-
-        return x
 
 #the lerned gaussian pe as in the work of Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains
 #should work better than just a PE on each axis.
