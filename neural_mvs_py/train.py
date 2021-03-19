@@ -118,18 +118,18 @@ class FramePY():
     def __init__(self, frame, create_subsamples=False):
         #get mask 
         self.frame=frame
-        #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
-        if not frame.mask.empty():
-            mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
-            self.frame.mask=frame.mask
-        else:
-            mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
-            self.frame.mask=tensor2mat(mask_tensor)
-        #get rgb with mask applied 
-        rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
-        rgb_tensor=rgb_tensor*mask_tensor
+        # #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
+        # if not frame.mask.empty():
+        #     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+        #     self.frame.mask=frame.mask
+        # else:
+        #     mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
+        #     self.frame.mask=tensor2mat(mask_tensor)
+        # #get rgb with mask applied 
+        # rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
+        # rgb_tensor=rgb_tensor*mask_tensor
 
-        self.frame.rgb_32f=tensor2mat(rgb_tensor)
+        # self.frame.rgb_32f=tensor2mat(rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
         self.K=frame.K
@@ -214,7 +214,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="u_cub_f_bilin"
 
     use_ray_compression=False
 
@@ -436,6 +436,7 @@ def run():
 
 
                         TIME_START("forward")
+                        # print( torch.cuda.memory_summary() )
                         rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 

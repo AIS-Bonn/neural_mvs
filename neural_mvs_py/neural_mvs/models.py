@@ -22,6 +22,9 @@ from torch.nn.modules.module import _addindent
 
 from neural_mvs.nerf_utils import *
 
+#resize funcs 
+import resize_right.resize_right as resize_right
+
 # from pytorch_memlab import LineProfiler
 from pytorch_memlab import LineProfiler, profile, profile_every, set_target_gpu, clear_global_line_profiler
 
@@ -963,6 +966,102 @@ class UNet(torch.nn.Module):
         # print("x before the final conv has mean ", x.mean(), " and std ", x.std())
         # x=torch.cat([x,initial_x],1) #bad idea to concat the rgb here. It introduces way too much high frequency in the output which makes the ray marker get stuck in not knowing wheere to predict the depth so that the slicing slcies the correct features. IF we dont concat, then the unet features are kinda smooth and they act like a wise basin of converges that tell the lstm, to predict a depth close a certain position so that the features it slices will be better
         x=self.last_conv(x)
+        
+        return x
+
+
+#Sine the unet can be quite big, I experiment here with just passing each level of the image pyramid through a one resnet block adn tehn concating the features from each level.
+class FeaturePyramid(torch.nn.Module):
+    def __init__(self, nr_channels_start, nr_channels_output, nr_stages):
+        super(FeaturePyramid, self).__init__()
+
+
+        # self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
+
+        #params
+        self.start_nr_channels=nr_channels_start
+        self.nr_stages=nr_stages
+        self.compression_factor=1.0
+
+
+
+        #DELAYED creation 
+        self.first_conv=None
+        cur_nr_channels=self.start_nr_channels
+
+
+        self.encoder_for_pyramid_lvl=[]
+        for i in range(self.nr_stages):
+            self.encoder_for_pyramid_lvl.append( nn.Sequential(
+                torch.nn.Conv2d( 3, cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda(),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+            ))
+
+        cur_nr_channels=cur_nr_channels*self.nr_stages
+
+        self.last_conv = nn.Sequential(
+            # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+            torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        )
+        self.relu=torch.nn.ReLU(inplace=False)
+        self.concat_coord=ConcatCoord() 
+        self.downscale_layer_per_lvl = None 
+        
+        # resize_right.ResizeLayer(in_shape, scale_factors=None, out_shape=None,
+        #                                  interp_method=interp_methods.cubic, support_sz=None,
+        #                                  antialiasing=True
+
+    # @profile
+    # @profile_every(1)
+    def forward(self, x):
+
+        
+    
+
+        #attempt 2 to make an actual unet
+        initial_x=x
+
+        #make som modules for resizing
+        scale_factor=1.0
+        if(self.downscale_layer_per_lvl==None):
+            self.downscale_layer_per_lvl=[]
+            for i in range(self.nr_stages):
+                if i!=0:
+                    scale_factor= scale_factor*0.5
+                    self.downscale_layer_per_lvl.append( resize_right.ResizeLayer(initial_x.shape, scale_factors=scale_factor, out_shape=None,
+                                         interp_method=resize_right.interp_methods.cubic, support_sz=None,
+                                         antialiasing=True).to("cuda")
+                    )
+
+        initial_per_lvl=[]
+        #make a subsample of the rgbs
+        for i in range(self.nr_stages):
+            if i!=0:
+                x=self.downscale_layer_per_lvl[i-1](initial_x)
+                # x = torch.nn.functional.interpolate(x, size=( int(x.shape[2]/2), int(x.shape[3]/2) ), mode='bilinear')
+            initial_per_lvl.append(x)
+
+
+        
+        features_per_lvl=[] 
+        for i in range(self.nr_stages):
+            #downsample if necessary
+            # if i!=0:
+                # x = torch.nn.functional.interpolate(initial_x, size=( int(x.shape[2]/2), int(x.shape[3]/2) ), mode='bilinear')
+            input_for_lvl= initial_per_lvl[i]
+            x=self.encoder_for_pyramid_lvl[i](input_for_lvl)
+            features_per_lvl.append(x)
+
+        #get all the features, upsample them and pass them through the last conv
+        feat_upsampled_per_lvl=[]
+        for i in range(self.nr_stages):
+            feat= features_per_lvl[i]
+            feat = torch.nn.functional.interpolate(feat, size=(initial_x.shape[2], initial_x.shape[3]), mode='bilinear')
+            feat_upsampled_per_lvl.append(feat)
+
+        x=torch.cat(feat_upsampled_per_lvl,1)
+        x=self.last_conv(x)
+       
         
         return x
             
@@ -5086,7 +5185,8 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherMasked()
@@ -5135,6 +5235,7 @@ class Net3_SRN(torch.nn.Module):
         #pass through unet 
         TIME_START("unet")
         # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
+        # exit(1)
         frames_features=self.unet(rgb_close_batch)
         # exit(1)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )

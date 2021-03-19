@@ -729,7 +729,7 @@ class GNReluConv(MetaModule):
         return x
 
 
-class WNReluConv(MetaModule):
+class WNReluConv(torch.nn.Module):
     def __init__(self, in_channels, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.relu, init=None, do_norm=False, is_first_layer=False ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
@@ -785,9 +785,9 @@ class WNReluConv(MetaModule):
             torch.nn.init.uniform_(self.conv.bias, -bound, bound)
     
 
-    def forward(self, x, params=None):
-        if params is None:
-            params = OrderedDict(self.named_parameters())
+    def forward(self, x):
+        # if params is None:
+            # params = OrderedDict(self.named_parameters())
         # print("params is", params)
 
         # x=self.cc(x)
