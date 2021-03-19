@@ -51,7 +51,7 @@ def lstm_forget_gate_init(lstm_layer):
 
 
 
-def show_3D_points(points_3d_tensor, name, color=None):
+def show_3D_points(points_3d_tensor, color=None):
     mesh=Mesh()
     mesh.V=points_3d_tensor.detach().double().reshape((-1, 3)).cpu().numpy()
 
@@ -64,7 +64,9 @@ def show_3D_points(points_3d_tensor, name, color=None):
         mesh.m_vis.set_color_pervertcolor()
 
     mesh.m_vis.m_show_points=True
-    Scene.show(mesh, name)
+    # Scene.show(mesh, name)
+
+    return mesh
 
 
 class SplatTexture(Function):

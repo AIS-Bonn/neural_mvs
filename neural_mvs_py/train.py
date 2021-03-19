@@ -700,12 +700,14 @@ def run():
                         dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
                         dot_view_normal_mask= dot_view_normal<-0.3 #ideally the dot will be -1
                         dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[dot_view_normal_mask]=0.0
+                        # points3D[dot_view_normal_mask]=0.0
 
                         #show things
                         # if is_training:
                             # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
-                        show_3D_points(points3D, "points_3d", color=rgb_pred)
+                        points3d_mesh=show_3D_points(points3D, color=rgb_pred)
+                        points3d_mesh.NV= normal.detach().cpu().numpy()
+                        Scene.show(points3d_mesh, "points3d_mesh")
 
 
 
