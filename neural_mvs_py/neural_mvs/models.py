@@ -5194,8 +5194,8 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
-        self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherMasked()

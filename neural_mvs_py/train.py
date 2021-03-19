@@ -129,6 +129,10 @@ class FramePY():
         # rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         # rgb_tensor=rgb_tensor*mask_tensor
 
+        if frame.mask.empty():
+            mask_tensor= torch.ones((1,1,frame.height,frame.width))
+            self.frame.mask=tensor2mat(mask_tensor)
+
         # self.frame.rgb_32f=tensor2mat(rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
@@ -214,7 +218,7 @@ def run():
 
     first_time=True
 
-    experiment_name="8_one3x3"
+    experiment_name="s_unet"
 
     use_ray_compression=False
 
@@ -231,10 +235,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    loader_train=DataLoaderNerf(config_path)
-    loader_test=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderColmap(config_path)
+    # loader_train=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
+    loader_train=DataLoaderColmap(config_path)
+    loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -646,8 +650,8 @@ def run():
                             Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
                             # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
                             depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                            depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
-                            # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
+                            # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
+                            depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
                             depth_vis=depth_vis.repeat(1,3,1,1)
                             depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
                             Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
