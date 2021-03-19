@@ -117,18 +117,19 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
 class FramePY():
     def __init__(self, frame, create_subsamples=False):
         #get mask 
+        self.frame=frame
         #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
         if not frame.mask.empty():
             mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
-            self.mask=frame.mask
+            self.frame.mask=frame.mask
         else:
             mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
-            self.mask=tensor2mat(mask_tensor)
+            self.frame.mask=tensor2mat(mask_tensor)
         #get rgb with mask applied 
         rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         rgb_tensor=rgb_tensor*mask_tensor
 
-        self.rgb_32f=tensor2mat(rgb_tensor)
+        self.frame.rgb_32f=tensor2mat(rgb_tensor)
         #get tf and K
         self.tf_cam_world=frame.tf_cam_world
         self.K=frame.K
@@ -143,7 +144,6 @@ class FramePY():
         #misc
         self.frame_idx=frame.frame_idx
         # self.loader=loader
-        self.frame=frame
         #Ray direction in world coordinates
         ray_dirs_mesh=frame.pixels2dirs_mesh()
         # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
@@ -289,61 +289,51 @@ def run():
 
  
     
-    #compute 3D 
-    sfm=SFM.create()
-    selected_frame_idx=np.arange(30) #For colmap
-    # selected_frame_idx=[10]
-    frames_query_selected=[]
-    frames_target_selected=[]
-    frames_all_selected=[]
-    meshes_for_query_frames=[]
-    for i in range(loader_train.nr_samples()):
-    # for i in range(1 ):
-        # frame_0=loader_train.get_frame_at_idx(i+3) 
-        if i in selected_frame_idx:
-            frame_query=loader_train.get_frame_at_idx(i) 
-            # frame_target=loader_train.get_closest_frame(frame_query)
-            frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
-            frames_query_selected.append(frame_query)
-            frames_target_selected.append(frame_target)
-            frames_all_selected.append(frame_query)
-            frames_all_selected.append(frame_target)
-            mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-            meshes_for_query_frames.append(mesh_sparse)
-            # Scene.show(mesh_sparse, "mesh_sparse_"+str(i) )
-
-            # frustum_mesh=frame_query.create_frustum_mesh(0.01)
-            # frustum_mesh.m_vis.m_line_width=1
-            # Scene.show(frustum_mesh, "frustum_"+str(frame_query.frame_idx) )
-
-            # frustum_mesh=frame_target.create_frustum_mesh(0.01)
-            # frustum_mesh.m_vis.m_line_width=1
-            # frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0]
-            # Scene.show(frustum_mesh, "frustum_T_"+str(frame_target.frame_idx) )
+    # #compute 3D 
+    # sfm=SFM.create()
+    # selected_frame_idx=np.arange(30) #For colmap
+    # # selected_frame_idx=[10]
+    # frames_query_selected=[]
+    # frames_target_selected=[]
+    # frames_all_selected=[]
+    # meshes_for_query_frames=[]
+    # for i in range(loader_train.nr_samples()):
+    # # for i in range(1 ):
+    #     # frame_0=loader_train.get_frame_at_idx(i+3) 
+    #     if i in selected_frame_idx:
+    #         frame_query=loader_train.get_frame_at_idx(i) 
+    #         # frame_target=loader_train.get_closest_frame(frame_query)
+    #         frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
+    #         frames_query_selected.append(frame_query)
+    #         frames_target_selected.append(frame_target)
+    #         frames_all_selected.append(frame_query)
+    #         frames_all_selected.append(frame_target)
+    #         mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
+    #         meshes_for_query_frames.append(mesh_sparse)
+         
 
 
-    #fuse all the meshes into one
-    mesh_full=Mesh()
-    for mesh in meshes_for_query_frames:
-        mesh_full.add(mesh)
-    mesh_full.m_vis.m_show_points=True
-    mesh_full.m_vis.set_color_pervertcolor()
-    Scene.show(mesh_full, "mesh_full" )
-    print("scene scale is ", Scene.get_scale())
+    # #fuse all the meshes into one
+    # mesh_full=Mesh()
+    # for mesh in meshes_for_query_frames:
+    #     mesh_full.add(mesh)
+    # mesh_full.m_vis.m_show_points=True
+    # mesh_full.m_vis.set_color_pervertcolor()
+    # Scene.show(mesh_full, "mesh_full" )
+    # print("scene scale is ", Scene.get_scale())
 
 
-    #get for each frame_query the distances of the keypoints
-    frame_idx2keypoint_data={}
-    for i in range(loader_train.nr_samples()):
-        frame_query=loader_train.get_frame_at_idx(i) 
-        frame_target=loader_train.get_closest_frame(frame_query)
-        mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-        keypoints_distances=torch.from_numpy(keypoints_distances_eigen.copy()).to("cuda")
-        keypoints_indices=torch.from_numpy(keypoints_indices_eigen.copy()).to("cuda")
-        keypoints_3d =torch.from_numpy(mesh_sparse.V.copy()).float().to("cuda")
-        keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
-        frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
-        # Scene.show(mesh_sparse, "mesh_full_"+str(frame_query.frame_idx # #get all the frames train in am array, becuase it's faster to have everything already on the gpu
+    # #get for each frame_query the distances of the keypoints
+    # frame_idx2keypoint_data={}
+    # for i in range(loader_train.nr_samples()):
+    #     frame_query=loader_train.get_frame_at_idx(i) 
+    #     frame_target=loader_train.get_closest_frame(frame_query)
+    #     mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
+    #     keypoints_distances=torch.from_numpy(keypoints_distances_eigen.copy()).to("cuda")
+    #     keypoints_indices=torch.from_numpy(keypoints_indices_eigen.copy()).to("cuda")
+    #     keypoints_3d =torch.from_numpy(mesh_sparse.V.copy()).float().to("cuda")
+    #     keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
+    #     frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
 
 
     #get the triangulation of the frames 
@@ -405,12 +395,12 @@ def run():
                             frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
                             weights= torch.from_numpy(weights.copy()).to("cuda").float() 
                         #prepare rgb data and rest of things
-                        rgb_gt=mat2tensor(frame.rgb_32f, False).to("cuda")
-                        mask_tensor=mat2tensor(frame.mask, False).to("cuda")
+                        rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
+                        mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
                         ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                         rgb_close_batch_list=[]
                         for frame_close in frames_close:
-                            rgb_close_frame=mat2tensor(frame_close.rgb_32f, False).to("cuda")
+                            rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
                             rgb_close_batch_list.append(rgb_close_frame)
                         rgb_close_batch=torch.cat(rgb_close_batch_list,0)
                     # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
@@ -446,7 +436,7 @@ def run():
 
 
                         TIME_START("forward")
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, mesh_full, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
 
                         #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
@@ -469,20 +459,20 @@ def run():
                         # loss+=loss_mask*100
             
 
-                        #loss on depth 
-                        if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames
-                            keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
-                            keypoint_distances=keypoint_data[0]
-                            keypoint_instances=keypoint_data[1]
-                            keypoints_3d=keypoint_data[2]
-                            depth_pred=depth_pred.view(-1,1)
-                            depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
-                            mask_keypoints= torch.index_select(mask_tensor.view(-1,1), 0, keypoint_instances.long()) #the parts that are in the background need no loss on the depth
-                            loss_depth= (( keypoint_distances- depth_pred_keypoints)**2)
-                            loss_depth=loss_depth*mask_keypoints
-                            loss_depth= loss_depth.mean()
-                            if phase.iter_nr<1000:
-                                loss+=loss_depth*100
+                        # #loss on depth 
+                        # if is_training: #when testing we don;t compute the loss towards the keypoint depth because we have no keypoints for those frames
+                        #     keypoint_data=frame_idx2keypoint_data[frame.frame_idx]
+                        #     keypoint_distances=keypoint_data[0]
+                        #     keypoint_instances=keypoint_data[1]
+                        #     keypoints_3d=keypoint_data[2]
+                        #     depth_pred=depth_pred.view(-1,1)
+                        #     depth_pred_keypoints= torch.index_select(depth_pred, 0, keypoint_instances.long())
+                        #     mask_keypoints= torch.index_select(mask_tensor.view(-1,1), 0, keypoint_instances.long()) #the parts that are in the background need no loss on the depth
+                        #     loss_depth= (( keypoint_distances- depth_pred_keypoints)**2)
+                        #     loss_depth=loss_depth*mask_keypoints
+                        #     loss_depth= loss_depth.mean()
+                        #     if phase.iter_nr<1000:
+                        #         loss+=loss_depth*100
 
                             #smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
