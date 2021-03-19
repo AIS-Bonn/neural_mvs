@@ -769,10 +769,18 @@ class WNReluConv(torch.nn.Module):
             # self.norm = torch.nn.GroupNorm(in_channels, in_channels).cuda()
             # self.norm = torch.nn.GroupNorm( int(in_channels/4), in_channels).cuda()
         # self.norm = torch.nn.GroupNorm(1, in_channels).cuda()
-        if self.transposed:
-            self.conv= torch.nn.utils.weight_norm( torch.nn.ConvTranspose2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
-        else:
-            self.conv= torch.nn.utils.weight_norm( torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        if do_norm:
+            if self.transposed:
+                self.conv= torch.nn.utils.weight_norm( torch.nn.ConvTranspose2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+            else:
+                self.conv= torch.nn.utils.weight_norm( torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+        else: 
+            if self.transposed:
+                self.conv=torch.nn.ConvTranspose2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()
+            else:
+                self.conv= torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()
+        
+        
         # self.conv=  torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  
         
 

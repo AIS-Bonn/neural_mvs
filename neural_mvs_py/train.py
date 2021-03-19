@@ -214,7 +214,7 @@ def run():
 
     first_time=True
 
-    experiment_name="u_cub_f_bilin"
+    experiment_name="8_one3x3"
 
     use_ray_compression=False
 

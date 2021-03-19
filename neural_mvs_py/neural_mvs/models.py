@@ -993,15 +993,14 @@ class FeaturePyramid(torch.nn.Module):
         self.encoder_for_pyramid_lvl=[]
         for i in range(self.nr_stages):
             self.encoder_for_pyramid_lvl.append( nn.Sequential(
-                torch.nn.Conv2d( 3, cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda(),
+                # torch.nn.Conv2d( 3, cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda(),
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             ))
 
         cur_nr_channels=cur_nr_channels*self.nr_stages
 
         self.last_conv = nn.Sequential(
-            # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
-            torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+            torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
         )
         self.relu=torch.nn.ReLU(inplace=False)
         self.concat_coord=ConcatCoord() 
@@ -1015,31 +1014,36 @@ class FeaturePyramid(torch.nn.Module):
     # @profile_every(1)
     def forward(self, x):
 
+        if self.first_conv==None:
+            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda() 
+
         
-    
 
         #attempt 2 to make an actual unet
         initial_x=x
 
+        x=self.first_conv(x)
+
         #make som modules for resizing
+        dummy_x=x
         scale_factor=1.0
         if(self.downscale_layer_per_lvl==None):
             self.downscale_layer_per_lvl=[]
             for i in range(self.nr_stages):
                 if i!=0:
-                    scale_factor= scale_factor*0.5
-                    self.downscale_layer_per_lvl.append( resize_right.ResizeLayer(initial_x.shape, scale_factors=scale_factor, out_shape=None,
+                    self.downscale_layer_per_lvl.append( resize_right.ResizeLayer(dummy_x.shape, scale_factors=0.5, out_shape=None,
                                          interp_method=resize_right.interp_methods.cubic, support_sz=None,
                                          antialiasing=True).to("cuda")
                     )
+                    dummy_x=self.downscale_layer_per_lvl[-1](dummy_x)
 
-        initial_per_lvl=[]
-        #make a subsample of the rgbs
-        for i in range(self.nr_stages):
-            if i!=0:
-                x=self.downscale_layer_per_lvl[i-1](initial_x)
-                # x = torch.nn.functional.interpolate(x, size=( int(x.shape[2]/2), int(x.shape[3]/2) ), mode='bilinear')
-            initial_per_lvl.append(x)
+        # initial_per_lvl=[]
+        # #make a subsample of the rgbs
+        # for i in range(self.nr_stages):
+        #     if i!=0:
+        #         x=self.downscale_layer_per_lvl[i-1](initial_rgb)
+        #         # x = torch.nn.functional.interpolate(x, size=( int(x.shape[2]/2), int(x.shape[3]/2) ), mode='bilinear')
+        #     initial_per_lvl.append(x)
 
 
         
@@ -1048,8 +1052,11 @@ class FeaturePyramid(torch.nn.Module):
             #downsample if necessary
             # if i!=0:
                 # x = torch.nn.functional.interpolate(initial_x, size=( int(x.shape[2]/2), int(x.shape[3]/2) ), mode='bilinear')
-            input_for_lvl= initial_per_lvl[i]
-            x=self.encoder_for_pyramid_lvl[i](input_for_lvl)
+            # input_for_lvl= initial_per_lvl[i]
+            if i!=0:
+                x=self.downscale_layer_per_lvl[i-1](x)
+            # print("encoding layer i", i, " ", x.shape)
+            x=self.encoder_for_pyramid_lvl[i](x)
             features_per_lvl.append(x)
 
         #get all the features, upsample them and pass them through the last conv
@@ -1060,6 +1067,8 @@ class FeaturePyramid(torch.nn.Module):
             feat_upsampled_per_lvl.append(feat)
 
         x=torch.cat(feat_upsampled_per_lvl,1)
+
+        # x=torch.cat([x,initial_x],1)
         x=self.last_conv(x)
        
         
