@@ -231,6 +231,16 @@ def frames_to_points(frames, discard_frame_with_idx=None ):
 
     return points, points_frame_idxs
 
+#from autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py
+def get_grad_norm(model):
+    total_norm = 0
+    for p in model.parameters():
+        if p.grad is not None:
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+    total_norm = total_norm ** (1. / 2)
+    return total_norm 
+
 #wraps module, and changes them to become a torchscrip version of them during inference
 class TorchScriptTraceWrapper(torch.nn.Module):
     def __init__(self, module):

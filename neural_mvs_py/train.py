@@ -14,6 +14,7 @@ from easypbr  import *
 from dataloaders import *
 from neuralmvs import *
 from neural_mvs.models import *
+from neural_mvs.modules import *
 from neural_mvs.MS_SSIM_L1_loss import *
 
 from callbacks.callback import *
@@ -218,7 +219,8 @@ def run():
 
     first_time=True
 
-    experiment_name="s_unet"
+    # experiment_name="s13_rg_ac_0.003"
+    experiment_name="s_cor"
 
     use_ray_compression=False
 
@@ -235,10 +237,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader_train=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    loader_train=DataLoaderColmap(config_path)
-    loader_test=DataLoaderColmap(config_path)
+    loader_train=DataLoaderNerf(config_path)
+    loader_test=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderColmap(config_path)
+    # loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -359,6 +361,8 @@ def run():
     depth_max=1.0
 
     new_frame=None
+
+    grad_history = []
 
     torch.cuda.empty_cache()
     print( torch.cuda.memory_summary() )
@@ -616,6 +620,15 @@ def run():
                         cb.after_backward_pass()
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
                         torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+
+                        # #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
+                        # clip_percentile=10
+                        # obs_grad_norm = get_grad_norm(model)
+                        # grad_history.append(obs_grad_norm)
+                        # clip_value = np.percentile(grad_history, clip_percentile)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+
                         optimizer.step()
 
                     # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
@@ -650,8 +663,8 @@ def run():
                             Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
                             # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
                             depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                            # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
-                            depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
+                            depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
+                            # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
                             depth_vis=depth_vis.repeat(1,3,1,1)
                             depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
                             Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
