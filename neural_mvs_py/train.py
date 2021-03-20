@@ -619,7 +619,7 @@ def run():
                         TIME_END("backward")
                         cb.after_backward_pass()
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
                         # #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
@@ -628,6 +628,9 @@ def run():
                         # grad_history.append(obs_grad_norm)
                         # clip_value = np.percentile(grad_history, clip_percentile)
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+
+                        # model.summary()
+                        # exit()
 
                         optimizer.step()
 

@@ -5203,7 +5203,7 @@ class Net3_SRN(torch.nn.Module):
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.embedd_sd=BlockNerf(activ=None, init="sigmoid", in_channels=1, out_channels=32,  bias=True ).cuda()    
         self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=True)
-        self.rgb_refiner=UNet( nr_channels_start=64, nr_channels_output=3, nr_stages=3)
+        # self.rgb_refiner=UNet( nr_channels_start=64, nr_channels_output=3, nr_stages=3)
         # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
         # with torch.set_grad_enabled(False):
             # self.s_weight.fill_(0.5)
@@ -5415,7 +5415,61 @@ class Net3_SRN(torch.nn.Module):
         #     Gui.show(pca_mat, "pca_mat")
 
         return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std
-        
+
+
+    #https://github.com/pytorch/pytorch/issues/2001
+    def summary(self,file=sys.stderr):
+        def repr(model):
+            # We treat the extra repr like the sub-module, one item per line
+            extra_lines = []
+            extra_repr = model.extra_repr()
+            # empty string will be split into list ['']
+            if extra_repr:
+                extra_lines = extra_repr.split('\n')
+            child_lines = []
+            total_params = 0
+            for key, module in model._modules.items():
+                mod_str, num_params = repr(module)
+                mod_str = _addindent(mod_str, 2)
+                child_lines.append('(' + key + '): ' + mod_str)
+                total_params += num_params
+            lines = extra_lines + child_lines
+
+            for name, p in model._parameters.items():
+                if p is not None:
+                    total_params += reduce(lambda x, y: x * y, p.shape)
+                    # if(p.grad==None):
+                    #     print("p has no grad", name)
+                    # else:
+                    #     print("p has gradnorm ", name ,p.grad.norm() )
+
+            main_str = model._get_name() + '('
+            if lines:
+                # simple one-liner info, which most builtin Modules will use
+                if len(extra_lines) == 1 and not child_lines:
+                    main_str += extra_lines[0]
+                else:
+                    main_str += '\n  ' + '\n  '.join(lines) + '\n'
+
+            main_str += ')'
+            if file is sys.stderr:
+                main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
+                for name, p in model._parameters.items():
+                    if hasattr(p, 'grad'):
+                        if(p.grad==None):
+                            # print("p has no grad", name)
+                            main_str+="p no grad"
+                        else:
+                            # print("p has gradnorm ", name ,p.grad.norm() )
+                            main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
+            else:
+                main_str += ', {:,} params'.format(total_params)
+            return main_str, total_params
+
+        string, count = repr(self)
+        if file is not None:
+            print(string, file=file)
+        return count
 
 
 
@@ -5443,56 +5497,3 @@ class PCA(Function):
 
         return C
 
-#https://github.com/pytorch/pytorch/issues/2001
-def summary(self,file=sys.stderr):
-    def repr(model):
-        # We treat the extra repr like the sub-module, one item per line
-        extra_lines = []
-        extra_repr = model.extra_repr()
-        # empty string will be split into list ['']
-        if extra_repr:
-            extra_lines = extra_repr.split('\n')
-        child_lines = []
-        total_params = 0
-        for key, module in model._modules.items():
-            mod_str, num_params = repr(module)
-            mod_str = _addindent(mod_str, 2)
-            child_lines.append('(' + key + '): ' + mod_str)
-            total_params += num_params
-        lines = extra_lines + child_lines
-
-        for name, p in model._parameters.items():
-            if p is not None:
-                total_params += reduce(lambda x, y: x * y, p.shape)
-                # if(p.grad==None):
-                #     print("p has no grad", name)
-                # else:
-                #     print("p has gradnorm ", name ,p.grad.norm() )
-
-        main_str = model._get_name() + '('
-        if lines:
-            # simple one-liner info, which most builtin Modules will use
-            if len(extra_lines) == 1 and not child_lines:
-                main_str += extra_lines[0]
-            else:
-                main_str += '\n  ' + '\n  '.join(lines) + '\n'
-
-        main_str += ')'
-        if file is sys.stderr:
-            main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
-            for name, p in model._parameters.items():
-                if hasattr(p, 'grad'):
-                    if(p.grad==None):
-                        # print("p has no grad", name)
-                        main_str+="p no grad"
-                    else:
-                        # print("p has gradnorm ", name ,p.grad.norm() )
-                        main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
-        else:
-            main_str += ', {:,} params'.format(total_params)
-        return main_str, total_params
-
-    string, count = repr(self)
-    if file is not None:
-        print(string, file=file)
-    return count
