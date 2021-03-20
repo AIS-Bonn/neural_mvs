@@ -3520,7 +3520,7 @@ class RGB_predictor_simple(MetaModule):
         # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
 
 
-        
+        # print("rgb is ", rgb.mean(), rgb.min(), rgb.max() ) 
       
 
 

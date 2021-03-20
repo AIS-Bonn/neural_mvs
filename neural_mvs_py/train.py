@@ -220,7 +220,7 @@ def run():
     first_time=True
 
     # experiment_name="s13_rg_ac_0.003"
-    experiment_name="s_cor"
+    experiment_name="s1ad_0.001"
 
     use_ray_compression=False
 
@@ -455,9 +455,11 @@ def run():
                         #loss
                         loss=0
                         rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
+                        rgb_loss_l1=(( rgb_gt-rgb_pred).abs()).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        loss+=rgb_loss_ssim_l1
-                        # loss+=rgb_loss
+                        # loss+=rgb_loss_ssim_l1
+                        loss+=rgb_loss
+                        # loss+=rgb_loss_l1
                         #loss on the rgb_refiend
                         # rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
                         # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
@@ -622,12 +624,14 @@ def run():
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
-                        # #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
-                        # clip_percentile=10
-                        # obs_grad_norm = get_grad_norm(model)
-                        # grad_history.append(obs_grad_norm)
-                        # clip_value = np.percentile(grad_history, clip_percentile)
-                        # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+                        #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
+                        clip_percentile=10
+                        obs_grad_norm = get_grad_norm(model)
+                        print("grad norm", obs_grad_norm)
+                        grad_history.append(obs_grad_norm)
+                        clip_value = np.percentile(grad_history, clip_percentile)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+                        print("clip_value", clip_value)
 
                         # model.summary()
                         # exit()
