@@ -241,8 +241,8 @@ def run():
     # loader_test=DataLoaderNerf(config_path)
     loader_train=DataLoaderColmap(config_path)
     loader_test=DataLoaderColmap(config_path)
-    loader_train.set_mode_train()
-    loader_test.set_mode_test()
+    loader_train.set_mode_all()
+    loader_test.set_mode_all()
     loader_train.start()
     loader_test.start()
 
@@ -308,6 +308,8 @@ def run():
     torch.cuda.empty_cache()
     print( torch.cuda.memory_summary() )
 
+    neural_mvs_gui=NeuralMVSGUI.create(view)
+
 
     frame=FramePY(frames_test[0].frame)
     tf_world_cam=frame.tf_cam_world.inverse()
@@ -330,22 +332,7 @@ def run():
     while True:
         with torch.set_grad_enabled(False):
 
-            # tf_cam_world=frame.tf_cam_world.clone()
-            # pos=view.m_camera.position()
-            # print("pos", pos)
-            # quat=view.m_camera.view_matrix_affine().quat()
-            # tf_cam_world=tf_cam_world.set_translation(pos)
-            # print("set pos is ", tf_cam_world.translation() )
-            # tf_cam_world=tf_cam_world.set_quat(quat)
-            # print("set quat is ", tf_cam_world.quat() )
-            # # print(tf_cam_world.matrix())
-            # frame.tf_cam_world=tf_cam_world.clone()
-            # frame.frame.tf_cam_world=tf_cam_world.clone()
-            # # print("mat",frame.tf_cam_world.matrix())
-            # frame=FramePY(frame.frame)
-            # exit(1)
-
-
+        
             #get the model matrix of the view and set it to the frame
             cam_tf_world_cam= view.m_camera.model_matrix_affine()
             frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
@@ -380,8 +367,14 @@ def run():
                 # now that all the parameters are created we can fill them with a model from a file
                 model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/fine_leaves_home_plant/model_e_900.pt" ))
 
-            rgb_pred_mat=tensor2mat(rgb_pred)
-            Gui.show(rgb_pred_mat,"rgb_pred")
+            if neural_mvs_gui.m_show_rgb:
+                pred_mat=tensor2mat(rgb_pred)
+            if neural_mvs_gui.m_show_depth:
+                depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+                depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
+                depth_vis=depth_vis.repeat(1,3,1,1)
+                pred_mat=tensor2mat(depth_vis)
+            Gui.show(pred_mat,"pred")
 
 
 

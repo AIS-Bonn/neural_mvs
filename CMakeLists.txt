@@ -144,6 +144,7 @@ install(FILES "${PROJECT_SOURCE_DIR}/include/neural_mvs/jitify_helper/jitify_opt
 
 add_library( neuralmvs_cu SHARED
                                         ${CMAKE_SOURCE_DIR}/src/NeuralMVS.cxx
+                                        ${CMAKE_SOURCE_DIR}/src/NeuralMVSGUI.cxx
                                         ${CMAKE_SOURCE_DIR}/src/SFM.cxx
                                         # ${CMAKE_SOURCE_DIR}/include/neural_mvs/kernels/NeuralMVSGPU.cuh
                                         ${CMAKE_SOURCE_DIR}/src/ModelParams.cxx
@@ -213,5 +214,6 @@ target_link_libraries(neuralmvs PRIVATE neuralmvs_cu )
 #definitions for cmake variables that are necesarry during runtime
 target_compile_definitions(neuralmvs_cu PRIVATE PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}") #point to the cmakelist folder of the easy_pbr
 target_compile_definitions(neuralmvs_cu PRIVATE CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}") # points to the CMakeList folder of whichever project included easy_pbr
+target_compile_definitions(neuralmvs_cu PUBLIC -DDEFAULT_CONFIG="${EASYPBR_SRC_PATH}/config/default_params.cfg" )
 
 

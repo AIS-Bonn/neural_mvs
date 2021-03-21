@@ -7,9 +7,11 @@
 //my stuff 
 // #include "data_loaders/DataLoaderShapeNetPartSeg.h"
 #include "easy_pbr/Mesh.h"
+#include "easy_pbr/Viewer.h"
 // #include "easy_pbr/LabelMngr.h"
 // #include "lattice_net/HashTable.cuh"
 #include "neural_mvs/NeuralMVS.cuh"
+#include "neural_mvs/NeuralMVSGUI.h"
 #include "neural_mvs/SFM.h"
 #include "neural_mvs/TrainParams.h"
 #include "neural_mvs/ModelParams.h"
@@ -180,6 +182,15 @@ PYBIND11_MODULE(neuralmvs, m) {
     // .def_static("compute_frame_weights", &NeuralMVS::compute_frame_weights)
     // .def_static("compute_triangulation", &NeuralMVS::compute_triangulation)
     ;
+
+    //NeuralMVSGUI
+    py::class_<NeuralMVSGUI, std::shared_ptr<NeuralMVSGUI>   > (m, "NeuralMVSGUI")
+    .def_static("create",  &NeuralMVSGUI::create<const std::shared_ptr<easy_pbr::Viewer>& > ) //for templated methods like this one we need to explicitly instantiate one of the arguments
+    .def_readwrite("m_show_rgb", &NeuralMVSGUI::m_show_rgb )
+    .def_readwrite("m_show_depth", &NeuralMVSGUI::m_show_depth )
+    .def_readwrite("m_show_normal", &NeuralMVSGUI::m_show_normal )
+    ;
+
 
     //TinyLoader
     py::class_<TinyLoader, std::shared_ptr<TinyLoader>   > (m, "TinyLoader")
