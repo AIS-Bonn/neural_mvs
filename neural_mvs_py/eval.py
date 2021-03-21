@@ -308,11 +308,49 @@ def run():
     torch.cuda.empty_cache()
     print( torch.cuda.memory_summary() )
 
+
+    frame=FramePY(frames_test[0].frame)
+    tf_world_cam=frame.tf_cam_world.inverse()
+    print("initial pos", tf_world_cam.translation() )
+    print("initial quat", tf_world_cam.quat() )
+
+    #set the camera to be in the same position as the first frame
+    # view.m_camera.set_position(  tf_world_cam.translation() )
+    # view.m_camera.set_quat(  tf_world_cam.quat() )
+    view.m_camera.set_model_matrix(tf_world_cam)
+    view.m_camera.set_dist_to_lookat(0.3)
+    # view.m_camera.set_lookat( frame.frame.look_dir()*0.5  )
+
+    #check that the quat is correct 
+    pos= view.m_camera.model_matrix_affine().translation()
+    print("pos of the cam is ", pos)
+    quat=view.m_camera.model_matrix_affine().quat()
+    print("quat of the cam is ", quat)
+
     while True:
         with torch.set_grad_enabled(False):
 
-            
-            frame=frames_train[0]
+            # tf_cam_world=frame.tf_cam_world.clone()
+            # pos=view.m_camera.position()
+            # print("pos", pos)
+            # quat=view.m_camera.view_matrix_affine().quat()
+            # tf_cam_world=tf_cam_world.set_translation(pos)
+            # print("set pos is ", tf_cam_world.translation() )
+            # tf_cam_world=tf_cam_world.set_quat(quat)
+            # print("set quat is ", tf_cam_world.quat() )
+            # # print(tf_cam_world.matrix())
+            # frame.tf_cam_world=tf_cam_world.clone()
+            # frame.frame.tf_cam_world=tf_cam_world.clone()
+            # # print("mat",frame.tf_cam_world.matrix())
+            # frame=FramePY(frame.frame)
+            # exit(1)
+
+
+            #get the model matrix of the view and set it to the frame
+            cam_tf_world_cam= view.m_camera.model_matrix_affine()
+            frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
+            frame=FramePY(frame.frame)
+
 
             discard_same_idx=False
             do_close_computation_with_delaunay=True
