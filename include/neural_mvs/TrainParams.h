@@ -24,6 +24,7 @@ public:
     int max_training_epochs();
     bool save_checkpoint();
     std::string checkpoint_path();
+    int save_every_x_epoch();
 
 
 private:
@@ -41,5 +42,6 @@ private:
     int m_max_training_epochs;
     bool m_save_checkpoint;
     std::string m_checkpoint_path;
+    int m_save_every_x_epoch;
 
 };

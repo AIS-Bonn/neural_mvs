@@ -36,6 +36,7 @@ void TrainParams::init_params(const std::string config_file){
     m_max_training_epochs = train_config["max_training_epochs"];
     m_save_checkpoint=train_config["save_checkpoint"];
     m_checkpoint_path=(std::string)train_config["checkpoint_path"];
+    m_save_every_x_epoch=train_config["save_every_x_epoch"];
 
     if(m_save_checkpoint && !fs::is_directory(m_checkpoint_path)) {
         LOG(FATAL) << "The directory for saving checkpoint was not created under " << m_checkpoint_path << ". Maybe you need to create it or maybe you are on the wrong machine.";
@@ -75,6 +76,9 @@ bool TrainParams::save_checkpoint(){
 }
 std::string TrainParams::checkpoint_path(){
     return m_checkpoint_path;
+}
+int TrainParams::save_every_x_epoch(){
+    return m_save_every_x_epoch;
 }
 
 

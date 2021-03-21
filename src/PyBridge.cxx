@@ -135,6 +135,7 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def("max_training_epochs",  &TrainParams::max_training_epochs )
     .def("save_checkpoint",  &TrainParams::save_checkpoint )
     .def("checkpoint_path",  &TrainParams::checkpoint_path )
+    .def("save_every_x_epoch",  &TrainParams::save_every_x_epoch )
     ;
 
     //EvalParams

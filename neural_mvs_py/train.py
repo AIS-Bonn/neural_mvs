@@ -237,10 +237,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    loader_train=DataLoaderNerf(config_path)
-    loader_test=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderColmap(config_path)
+    # loader_train=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
+    loader_train=DataLoaderColmap(config_path)
+    loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -627,11 +627,11 @@ def run():
                         #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
                         clip_percentile=10
                         obs_grad_norm = get_grad_norm(model)
-                        print("grad norm", obs_grad_norm)
+                        # print("grad norm", obs_grad_norm)
                         grad_history.append(obs_grad_norm)
                         clip_value = np.percentile(grad_history, clip_percentile)
                         torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
-                        print("clip_value", clip_value)
+                        # print("clip_value", clip_value)
 
                         # model.summary()
                         # exit()
@@ -713,9 +713,9 @@ def run():
                         normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                         normal=normal.view(-1,3)
                         dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
-                        dot_view_normal_mask= dot_view_normal<-0.3 #ideally the dot will be -1
+                        dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
                         dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                        # points3D[dot_view_normal_mask]=0.0
+                        points3D[dot_view_normal_mask]=0.0
 
                         #show things
                         # if is_training:
@@ -942,7 +942,8 @@ def run():
 
             # finished all the images 
             # pbar.close()
-            if phase.loader.is_finished(): #we reduce the learning rate when the test iou plateus
+            # if phase.loader.is_finished(): #we reduce the learning rate when the test iou plateus
+            if True: #if we reached this point we already read all the images so there is no need to check if the loader is finished 
                 # if is_training and phase.iter_nr%10==0: #we reduce the learning rate when the test iou plateus
                 #     optimizer.step() # DO it only once after getting gradients for all images
                 #     optimizer.zero_grad()
@@ -950,7 +951,8 @@ def run():
                 # if is_training:
                     # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                         # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
-                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path() ) 
+                print("epoch finished", phase.epoch_nr, " phase rag is", phase.grad)
+                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
                 # loader_test.reset()
