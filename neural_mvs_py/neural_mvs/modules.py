@@ -363,7 +363,7 @@ class FeatureAgregatorLinear(torch.nn.Module):
             BlockNerf(activ=None, in_channels=32, out_channels=32,  bias=True ).cuda()
             )
 
-    def forward(self, feat_sliced_per_frame, weights):
+    def forward(self, feat_sliced_per_frame, weights, novel=False):
 
 
         # feat_sliced_per_frame is Nr_frames x N x FEATDIM
@@ -373,9 +373,10 @@ class FeatureAgregatorLinear(torch.nn.Module):
         weights=weights.view(-1,1,1)
 
         #since we don't want the network to overfit to a perticular  order of the Nr_frames, we randomize their order 
-        randperm=torch.randperm(nr_frames)
-        feat_sliced_per_frame=feat_sliced_per_frame[randperm,:,:]
-        weights=weights[randperm,:,:]
+        if not novel:
+            randperm=torch.randperm(nr_frames)
+            feat_sliced_per_frame=feat_sliced_per_frame[randperm,:,:]
+            weights=weights[randperm,:,:]
 
 
         img_features_concat_weighted=feat_sliced_per_frame*weights

@@ -3977,7 +3977,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             
             #attempt 2 
             # TIME_START("raymarch_aggr")
-            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights)
+            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel)
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
             

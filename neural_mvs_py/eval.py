@@ -51,8 +51,8 @@ config_file="train.cfg"
 
 torch.manual_seed(0)
 random.seed(0)
-# torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = True
 # torch.autograd.set_detect_anomaly(True)
 torch.set_printoptions(edgeitems=3)
 
@@ -360,6 +360,7 @@ def run():
 
 
             rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, novel=True)
+            # print("depth_pred", depth_pred.mean())
 
             if first_time:
                 first_time=False
@@ -367,6 +368,10 @@ def run():
                 # now that all the parameters are created we can fill them with a model from a file
                 model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/fine_leaves_home_plant/model_e_900.pt" ))
 
+
+            camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+            camera_center=camera_center.view(1,3)
+            points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
             if neural_mvs_gui.m_show_rgb:
                 pred_mat=tensor2mat(rgb_pred)
             if neural_mvs_gui.m_show_depth:
@@ -374,6 +379,12 @@ def run():
                 depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
                 depth_vis=depth_vis.repeat(1,3,1,1)
                 pred_mat=tensor2mat(depth_vis)
+            if neural_mvs_gui.m_show_normal:
+                points3D_img=points3D.view(1, frame.height, frame.width, 3)
+                points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                normal_img=compute_normal(points3D_img)
+                normal_vis=(normal_img+1.0)*0.5
+                pred_mat=tensor2mat(normal_vis)
             Gui.show(pred_mat,"pred")
 
 
