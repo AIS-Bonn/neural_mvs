@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn.functional as F
+import torch.autograd.profiler as profiler
 
 import sys
 import os
@@ -36,6 +37,7 @@ import optimizers.gradient_centralization.RAdam as GC_RAdam
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
 import neural_mvs.warmup_scheduler as warmup  #https://github.com/Tony-Y/pytorch_warmup
+from torchsummary.torchsummary import *
 
 #debug 
 from easypbr import Gui
@@ -237,10 +239,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader_train=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    loader_train=DataLoaderColmap(config_path)
-    loader_test=DataLoaderColmap(config_path)
+    loader_train=DataLoaderNerf(config_path)
+    loader_test=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderColmap(config_path)
+    # loader_test=DataLoaderColmap(config_path)
     loader_train.set_mode_train()
     loader_test.set_mode_test()
     loader_train.start()
@@ -445,8 +447,15 @@ def run():
 
                         TIME_START("forward")
                         # print( torch.cuda.memory_summary() )
+                        # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
                         rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
                         TIME_END("forward")
+                        # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
+
+                        # print("rgb_close_batch",rgb_close_batch.shape)
+                        # summary(model, [ (1, 1), (100*100,3), (3, 3, 100, 100), (1,1), (1,1),(1,1), weights.shape, (1,1)   ]  )
+                        # model.summary()
+                        # exit(1)
 
                         #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
                         #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend

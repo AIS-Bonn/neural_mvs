@@ -842,7 +842,7 @@ class SpatialEncoderDense2D(torch.nn.Module):
 
 
 class UNet(torch.nn.Module):
-    def __init__(self, nr_channels_start, nr_channels_output, nr_stages):
+    def __init__(self, nr_channels_start, nr_channels_output, nr_stages, max_nr_channels=999990):
         super(UNet, self).__init__()
 
 
@@ -871,9 +871,8 @@ class UNet(torch.nn.Module):
             ))
             self.nr_layers_ending_stage.append(cur_nr_channels)
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
-            if after_coarsening_nr_channels> 128:
-                after_coarsening_nr_channels=128
-
+            if after_coarsening_nr_channels> max_nr_channels:
+                after_coarsening_nr_channels=max_nr_channels
             self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
@@ -955,7 +954,9 @@ class UNet(torch.nn.Module):
             # print("after finefy ", i, " x is", x.shape)
             vertical_feats= features_ending_stage.pop()
             x=self.squeeze_list[i](x) #upsample resolution and reduced the channels
-            x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
+            if x.shape[2]!=vertical_feats.shape[2] and x.shape[3]!=vertical_feats.shape[3]:
+                # print("x has shape", x.shape, "vertical feat have shape ", vertical_feats.shape)
+                x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
             x=torch.cat([x,vertical_feats],1)
             # print("x shape before seuqqeing is ", i, "  ", x.shape)
             # print("x shape after seuqqeing is ", i, "  ", x.shape)
@@ -3900,6 +3901,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #params 
         self.nr_iters=10
 
+        #starting depth per pixels 
+        self.depth_per_pixel_train=None
+        self.depth_per_pixel_test=None
+
       
     def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, novel=False):
 
@@ -3909,6 +3914,19 @@ class DifferentiableRayMarcher(torch.nn.Module):
             depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
         else:
             depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+
+        # #create the tensor if it's necesary #BUG FOR SOME REASON this makes the loss converge slower or not at all. so something is bugged here 
+        # if self.depth_per_pixel_train is None and not novel:
+        #     self.depth_per_pixel_train = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+        # if self.depth_per_pixel_test is None and novel:
+        #     self.depth_per_pixel_test= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+        #     self.depth_per_pixel_test.fill_(depth_min/2.0)   #randomize the deptha  bith
+        # #set the depth per pixel to whichever tensor we need 
+        # if novel:
+        #     depth_per_pixel=self.depth_per_pixel_test.detach()
+        # else:
+        #     depth_per_pixel=self.depth_per_pixel_train.detach().normal_(mean=depth_min, std=2e-2)
+
 
         # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
 
@@ -5194,7 +5212,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
