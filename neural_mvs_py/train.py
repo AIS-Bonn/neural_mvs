@@ -28,6 +28,7 @@ from callbacks.phase import *
 from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
 from optimizers.over9000.ranger import *
+from optimizers.over9000.rangerlars import *
 from optimizers.over9000.apollo import *
 from optimizers.over9000.lamb import *
 from optimizers.adahessian import *
@@ -222,7 +223,6 @@ def run():
 
     first_time=True
 
-    # experiment_name="s13_rg_ac_0.003"
     experiment_name="s_"
 
     use_ray_compression=False
@@ -262,7 +262,7 @@ def run():
     scheduler=None
     concat_coord=ConcatCoord() 
     smooth = InverseDepthSmoothnessLoss()
-    ssim_l1_criterion = MS_SSIM_L1_LOSS()
+    ssim_l1_criterion = MS_SSIM_L1_LOSS(compensation=1.0)
 
     show_every=1
 
@@ -593,7 +593,8 @@ def run():
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            # optimizer=Apollo( model.parameters(), lr=train_params.lr(), warmup=500 )
+                            # optimizer=Apollo( model.parameters(), lr=train_params.lr(), init_lr=0.0001, warmup=500, rebound="constant" )
+                            # optimizer=RangerLars( model.parameters(), lr=train_params.lr() )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=GC_Ranger.Ranger( model.parameters(), lr=train_params.lr() )
                             # optimizer=Adahessian( model.parameters(), lr=train_params.lr() ) #DO NOT USE, it requires loss.backward(create_graph=True) to compute second derivatives but that doesnt work because the grid sampler doenst have second deiv
