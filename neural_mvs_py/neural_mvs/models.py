@@ -3907,7 +3907,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.depth_per_pixel_test=None
 
       
-    def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, novel=False):
+    def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel=False):
 
 
         if novel:
@@ -3915,6 +3915,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
             depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
         else:
             depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+
+        #Select only certain pixels fro the image
+        if pixels_indices is not None:
+            depth_per_pixel = torch.index_select(depth_per_pixel, 0, pixels_indices)
 
         # #create the tensor if it's necesary #BUG FOR SOME REASON this makes the loss converge slower or not at all. so something is bugged here 
         # if self.depth_per_pixel_train is None and not novel:
@@ -3931,7 +3935,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
 
-
+        nr_nearby_frames=len(frames_close)
         R_list=[]
         t_list=[]
         K_list=[]
@@ -3986,11 +3990,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             # slice with grid_sample
             # TIME_START("raymarch_slice")
-            uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
+            uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
-            sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
+            sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it nr_frames x nr_pixels x FEATDIM
             # TIME_END("raymarch_slice")
            
             
@@ -5246,7 +5250,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, novel=False):
+    def forward(self, frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5275,8 +5279,12 @@ class Net3_SRN(torch.nn.Module):
             frames_features_list.append(frames_features[i:i+1, :,:,:])
         TIME_END("unet_everything")
 
+        #select only the ray dirst for the selected pixels 
+        if pixels_indices is not None:
+            ray_dirs= torch.index_select(ray_dirs, 0, pixels_indices)
+
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, ray_dirs, depth_min, frames_close, frames_features, weights, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel)
         TIME_END("ray_march")
 
         # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
@@ -5334,7 +5342,7 @@ class Net3_SRN(torch.nn.Module):
         #     feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
         # feat_sliced_per_frame=torch.cat(feat_sliced_per_frame,0)
 
-
+        nr_nearby_frames=len(frames_close)
         R_list=[]
         t_list=[]
         K_list=[]
@@ -5354,7 +5362,7 @@ class Net3_SRN(torch.nn.Module):
         # uv_tensor=compute_uv_batched_original(frames_close, point3d )
         uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
-        uv_tensor=uv_tensor.view(-1, frame.height, frame.width, 2)
+        uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
         sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
@@ -5401,22 +5409,30 @@ class Net3_SRN(torch.nn.Module):
         radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
         TIME_END("rgb_predict")
 
-        rgb_pred=radiance_field_flattened[:, 0:3]
-        rgb_pred=rgb_pred.view(frame.height, frame.width,3)
-        rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+        if pixels_indices==None:
+            rgb_pred=radiance_field_flattened[:, 0:3]
+            rgb_pred=rgb_pred.view(frame.height, frame.width,3)
+            rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
 
-        mask_pred=mask_pred.view(frame.height, frame.width,1)
-        mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
+            mask_pred=mask_pred.view(frame.height, frame.width,1)
+            mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
 
-        # #refine the prediction with some Unet so we have also some spatial context
-        # last_features=last_features.view(frame.height, frame.width,-1)
-        # last_features=last_features.permute(2,0,1).unsqueeze(0)
-        # rgb_refined=self.rgb_refiner(last_features)
-        # # rgb_refined=self.rgb_refiner(rgb_pred)
-        rgb_refined=None
+            # #refine the prediction with some Unet so we have also some spatial context
+            # last_features=last_features.view(frame.height, frame.width,-1)
+            # last_features=last_features.permute(2,0,1).unsqueeze(0)
+            # rgb_refined=self.rgb_refiner(last_features)
+            # # rgb_refined=self.rgb_refiner(rgb_pred)
+            rgb_refined=None
 
-        depth=depth.view(frame.height, frame.width,1)
-        depth=depth.permute(2,0,1).unsqueeze(0)
+            depth=depth.view(frame.height, frame.width,1)
+            depth=depth.permute(2,0,1).unsqueeze(0)
+        else:
+            rgb_pred=radiance_field_flattened[:, 0:3]
+            rgb_pred=rgb_pred.permute(1,0) #3 x nr_pixels
+            mask_pred=None
+            rgb_refined=None
+            depth=None
+
 
 
         # # #DEBUG 

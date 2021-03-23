@@ -418,6 +418,19 @@ def run():
 
                     # print( torch.cuda.memory_summary() )
 
+                    #select certian pixels 
+                    pixels_indices=None
+                    if is_training:
+                        chunck_size= min(10*10, frame.height*frame.width)
+                        pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+                        pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
+                        pixels_indices=pixels_indices.long()
+
+                        #select those pixels from the gt
+                        rgb_gt_lin=rgb_gt.view(3,-1)
+                        rgb_gt_selected=torch.index_select(rgb_gt_lin, 1, pixels_indices)
+                    else:
+                        rgb_gt_selected=rgb_gt
 
 
 
@@ -449,7 +462,7 @@ def run():
                         TIME_START("forward")
                         # print( torch.cuda.memory_summary() )
                         # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
                         TIME_END("forward")
                         # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
@@ -464,9 +477,9 @@ def run():
                      
                         #loss
                         loss=0
-                        rgb_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        rgb_loss_l1=(( rgb_gt-rgb_pred).abs()).mean()
-                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
+                        # rgb_loss_l1=(( rgb_gt-rgb_pred).abs()).mean()
+                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
                         # loss+=rgb_loss_ssim_l1
                         loss+=rgb_loss
                         # loss+=rgb_loss_l1
@@ -656,84 +669,85 @@ def run():
                     TIME_END("all")
 
 
-                    with torch.set_grad_enabled(False):
-                        #VIEW pred
-                        #make masks 
-                        mask_pred_thresh=mask_pred<0.9
-                        rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                        rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                        rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                        rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
-                        rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                        if phase.iter_nr%show_every==0:
-                            #view diff 
-                            diff=( rgb_gt-rgb_pred)**2*10
-                            Gui.show(tensor2mat(diff),"diff_"+phase.name)
-                            #mask
-                            # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
-                            rgb_pred_mat=tensor2mat(rgb_pred)
-                            Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                            # rgb_refined_mat=tensor2mat(rgb_refined)
-                            # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
-                            #view gt
-                            Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
-                            Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
-                            Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
-                            # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
-                            depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                            depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
-                            # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
-                            depth_vis=depth_vis.repeat(1,3,1,1)
-                            depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
-                            Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
+                    if not is_training:
+                        with torch.set_grad_enabled(False):
+                            #VIEW pred
+                            #make masks 
+                            mask_pred_thresh=mask_pred<0.9
+                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                            rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
+                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                            if phase.iter_nr%show_every==0:
+                                #view diff 
+                                diff=( rgb_gt-rgb_pred)**2*10
+                                Gui.show(tensor2mat(diff),"diff_"+phase.name)
+                                #mask
+                                # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
+                                rgb_pred_mat=tensor2mat(rgb_pred)
+                                Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
+                                # rgb_refined_mat=tensor2mat(rgb_refined)
+                                # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                                #view gt
+                                Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
+                                Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
+                                Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
+                                # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
+                                depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+                                depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
+                                # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
+                                depth_vis=depth_vis.repeat(1,3,1,1)
+                                depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
+                                Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
 
-                        
-                        #VIEW 3d points   at the end of the ray march
-                        camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
-                        camera_center=camera_center.view(1,3)
-                        points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
-                        #get the point that have a color of black (correspond to background) and put them to zero
-                        rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                        rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                        rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                        rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-                        # points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
-                        #mask also the points that still have a signed distance 
-                        signed_dist=signed_distances_for_marchlvl[ -1 ]
-                        signed_dist_mask= signed_dist.abs()>0.03
-                        signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[signed_dist_mask]=0.0
+                            
+                            #VIEW 3d points   at the end of the ray march
+                            camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+                            camera_center=camera_center.view(1,3)
+                            points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                            #get the point that have a color of black (correspond to background) and put them to zero
+                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                            # points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
+                            #mask also the points that still have a signed distance 
+                            signed_dist=signed_distances_for_marchlvl[ -1 ]
+                            signed_dist_mask= signed_dist.abs()>0.03
+                            signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
+                            points3D[signed_dist_mask]=0.0
 
-                        #view normal
-                        points3D_img=points3D.view(1, frame.height, frame.width, 3)
-                        points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        normal_img=compute_normal(points3D_img)
-                        normal_vis=(normal_img+1.0)*0.5
-                        # normal_vis=normal_img
-                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
-                        signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
-                        rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                        normal_vis[rgb_pred_zeros_mask_img]=0.0
-                        # normal_vis[signed_dist_mask_img]=0.0
-                        normal_mat=tensor2mat(normal_vis)
-                        Gui.show(normal_mat, "normal")
+                            #view normal
+                            points3D_img=points3D.view(1, frame.height, frame.width, 3)
+                            points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                            normal_img=compute_normal(points3D_img)
+                            normal_vis=(normal_img+1.0)*0.5
+                            # normal_vis=normal_img
+                            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
+                            signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
+                            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                            signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                            normal_vis[rgb_pred_zeros_mask_img]=0.0
+                            # normal_vis[signed_dist_mask_img]=0.0
+                            normal_mat=tensor2mat(normal_vis)
+                            Gui.show(normal_mat, "normal")
 
-                        #mask based on grazing angle between normal and view angle
-                        normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                        normal=normal.view(-1,3)
-                        dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
-                        dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
-                        dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                        points3D[dot_view_normal_mask]=0.0
+                            #mask based on grazing angle between normal and view angle
+                            normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                            normal=normal.view(-1,3)
+                            dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
+                            dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
+                            dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
+                            points3D[dot_view_normal_mask]=0.0
 
-                        #show things
-                        # if is_training:
-                            # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
-                        points3d_mesh=show_3D_points(points3D, color=rgb_pred)
-                        points3d_mesh.NV= normal.detach().cpu().numpy()
-                        Scene.show(points3d_mesh, "points3d_mesh")
+                            #show things
+                            # if is_training:
+                                # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
+                            points3d_mesh=show_3D_points(points3D, color=rgb_pred)
+                            points3d_mesh.NV= normal.detach().cpu().numpy()
+                            Scene.show(points3d_mesh, "points3d_mesh")
 
 
 

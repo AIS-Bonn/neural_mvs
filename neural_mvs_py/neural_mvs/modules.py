@@ -323,6 +323,7 @@ class FeatureAgregator(torch.nn.Module):
         # feat_sliced_per_frame is Nr_frames x N x FEATDIM
         # print("feat_sliced_per_frame", feat_sliced_per_frame.shape)
         weights=weights.view(-1,1,1)
+          
         img_features_concat_weighted=feat_sliced_per_frame*weights
 
         img_features_mean= img_features_concat_weighted.sum(dim=0)
