@@ -3880,7 +3880,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
         # self.feature_aggregator=  FeatureAgregator() 
-        self.feature_aggregator=  FeatureAgregatorLinear() 
+        # self.feature_aggregator=  FeatureAgregatorLinear() 
+        self.feature_aggregator=  FeatureAgregatorInvariant() 
         self.feature_aggregator_traced=None
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()

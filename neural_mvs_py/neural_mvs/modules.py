@@ -388,6 +388,45 @@ class FeatureAgregatorLinear(torch.nn.Module):
 
         return x
 
+#fuse the features using an invariant functional like in pointnet
+class FeatureAgregatorInvariant(torch.nn.Module):
+
+    def __init__(self ):
+        super(FeatureAgregatorInvariant, self).__init__()
+
+        self.last_channels=32
+        self.pred=MetaSequential( 
+            # BlockNerf(activ=torch.nn.GELU(), in_channels=16, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=16, out_channels=self.last_channels,  bias=True ).cuda()
+            )
+
+    def forward(self, feat_sliced_per_frame, weights, novel=False):
+
+
+        # feat_sliced_per_frame is Nr_frames x N x FEATDIM
+        nr_frames= feat_sliced_per_frame.shape[0]
+        nr_pixels= feat_sliced_per_frame.shape[1]
+        feat_dim= feat_sliced_per_frame.shape[2]
+        weights=weights.view(-1,1,1)
+
+
+        img_features_concat_weighted=feat_sliced_per_frame*weights
+        # img_features_concat_weighted=img_features_concat_weighted.contiguous().view(-1, feat_dim) # from Nr_frames x nr_pixels x FEATDIM to  -xxFatudim
+
+        #get the features to be N * featdim x Nr_frames
+        x=self.pred( img_features_concat_weighted )
+
+        # x=x.view(nr_frames, nr_pixels, self.last_channels)
+        # x,_=x.max(dim=0)
+        # x=x.mean(dim=0)
+        x,_=x.min(dim=0) #this if effectivlly encoding for the minimum safe distance that the ray can advance
+       
+
+        
+
+        return x
+
+
 
 
 

@@ -222,7 +222,7 @@ def run():
     first_time=True
 
     # experiment_name="s13_rg_ac_0.003"
-    experiment_name="s2_aggrmeanstd"
+    experiment_name="s_8a_linear"
 
     use_ray_compression=False
 
