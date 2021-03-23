@@ -29,6 +29,7 @@ from optimizers.over9000.lookahead import *
 from optimizers.over9000.novograd import *
 from optimizers.over9000.ranger import *
 from optimizers.over9000.apollo import *
+from optimizers.over9000.lamb import *
 from optimizers.adahessian import *
 import optimizers.gradient_centralization.ranger2020 as GC_Ranger #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
 import optimizers.gradient_centralization.Adam as GC_Adam
@@ -222,7 +223,7 @@ def run():
     first_time=True
 
     # experiment_name="s13_rg_ac_0.003"
-    experiment_name="s_8a_linear"
+    experiment_name="s_"
 
     use_ray_compression=False
 
