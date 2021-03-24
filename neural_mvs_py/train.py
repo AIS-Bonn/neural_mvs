@@ -223,7 +223,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_"
+    experiment_name="s_7oneunet"
 
     use_ray_compression=False
 
@@ -420,17 +420,18 @@ def run():
 
                     #select certian pixels 
                     pixels_indices=None
-                    if is_training:
-                        chunck_size= min(10*10, frame.height*frame.width)
-                        pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
-                        pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
-                        pixels_indices=pixels_indices.long()
+                    # if is_training:
+                    #     chunck_size= min(990*30, frame.height*frame.width)
+                    #     pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+                    #     pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
+                    #     pixels_indices=pixels_indices.long()
 
-                        #select those pixels from the gt
-                        rgb_gt_lin=rgb_gt.view(3,-1)
-                        rgb_gt_selected=torch.index_select(rgb_gt_lin, 1, pixels_indices)
-                    else:
-                        rgb_gt_selected=rgb_gt
+                    #     #select those pixels from the gt
+                    #     rgb_gt_lin=rgb_gt.view(3,-1)
+                    #     rgb_gt_selected=torch.index_select(rgb_gt_lin, 1, pixels_indices)
+                    # else:
+                    #     rgb_gt_selected=rgb_gt
+                    rgb_gt_selected=rgb_gt
 
 
 
@@ -454,7 +455,6 @@ def run():
 
 
 
-
                     #forward attempt 2 using a network with differetnaible ray march
                     with torch.set_grad_enabled(is_training):
 
@@ -462,7 +462,7 @@ def run():
                         TIME_START("forward")
                         # print( torch.cuda.memory_summary() )
                         # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
                         TIME_END("forward")
                         # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
@@ -478,11 +478,11 @@ def run():
                         #loss
                         loss=0
                         rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
-                        # rgb_loss_l1=(( rgb_gt-rgb_pred).abs()).mean()
+                        rgb_loss_l1=(( rgb_gt-rgb_pred).abs()).mean()
                         # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
                         # loss+=rgb_loss_ssim_l1
-                        loss+=rgb_loss
-                        # loss+=rgb_loss_l1
+                        # loss+=rgb_loss
+                        loss+=rgb_loss_l1
                         #loss on the rgb_refiend
                         # rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
                         # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
@@ -536,6 +536,8 @@ def run():
                             # loss+=(std**2).mean()
                             # print("st loss ", (std**2).mean())
 
+                        #raymarcher loss 
+                        # loss+=raymarcher_loss*0.01
 
 
 
@@ -669,7 +671,8 @@ def run():
                     TIME_END("all")
 
 
-                    if not is_training:
+                    # if not is_training:
+                    if True:
                         with torch.set_grad_enabled(False):
                             #VIEW pred
                             #make masks 

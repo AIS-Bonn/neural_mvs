@@ -3971,6 +3971,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         # weights=self.frame_weights_computer(frame, frames_close)
 
+        #new loss that makes the std for the last iter and the other iter to be high
+        new_loss=0.0
+
+        # print("")
         for iter_nr in range(self.nr_iters):
             # print("iter is ", iter_nr)
             TIME_START("raymarch_iter")
@@ -4000,9 +4004,22 @@ class DifferentiableRayMarcher(torch.nn.Module):
             
             #attempt 2 
             # TIME_START("raymarch_aggr")
+            # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images
             img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel)
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
+
+            # #get std for each lvl 
+            # std=sliced_feat_batched.std(dim=0).mean()
+            # # print("std for lvl ", iter_nr, " std is ", std.item())
+            # # new loss that makes the std for the last iter and the other iter to be high
+            # if iter_nr == self.nr_iters-1: #last iter
+            #     new_loss+=std
+            # if iter_nr == self.nr_iters-2:
+            #     new_loss-=torch.clamp(std, 0.0, 1.0)
+            
+            
+
             
             TIME_START("raymarch_fuse")
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
@@ -4029,6 +4046,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # state = self.lstm(feat)
             if state[0].requires_grad:
                 state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+            # if state.requires_grad:
+                # state.register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
             # signed_distance= self.out_layer(state)
@@ -4059,7 +4078,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #return also the world coords at every march
         world_coords.pop(0)
 
-        return new_world_coords, depth, world_coords, signed_distances_for_marchlvl
+        return new_world_coords, depth, world_coords, signed_distances_for_marchlvl, new_loss
 
 
 class DifferentiableRayMarcherHierarchical(torch.nn.Module):
@@ -5247,6 +5266,7 @@ class Net3_SRN(torch.nn.Module):
         
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
+        self.concat_coord=ConcatCoord() 
 
 
       
@@ -5268,7 +5288,7 @@ class Net3_SRN(torch.nn.Module):
         TIME_START("unet")
         # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
         # exit(1)
-        frames_features=self.unet(rgb_close_batch)
+        frames_features=self.unet( rgb_close_batch )
         # exit(1)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
         # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
@@ -5284,7 +5304,7 @@ class Net3_SRN(torch.nn.Module):
             ray_dirs= torch.index_select(ray_dirs, 0, pixels_indices)
 
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl = self.ray_marcher(frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl, raymarcher_loss = self.ray_marcher(frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel)
         TIME_END("ray_march")
 
         # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
@@ -5342,6 +5362,10 @@ class Net3_SRN(torch.nn.Module):
         #     feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
         # feat_sliced_per_frame=torch.cat(feat_sliced_per_frame,0)
 
+        #rgb gets other features than the ray marcher 
+        # frames_features_rgb=self.unet_rgb(rgb_close_batch)
+        frames_features_rgb=frames_features
+
         nr_nearby_frames=len(frames_close)
         R_list=[]
         t_list=[]
@@ -5363,7 +5387,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
         sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
@@ -5449,7 +5473,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std
+        return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss
 
 
     #https://github.com/pytorch/pytorch/issues/2001
@@ -5515,7 +5539,7 @@ class PCA(Function):
         # http://agnesmustar.com/2017/11/01/principal-component-analysis-pca-implemented-pytorch/
 
 
-        X=sv.detach().cpu()#we switch to cpu because svd for gpu needs magma: No CUDA implementation of 'gesdd'. Install MAGMA and rebuild cutorch (http://icl.cs.utk.edu/magma/) at /opt/pytorch/aten/src/THC/generic/THCTensorMathMagma.cu:191
+        X=sv.detach()#we switch to cpu because svd for gpu needs magma: No CUDA implementation of 'gesdd'. Install MAGMA and rebuild cutorch (http://icl.cs.utk.edu/magma/) at /opt/pytorch/aten/src/THC/generic/THCTensorMathMagma.cu:191
         k=3
         # print("x is ", X.shape)
         X_mean = torch.mean(X,0)
