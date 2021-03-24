@@ -5273,14 +5273,14 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
+        # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
 
         # self.unet= SQNet(classes=16)
         # self.unet= LinkNet(classes=16) #converges
         # self.unet= LinkNetImprove(classes=16) 
         # self.unet= SegNet(classes=16)
-        # self.unet= UNet_efficient.UNet(classes=16) #converges
+        self.unet= UNet_efficient.UNet(classes=16) #converges
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=16)
