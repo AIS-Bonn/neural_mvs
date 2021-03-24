@@ -1046,7 +1046,7 @@ class FeaturePyramid(torch.nn.Module):
             for i in range(self.nr_stages):
                 if i!=0:
                     self.downscale_layer_per_lvl.append( resize_right.ResizeLayer(dummy_x.shape, scale_factors=0.5, out_shape=None,
-                                         interp_method=resize_right.interp_methods.box, support_sz=None,
+                                         interp_method=resize_right.interp_methods.linear, support_sz=None,
                                          antialiasing=True).to("cuda")
                     )
                     dummy_x=self.downscale_layer_per_lvl[-1](dummy_x)

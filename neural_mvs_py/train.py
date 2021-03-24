@@ -223,7 +223,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_13decris3x3"
+    experiment_name="s_14lin"
 
     use_ray_compression=False
 
