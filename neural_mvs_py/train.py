@@ -222,7 +222,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_unetorig"
+    experiment_name="s_3uneteff"
 
 
     use_ray_compression=False
