@@ -25,6 +25,27 @@ from neural_mvs.nerf_utils import *
 #resize funcs 
 import resize_right.resize_right as resize_right
 
+#models from https://github.com/xiaoyufenfei/Efficient-Segmentation-Networks
+from segnet.model.SQNet import SQNet
+from segnet.model.LinkNet import LinkNet
+from segnet.model.LinkNet import LinkNetImprove
+from segnet.model.SegNet import SegNet
+import segnet.model.UNet as UNet_efficient
+from segnet.model.ENet import ENet
+from segnet.model.ERFNet import ERFNet
+from segnet.model.CGNet import CGNet
+from segnet.model.EDANet import EDANet
+from segnet.model.ESNet import ESNet
+from segnet.model.ESPNet import ESPNet
+from segnet.model.LEDNet import LEDNet
+# from segnet.model.ESPNet_v2.SegmentationModel import EESPNet_Seg
+from segnet.model.ContextNet import ContextNet
+from segnet.model.FastSCNN import FastSCNN
+from segnet.model.DABNet import DABNet
+from segnet.model.FSSNet import FSSNet
+from segnet.model.FPENet import FPENet
+
+
 # from pytorch_memlab import LineProfiler
 from pytorch_memlab import LineProfiler, profile, profile_every, set_target_gpu, clear_global_line_profiler
 
@@ -1077,7 +1098,7 @@ class FeaturePyramid(torch.nn.Module):
         feat_upsampled_per_lvl=[]
         for i in range(self.nr_stages):
             feat= features_per_lvl[i]
-            feat = torch.nn.functional.interpolate(feat, size=(initial_x.shape[2], initial_x.shape[3]), mode='bilinear')
+            feat = torch.nn.functional.interpolate(feat, size=(initial_x.shape[2], initial_x.shape[3]), mode='bicubic')
             feat_upsampled_per_lvl.append(feat)
 
         x=torch.cat(feat_upsampled_per_lvl,1)
@@ -5252,8 +5273,27 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
-        self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
+        # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+
+        # self.unet= SQNet(classes=16)
+        # self.unet= LinkNet(classes=16) #converges
+        # self.unet= LinkNetImprove(classes=16) 
+        # self.unet= SegNet(classes=16)
+        # self.unet= UNet_efficient.UNet(classes=16) #converges
+        # self.unet= ENet(classes=16) #eror
+        # self.unet= ERFNet(classes=16) #eror
+        # self.unet= CGNet(classes=16)
+        # self.unet= EDANet(classes=16) #converges
+        # self.unet= ESNet(classes=16)
+        # self.unet= ESPNet(classes=16) #error
+        # self.unet= LEDNet(classes=16) #converges
+        # self.unet= ContextNet(classes=16) #converges
+        # self.unet= FastSCNN(classes=16)
+        # self.unet= DABNet(classes=16)
+        # self.unet= FSSNet(classes=16) #error
+        # self.unet= FPENet(classes=16)
+
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherMasked()
@@ -5555,7 +5595,7 @@ class PCA(Function):
         # http://agnesmustar.com/2017/11/01/principal-component-analysis-pca-implemented-pytorch/
 
 
-        X=sv.detach()#we switch to cpu because svd for gpu needs magma: No CUDA implementation of 'gesdd'. Install MAGMA and rebuild cutorch (http://icl.cs.utk.edu/magma/) at /opt/pytorch/aten/src/THC/generic/THCTensorMathMagma.cu:191
+        X=sv.detach().cpu()#we switch to cpu of memory issues when doing svd on really big imaes
         k=3
         # print("x is ", X.shape)
         X_mean = torch.mean(X,0)

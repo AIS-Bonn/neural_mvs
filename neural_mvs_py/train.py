@@ -222,8 +222,8 @@ def run():
 
 
     first_time=True
+    experiment_name="s_Unet"
 
-    experiment_name="s_14lin"
 
     use_ray_compression=False
 
