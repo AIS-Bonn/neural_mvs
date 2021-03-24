@@ -4005,7 +4005,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #attempt 2 
             # TIME_START("raymarch_aggr")
             # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images
-            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel)
+            # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel)
+            mean=sliced_feat_batched.mean(dim=0)
+            std=sliced_feat_batched.std(dim=0)
+            img_features_aggregated=torch.cat([mean,std],1)
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
 

@@ -223,7 +223,7 @@ def run():
 
     first_time=True
 
-    experiment_name="s_7oneunet"
+    experiment_name="s_8aggrnow"
 
     use_ray_compression=False
 
