@@ -994,14 +994,27 @@ class FeaturePyramid(torch.nn.Module):
         self.encoder_for_pyramid_lvl=[]
         for i in range(self.nr_stages):
             self.encoder_for_pyramid_lvl.append( nn.Sequential(
-                # torch.nn.Conv2d( 3, cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda(),
+                # torch.nn.Conv2d( cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
             ))
 
         cur_nr_channels=cur_nr_channels*self.nr_stages
 
+        # self.last_conv = nn.Sequential(
+        #     # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+        #     # torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+        #     ResnetBlock2D(cur_nr_channels, kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+        #     torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+        # )
         self.last_conv = nn.Sequential(
-            torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+            # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+            # torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+            # ResnetBlock2D(cur_nr_channels, kernel_size=1, stride=1, padding=0, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+            WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
+            torch.nn.GELU(),
+            WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
+            torch.nn.GELU(),
+            torch.nn.Conv2d(32, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
         )
         self.relu=torch.nn.ReLU(inplace=False)
         self.concat_coord=ConcatCoord() 
@@ -1016,7 +1029,7 @@ class FeaturePyramid(torch.nn.Module):
     def forward(self, x):
 
         if self.first_conv==None:
-            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda() 
+            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
 
         
 
@@ -1033,7 +1046,7 @@ class FeaturePyramid(torch.nn.Module):
             for i in range(self.nr_stages):
                 if i!=0:
                     self.downscale_layer_per_lvl.append( resize_right.ResizeLayer(dummy_x.shape, scale_factors=0.5, out_shape=None,
-                                         interp_method=resize_right.interp_methods.cubic, support_sz=None,
+                                         interp_method=resize_right.interp_methods.box, support_sz=None,
                                          antialiasing=True).to("cuda")
                     )
                     dummy_x=self.downscale_layer_per_lvl[-1](dummy_x)
@@ -5239,8 +5252,8 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
-        # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
+        self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherMasked()
