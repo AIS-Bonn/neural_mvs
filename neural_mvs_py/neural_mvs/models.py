@@ -3470,7 +3470,7 @@ class RGB_predictor_simple(MetaModule):
 
         # self.first_conv=BlockSiren(activ=torch.sin, in_channels=3, out_channels=128,  bias=True, is_first_layer=True).cuda()
 
-        cur_nr_channels+=32 #for point features
+        cur_nr_channels+=64 #for point features
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=32 #concating also the signed distnace
@@ -3921,7 +3921,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
   
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +32, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
             # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
@@ -5280,7 +5280,7 @@ class Net3_SRN(torch.nn.Module):
         # self.unet= LinkNet(classes=16) #converges
         # self.unet= LinkNetImprove(classes=16) 
         # self.unet= SegNet(classes=16)
-        self.unet= UNet_efficient.UNet(classes=16) #converges
+        self.unet= UNet_efficient.UNet(classes=32) #converges
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=16)

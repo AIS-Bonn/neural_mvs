@@ -102,15 +102,15 @@ class outconv(nn.Module):
 class UNet(nn.Module):
     def __init__(self, classes):
         super(UNet, self).__init__()
-        self.inc = inconv(3, 16)
-        self.down1 = down(16, 32)
+        self.inc = inconv(3, 32)
+        self.down1 = down(32, 32)
         self.down2 = down(32, 64)
         self.down3 = down(64, 128)
         self.down4 = down(128, 128)
         self.up1 = up(256, 64)
         self.up2 = up(128, 64)
         self.up3 = up(96, 64)
-        self.up4 = up(80, 64)
+        self.up4 = up(96, 64)
         self.outc = outconv(64, classes)
 
     def forward(self, x):

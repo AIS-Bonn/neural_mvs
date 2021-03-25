@@ -222,7 +222,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_3uneteff"
+    experiment_name="s_4uneteff"
 
 
     use_ray_compression=False
@@ -420,18 +420,21 @@ def run():
 
                     #select certian pixels 
                     pixels_indices=None
-                    # if is_training:
-                    #     chunck_size= min(990*30, frame.height*frame.width)
-                    #     pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
-                    #     pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
-                    #     pixels_indices=pixels_indices.long()
+                    use_pixel_indices=False
+                    if use_pixel_indices:
+                        if is_training:
+                            chunck_size= min(50*50, frame.height*frame.width)
+                            pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
+                            pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
+                            pixels_indices=pixels_indices.long()
 
-                    #     #select those pixels from the gt
-                    #     rgb_gt_lin=rgb_gt.view(3,-1)
-                    #     rgb_gt_selected=torch.index_select(rgb_gt_lin, 1, pixels_indices)
-                    # else:
-                    #     rgb_gt_selected=rgb_gt
-                    rgb_gt_selected=rgb_gt
+                            #select those pixels from the gt
+                            rgb_gt_lin=rgb_gt.view(3,-1)
+                            rgb_gt_selected=torch.index_select(rgb_gt_lin, 1, pixels_indices)
+                        else:
+                            rgb_gt_selected=rgb_gt
+                    else:
+                        rgb_gt_selected=rgb_gt
 
 
 
@@ -478,7 +481,7 @@ def run():
                         #loss
                         loss=0
                         rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
-                        rgb_loss_l1=(( rgb_gt-rgb_pred).abs()).mean()
+                        rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
                         # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
                         # loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
@@ -607,7 +610,7 @@ def run():
                         if first_time:
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            # optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr(), init_lr=0.0001, warmup=500, rebound="constant" )
                             # optimizer=RangerLars( model.parameters(), lr=train_params.lr() )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
@@ -615,7 +618,7 @@ def run():
                             # optimizer=Adahessian( model.parameters(), lr=train_params.lr() ) #DO NOT USE, it requires loss.backward(create_graph=True) to compute second derivatives but that doesnt work because the grid sampler doenst have second deiv
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=torch.optim.SGD( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay(), momentum=0.9, nesterov=True )
                             # optimizer=Lookahead(optimizer, alpha=0.5, k=6)
                             # optimizer=torch.optim.AdamW( 
@@ -671,8 +674,7 @@ def run():
                     TIME_END("all")
 
 
-                    # if not is_training:
-                    if True:
+                    if not ( use_pixel_indices and is_training): 
                         with torch.set_grad_enabled(False):
                             #VIEW pred
                             #make masks 
@@ -720,7 +722,7 @@ def run():
                             signed_dist=signed_distances_for_marchlvl[ -1 ]
                             signed_dist_mask= signed_dist.abs()>0.03
                             signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                            points3D[signed_dist_mask]=0.0
+                            # points3D[signed_dist_mask]=0.0
 
                             #view normal
                             points3D_img=points3D.view(1, frame.height, frame.width, 3)
@@ -743,7 +745,7 @@ def run():
                             dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
                             dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
                             dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                            points3D[dot_view_normal_mask]=0.0
+                            # points3D[dot_view_normal_mask]=0.0
 
                             #show things
                             # if is_training:
