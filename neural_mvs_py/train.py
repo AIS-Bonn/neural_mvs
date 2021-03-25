@@ -225,7 +225,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_4s4"
+    experiment_name="s_"
 
 
     use_ray_compression=False
@@ -366,7 +366,8 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=1 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_close_frames=3 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=3
 
     new_frame=None
 
@@ -396,6 +397,11 @@ def run():
                     else:
                         frame=phase.frames[i]
                     TIME_START("all")
+                    #get a subsampled frame if necessary
+                    frame_full_res=frame
+                    if factor_subsample_depth_pred!=0:
+                        frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
+                    
 
                     # if frame.frame_idx!=83 or is_training:
                     #     continue
@@ -421,6 +427,7 @@ def run():
 
                         #prepare rgb data and rest of things
                         rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
+                        rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
                         mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
                         ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                         rgb_close_batch_list=[]
@@ -439,7 +446,7 @@ def run():
                     use_pixel_indices=False
                     if use_pixel_indices:
                         if is_training:
-                            chunck_size= min(50*50, frame.height*frame.width)
+                            chunck_size= min(100*100, frame.height*frame.width)
                             pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
                             pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
                             pixels_indices=pixels_indices.long()
@@ -505,7 +512,8 @@ def run():
                         #loss on the rgb_refiend
                         # rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
                         # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
-                        # loss+=rgb_refined_loss_ssim_l1*0.5
+                        rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined).abs()).mean()
+                        loss+=rgb_refined_loss_l1
 
                         #make the mask to be mostly white
                         # loss_mask=((1.0-mask_pred)**2).mean()
@@ -708,8 +716,8 @@ def run():
                                 # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
                                 rgb_pred_mat=tensor2mat(rgb_pred)
                                 Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                                # rgb_refined_mat=tensor2mat(rgb_refined)
-                                # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                                rgb_refined_mat=tensor2mat(rgb_refined)
+                                Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
                                 #view gt
                                 Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
                                 Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)

@@ -18,7 +18,16 @@ from neural_mvs_py.neural_mvs.pac import *
 from latticenet_py.lattice.lattice_modules import *
 
 
+#some default arguments are in here https://github.com/sanghyun-son/EDSR-PyTorch/blob/master/src/demo.sh
 
+class EDSR_args():
+    n_resblocks=4
+    n_feats=128
+    scale=2
+    res_scale=0.1
+    rgb_range=255
+    n_in_channels=3
+    n_out_channels=3
 
 def gelu(x):
     return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))

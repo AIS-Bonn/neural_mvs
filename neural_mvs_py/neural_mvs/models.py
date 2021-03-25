@@ -45,6 +45,9 @@ from segnet.model.DABNet import DABNet
 from segnet.model.FSSNet import FSSNet
 from segnet.model.FPENet import FPENet
 
+#superres 
+from super_res.edsr.edsr import EDSR
+
 
 # from pytorch_memlab import LineProfiler
 from pytorch_memlab import LineProfiler, profile, profile_every, set_target_gpu, clear_global_line_profiler
@@ -5274,13 +5277,13 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
-        # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=16, nr_stages=5)
+        self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
         # self.unet= SQNet(classes=16)
         # self.unet= LinkNet(classes=16) #converges
         # self.unet= LinkNetImprove(classes=16) 
         # self.unet= SegNet(classes=16)
-        self.unet= UNet_efficient.UNet(classes=32) #converges
+        # self.unet= UNet_efficient.UNet(classes=32) #converges
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=16)
@@ -5293,6 +5296,13 @@ class Net3_SRN(torch.nn.Module):
         # self.unet= DABNet(classes=16)
         # self.unet= FSSNet(classes=16) #error
         # self.unet= FPENet(classes=16)
+
+        edsr_args=EDSR_args()
+        edsr_args.n_in_channels=67
+        edsr_args.n_resblocks=4
+        edsr_args.n_feats=32
+        edsr_args.scale=8
+        self.super_res=EDSR(edsr_args)
 
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
@@ -5498,11 +5508,14 @@ class Net3_SRN(torch.nn.Module):
             mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
 
             # #refine the prediction with some Unet so we have also some spatial context
-            # last_features=last_features.view(frame.height, frame.width,-1)
-            # last_features=last_features.permute(2,0,1).unsqueeze(0)
-            # rgb_refined=self.rgb_refiner(last_features)
+            last_features=last_features.view(frame.height, frame.width,-1)
+            last_features=last_features.permute(2,0,1).unsqueeze(0)
+            rgb_low_res=torch.cat([rgb_pred,last_features],1)
+            # print("rgb_low_res", rgb_low_res.shape)
+            rgb_refined=self.super_res(rgb_low_res)
+            # print("rgb_refined",rgb_refined.shape)
             # # rgb_refined=self.rgb_refiner(rgb_pred)
-            rgb_refined=None
+            # rgb_refined=None
 
             depth=depth.view(frame.height, frame.width,1)
             depth=depth.permute(2,0,1).unsqueeze(0)
