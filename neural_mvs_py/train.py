@@ -488,7 +488,7 @@ def run():
                         TIME_START("forward")
                         # print( torch.cuda.memory_summary() )
                         # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
                         TIME_END("forward")
                         # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
@@ -565,6 +565,10 @@ def run():
                         #raymarcher loss 
                         # loss+=raymarcher_loss*0.01
 
+                        #loss that pushes the points to be in the middle of the space 
+                        if phase.iter_nr<1000:
+                            loss+=(point3d.norm(dim=1)).mean()*0.2
+
 
 
 
@@ -633,7 +637,7 @@ def run():
                         if first_time:
                             first_time=False
                             # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=Apollo( model.parameters(), lr=train_params.lr(), init_lr=0.0001, warmup=500, rebound="constant" )
                             # optimizer=RangerLars( model.parameters(), lr=train_params.lr() )
                             # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
@@ -641,7 +645,7 @@ def run():
                             # optimizer=Adahessian( model.parameters(), lr=train_params.lr() ) #DO NOT USE, it requires loss.backward(create_graph=True) to compute second derivatives but that doesnt work because the grid sampler doenst have second deiv
                             # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
                             # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=torch.optim.SGD( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay(), momentum=0.9, nesterov=True )
                             # optimizer=Lookahead(optimizer, alpha=0.5, k=6)
                             # optimizer=torch.optim.AdamW( 

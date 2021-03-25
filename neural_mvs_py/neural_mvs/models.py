@@ -5277,13 +5277,13 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
-        self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
+        # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
         # self.unet= SQNet(classes=16)
         # self.unet= LinkNet(classes=16) #converges
         # self.unet= LinkNetImprove(classes=16) 
         # self.unet= SegNet(classes=16)
-        # self.unet= UNet_efficient.UNet(classes=32) #converges
+        self.unet= UNet_efficient.UNet(classes=32) #converges
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=16)
@@ -5549,7 +5549,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss
+        return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d
 
 
     #https://github.com/pytorch/pytorch/issues/2001
