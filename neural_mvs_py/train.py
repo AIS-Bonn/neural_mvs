@@ -225,11 +225,11 @@ def run():
 
 
     first_time=True
-    experiment_name="s_"
+    experiment_name="s_6"
 
 
     use_ray_compression=False
-
+    do_superres=False
 
 
 
@@ -259,7 +259,7 @@ def run():
     ]
     #model 
     model=None
-    model=Net3_SRN(model_params).to("cuda")
+    model=Net3_SRN(model_params, do_superres).to("cuda")
     model.train()
 
     scheduler=None
@@ -366,8 +366,8 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=3 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=3
+    factor_subsample_close_frames=1 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=1
 
     new_frame=None
 
@@ -510,10 +510,9 @@ def run():
                         # loss+=rgb_loss
                         loss+=rgb_loss_l1
                         #loss on the rgb_refiend
-                        # rgb_refined_loss=(( rgb_gt-rgb_pred)**2).mean()
-                        # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_refined)
-                        rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined).abs()).mean()
-                        loss+=rgb_refined_loss_l1
+                        if do_superres:
+                            rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined).abs()).mean()
+                            loss+=rgb_refined_loss_l1
 
                         #make the mask to be mostly white
                         # loss_mask=((1.0-mask_pred)**2).mean()
@@ -716,8 +715,9 @@ def run():
                                 # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
                                 rgb_pred_mat=tensor2mat(rgb_pred)
                                 Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                                rgb_refined_mat=tensor2mat(rgb_refined)
-                                Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                                if do_superres:
+                                    rgb_refined_mat=tensor2mat(rgb_refined)
+                                    Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
                                 #view gt
                                 Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
                                 Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)

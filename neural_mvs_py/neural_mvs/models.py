@@ -5270,7 +5270,7 @@ class Net2(torch.nn.Module):
 
 #Instead of doing ray marching like in NERF we use a LSTM to update the ray step similar to Scene representation network
 class Net3_SRN(torch.nn.Module):
-    def __init__(self, model_params):
+    def __init__(self, model_params, do_superres):
         super(Net3_SRN, self).__init__()
 
         self.first_time=True
@@ -5297,12 +5297,14 @@ class Net3_SRN(torch.nn.Module):
         # self.unet= FSSNet(classes=16) #error
         # self.unet= FPENet(classes=16)
 
-        edsr_args=EDSR_args()
-        edsr_args.n_in_channels=67
-        edsr_args.n_resblocks=4
-        edsr_args.n_feats=32
-        edsr_args.scale=8
-        self.super_res=EDSR(edsr_args)
+        self.do_superres=do_superres
+        if do_superres:
+            edsr_args=EDSR_args()
+            edsr_args.n_in_channels=67
+            edsr_args.n_resblocks=4
+            edsr_args.n_feats=64
+            edsr_args.scale=2
+            self.super_res=EDSR(edsr_args)
 
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
@@ -5508,14 +5510,19 @@ class Net3_SRN(torch.nn.Module):
             mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
 
             # #refine the prediction with some Unet so we have also some spatial context
-            last_features=last_features.view(frame.height, frame.width,-1)
-            last_features=last_features.permute(2,0,1).unsqueeze(0)
-            rgb_low_res=torch.cat([rgb_pred,last_features],1)
-            # print("rgb_low_res", rgb_low_res.shape)
-            rgb_refined=self.super_res(rgb_low_res)
-            # print("rgb_refined",rgb_refined.shape)
-            # # rgb_refined=self.rgb_refiner(rgb_pred)
-            # rgb_refined=None
+            if self.do_superres:
+                TIME_START("superres")
+                last_features=last_features.view(frame.height, frame.width,-1)
+                last_features=last_features.permute(2,0,1).unsqueeze(0)
+                rgb_low_res=torch.cat([rgb_pred,last_features],1)
+                # print("rgb_low_res", rgb_low_res.shape)
+                rgb_refined=self.super_res(rgb_low_res)
+                # print("rgb_refined",rgb_refined.shape)
+                # # rgb_refined=self.rgb_refiner(rgb_pred)
+                TIME_END("superres")
+            else:
+                rgb_refined=None
+
 
             depth=depth.view(frame.height, frame.width,1)
             depth=depth.permute(2,0,1).unsqueeze(0)
