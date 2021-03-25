@@ -230,6 +230,7 @@ def run():
 
     use_ray_compression=False
     do_superres=False
+    predict_occlusion_map=True
 
 
 
@@ -499,7 +500,11 @@ def run():
 
                         #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
                         #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend
-                        # rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt
+                        if predict_occlusion_map:
+                            rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt_selected
+                            if do_superres:
+                                mask_pred_superres= torch.nn.functional.interpolate(mask_pred,size=(rgb_refined.shape[2], rgb_refined.shape[3]), mode='bilinear')
+                                rgb_refined=mask_pred_superres*rgb_refined + (1-mask_pred_superres)*rgb_gt_fullres
                      
                         #loss
                         loss=0
@@ -515,8 +520,10 @@ def run():
                             loss+=rgb_refined_loss_l1
 
                         #make the mask to be mostly white
-                        # loss_mask=((1.0-mask_pred)**2).mean()
-                        # loss+=loss_mask*100
+                        if predict_occlusion_map:
+                            # loss_mask=((1.0-mask_pred).abs()).mean()
+                            loss_mask=((1.0-mask_pred)**2).mean()
+                            loss+=loss_mask*0.1
             
 
                         # #loss on depth 
@@ -705,7 +712,7 @@ def run():
                         with torch.set_grad_enabled(False):
                             #VIEW pred
                             #make masks 
-                            mask_pred_thresh=mask_pred<0.9
+                            mask_pred_thresh=mask_pred<0.25
                             rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
                             rgb_pred_zeros_mask= rgb_pred_zeros<0.05
@@ -716,7 +723,8 @@ def run():
                                 diff=( rgb_gt-rgb_pred)**2*10
                                 Gui.show(tensor2mat(diff),"diff_"+phase.name)
                                 #mask
-                                # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
+                                if predict_occlusion_map:
+                                    rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
                                 rgb_pred_mat=tensor2mat(rgb_pred)
                                 Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
                                 if do_superres:

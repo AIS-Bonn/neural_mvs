@@ -5279,23 +5279,23 @@ class Net3_SRN(torch.nn.Module):
         # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
-        # self.unet= SQNet(classes=16)
-        # self.unet= LinkNet(classes=16) #converges
-        # self.unet= LinkNetImprove(classes=16) 
-        # self.unet= SegNet(classes=16)
+        # self.unet= SQNet(classes=32)
+        # self.unet= LinkNet(classes=32) #converges
+        # self.unet= LinkNetImprove(classes=32)  #looks ok
+        # self.unet= SegNet(classes=32) #looks ok
         self.unet= UNet_efficient.UNet(classes=32) #converges
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
-        # self.unet= CGNet(classes=16)
+        # self.unet= CGNet(classes=32)
         # self.unet= EDANet(classes=16) #converges
-        # self.unet= ESNet(classes=16)
+        # self.unet= ESNet(classes=32)
         # self.unet= ESPNet(classes=16) #error
         # self.unet= LEDNet(classes=16) #converges
         # self.unet= ContextNet(classes=16) #converges
-        # self.unet= FastSCNN(classes=16)
-        # self.unet= DABNet(classes=16)
+        # self.unet= FastSCNN(classes=32)
+        # self.unet= DABNet(classes=32)
         # self.unet= FSSNet(classes=16) #error
-        # self.unet= FPENet(classes=16)
+        # self.unet= FPENet(classes=32)
 
         self.do_superres=do_superres
         if do_superres:
