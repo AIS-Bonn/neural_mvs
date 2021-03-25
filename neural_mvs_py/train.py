@@ -145,6 +145,9 @@ class FramePY():
         self.R_tensor=torch.from_numpy( frame.tf_cam_world.linear() ).to("cuda")
         self.t_tensor=torch.from_numpy( frame.tf_cam_world.translation() ).to("cuda")
         self.K_tensor = torch.from_numpy( frame.K ).to("cuda")
+        #CHECK that the frame width and hegiht has the same values as the rgb 
+        if frame.height!=frame.rgb_32f.rows or  frame.width!=frame.rgb_32f.cols:
+            print("frame dimensions and rgb32 doesnt match. frame.height", frame.height, " frame.rgb_32f.rows", frame.rgb_32f.rows, " frame.width ", frame.width, " frame.rgb_32f.cols ", frame.rgb_32f.cols)
         #weight and hegiht
         # self.height=self.rgb_tensor.shape[2]
         # self.width=self.rgb_tensor.shape[3]
@@ -175,7 +178,7 @@ class FramePY():
         #make a list of subsampled frames
         if create_subsamples:
             self.subsampled_frames=[]
-            for i in range(3):
+            for i in range(4):
                 if i==0:
                     frame_subsampled=frame.subsample(2)
                 else:
@@ -222,7 +225,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_4uneteff"
+    experiment_name="s_"
 
 
     use_ray_compression=False
@@ -273,10 +276,10 @@ def run():
     frames_test=[]
     for i in range(loader_train.nr_samples()):
         frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame))
+        frames_train.append(FramePY(frame, create_subsamples=True))
     for i in range(loader_test.nr_samples()):
         frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame))
+        frames_test.append(FramePY(frame, create_subsamples=True))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
@@ -362,6 +365,8 @@ def run():
     #depth min max for home photos after scaling the scenne
     depth_min=0.15
     depth_max=1.0
+    #usa_subsampled_frames
+    factor_subsample_close_frames=0
 
     new_frame=None
 
@@ -405,6 +410,15 @@ def run():
                         else:
                             frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
                             weights= torch.from_numpy(weights.copy()).to("cuda").float() 
+
+                        #the frames close may need to be subsampled
+                        if factor_subsample_close_frames!=0:
+                            frames_close_subsampled=[]
+                            for frame_close in frames_close:
+                                frame_subsampled= frame_close.subsampled_frames[factor_subsample_close_frames]
+                                frames_close_subsampled.append(frame_subsampled)
+                            frames_close= frames_close_subsampled
+
                         #prepare rgb data and rest of things
                         rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
                         mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")

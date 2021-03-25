@@ -3982,8 +3982,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         t_batched=torch.cat(t_list,0)
         K_batched=torch.cat(K_list,0)
         #####when we project we assume all the frames have the same size
-        height=frame.height
-        width=frame.width
+        height=frames_close[0].height
+        width=frames_close[0].width
 
 
         #Ray direction in world coordinates
@@ -5435,8 +5435,8 @@ class Net3_SRN(torch.nn.Module):
         t_batched=torch.cat(t_list,0)
         K_batched=torch.cat(K_list,0)
         ######when we project we assume all the frames have the same size
-        height=frame.height
-        width=frame.width
+        height=frames_close[0].height
+        width=frames_close[0].width
 
 
         # uv_tensor=compute_uv_batched_original(frames_close, point3d )
