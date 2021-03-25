@@ -4029,7 +4029,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # slice with grid_sample
             # TIME_START("raymarch_slice")
             uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
-            sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
+            sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear" ) #sliced features is N,C,H,W
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
             sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it nr_frames x nr_pixels x FEATDIM
@@ -5443,7 +5443,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear" ) #sliced features is N,C,H,W
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
         sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM

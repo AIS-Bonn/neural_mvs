@@ -225,7 +225,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_"
+    experiment_name="s_4s4"
 
 
     use_ray_compression=False
@@ -366,7 +366,7 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=0
+    factor_subsample_close_frames=1 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
 
     new_frame=None
 
@@ -415,7 +415,7 @@ def run():
                         if factor_subsample_close_frames!=0:
                             frames_close_subsampled=[]
                             for frame_close in frames_close:
-                                frame_subsampled= frame_close.subsampled_frames[factor_subsample_close_frames]
+                                frame_subsampled= frame_close.subsampled_frames[factor_subsample_close_frames-1]
                                 frames_close_subsampled.append(frame_subsampled)
                             frames_close= frames_close_subsampled
 
@@ -429,6 +429,8 @@ def run():
                             rgb_close_batch_list.append(rgb_close_frame)
                         rgb_close_batch=torch.cat(rgb_close_batch_list,0)
                     # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
+                    # print("frame has shape ", rgb_gt.shape)
+                    # print("rgb close frame ", rgb_close_frame.shape)
 
                     # print( torch.cuda.memory_summary() )
 
@@ -719,6 +721,8 @@ def run():
                                 depth_vis=depth_vis.repeat(1,3,1,1)
                                 depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
                                 Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
+                                #show rgb for frame close 
+                                Gui.show(tensor2mat(rgb_close_batch_list[0]),"rgbclose" )
 
                             
                             #VIEW 3d points   at the end of the ray march
