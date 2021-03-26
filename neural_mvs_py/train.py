@@ -498,6 +498,11 @@ def run():
                         # model.summary()
                         # exit(1)
 
+                        #sometimes the refined one doesnt upsample nicely to the full res 
+                        if do_superres and rgb_refined.shape!=rgb_gt_fullres:
+                            rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(rgb_gt_fullres.shape[2], rgb_gt_fullres.shape[3]), mode='bilinear')
+
+
                         #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
                         #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend
                         if predict_occlusion_map:
@@ -573,8 +578,8 @@ def run():
                         # loss+=raymarcher_loss*0.01
 
                         #loss that pushes the points to be in the middle of the space 
-                        if phase.iter_nr<1000:
-                            loss+=(point3d.norm(dim=1)).mean()*0.2
+                        if phase.iter_nr<100:
+                            loss+=( ( torch.from_numpy(sphere_center).view(1,3).cuda()-point3d).norm(dim=1)).mean()*0.2
 
 
 
