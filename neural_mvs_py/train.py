@@ -712,7 +712,7 @@ def run():
                         with torch.set_grad_enabled(False):
                             #VIEW pred
                             #make masks 
-                            mask_pred_thresh=mask_pred<0.25
+                            mask_pred_thresh=mask_pred<0.3
                             rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
                             rgb_pred_zeros_mask= rgb_pred_zeros<0.05
