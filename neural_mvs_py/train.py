@@ -134,9 +134,25 @@ class FramePY():
         # rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         # rgb_tensor=rgb_tensor*mask_tensor
 
-        if frame.mask.empty():
-            mask_tensor= torch.ones((1,1,frame.height,frame.width))
-            self.frame.mask=tensor2mat(mask_tensor)
+ 
+        if not frame.is_shell:
+            self.load_image_tensors()
+
+            # if frame.mask.empty():
+            #     mask_tensor= torch.ones((1,1,frame.height,frame.width))
+            #     self.frame.mask=tensor2mat(mask_tensor)
+            # #weight and hegiht
+            # # self.height=self.rgb_tensor.shape[2]
+            # # self.width=self.rgb_tensor.shape[3]
+            # self.height=frame.height
+            # self.width=frame.width
+            # #CHECK that the frame width and hegiht has the same values as the rgb 
+            # if frame.height!=frame.rgb_32f.rows or  frame.width!=frame.rgb_32f.cols:
+            #     print("frame dimensions and rgb32 doesnt match. frame.height", frame.height, " frame.rgb_32f.rows", frame.rgb_32f.rows, " frame.width ", frame.width, " frame.rgb_32f.cols ", frame.rgb_32f.cols)
+            # #Ray direction in world coordinates
+            # ray_dirs_mesh=frame.pixels2dirs_mesh()
+            # # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+            # self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
 
         # self.frame.rgb_32f=tensor2mat(rgb_tensor)
         #get tf and K
@@ -145,21 +161,9 @@ class FramePY():
         self.R_tensor=torch.from_numpy( frame.tf_cam_world.linear() ).to("cuda")
         self.t_tensor=torch.from_numpy( frame.tf_cam_world.translation() ).to("cuda")
         self.K_tensor = torch.from_numpy( frame.K ).to("cuda")
-        #CHECK that the frame width and hegiht has the same values as the rgb 
-        if frame.height!=frame.rgb_32f.rows or  frame.width!=frame.rgb_32f.cols:
-            print("frame dimensions and rgb32 doesnt match. frame.height", frame.height, " frame.rgb_32f.rows", frame.rgb_32f.rows, " frame.width ", frame.width, " frame.rgb_32f.cols ", frame.rgb_32f.cols)
-        #weight and hegiht
-        # self.height=self.rgb_tensor.shape[2]
-        # self.width=self.rgb_tensor.shape[3]
-        self.height=frame.height
-        self.width=frame.width
         #misc
         self.frame_idx=frame.frame_idx
         # self.loader=loader
-        #Ray direction in world coordinates
-        ray_dirs_mesh=frame.pixels2dirs_mesh()
-        # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
-        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
         #lookdir and cam center
         self.camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
         self.camera_center=self.camera_center.view(1,3)
@@ -178,7 +182,7 @@ class FramePY():
         #make a list of subsampled frames
         if create_subsamples:
             self.subsampled_frames=[]
-            for i in range(4):
+            for i in range(0):
                 if i==0:
                     frame_subsampled=frame.subsample(2)
                 else:
@@ -211,6 +215,30 @@ class FramePY():
         frame.height=self.height
         cloud=frame.assign_color(cloud)
         return cloud.UV.copy()
+
+    def load_images(self):
+        if self.frame.is_shell:
+            self.frame.load_images() 
+
+            #load the img tensors
+            self.load_image_tensors()
+
+    def load_image_tensors(self):
+        if self.frame.mask.empty():
+            mask_tensor= torch.ones((1,1,self.frame.height,self.frame.width))
+            self.frame.mask=tensor2mat(mask_tensor)
+        #weight and hegiht
+        # self.height=self.rgb_tensor.shape[2]
+        # self.width=self.rgb_tensor.shape[3]
+        self.height=self.frame.height
+        self.width=self.frame.width
+        #CHECK that the frame width and hegiht has the same values as the rgb 
+        if self.frame.height!=self.frame.rgb_32f.rows or  self.frame.width!=self.frame.rgb_32f.cols:
+            print("frame dimensions and rgb32 doesnt match. frame.height", self.frame.height, " frame.rgb_32f.rows", self.frame.rgb_32f.rows, " frame.width ", self.frame.width, " frame.rgb_32f.cols ", self.frame.rgb_32f.cols)
+        #Ray direction in world coordinates
+        ray_dirs_mesh=self.frame.pixels2dirs_mesh()
+        # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
         
         
 
@@ -225,12 +253,12 @@ def run():
 
 
     first_time=True
-    experiment_name="s_6"
+    experiment_name="s_"
 
 
     use_ray_compression=False
     do_superres=False
-    predict_occlusion_map=True
+    predict_occlusion_map=False
 
 
 
@@ -244,14 +272,20 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    loader_train=DataLoaderNerf(config_path)
-    loader_test=DataLoaderNerf(config_path)
+    # loader_train=DataLoaderNerf(config_path)
+    # loader_test=DataLoaderNerf(config_path)
     # loader_train=DataLoaderColmap(config_path)
     # loader_test=DataLoaderColmap(config_path)
-    loader_train.set_mode_train()
-    loader_test.set_mode_test()
-    loader_train.start()
-    loader_test.start()
+    loader_train=DataLoaderShapeNetImg(config_path)
+    loader_test=DataLoaderShapeNetImg(config_path)
+    # loader_train.set_mode_train()
+    # loader_test.set_mode_test()
+    # loader_train.start()
+    # loader_test.start()
+
+    while True:
+        if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
+            break
 
     #create phases
     phases= [
@@ -352,6 +386,10 @@ def run():
     #get the triangulation of the frames 
     frame_centers, frame_idxs = frames_to_points(frames_train)
     sphere_center, sphere_radius=SFM.fit_sphere(frame_centers)
+    #if ithe shapentimg we put the center to zero because we know where it is
+    if isinstance(loader_train, DataLoaderShapeNetImg):
+        sphere_center= np.array([0,0,0])
+        sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
     print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
     frame_weights_computer= FrameWeightComputer()
 
@@ -367,8 +405,8 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=1 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=1
+    factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=0
 
     new_frame=None
 
@@ -385,8 +423,8 @@ def run():
             model.train(phase.grad)
             is_training=phase.grad
 
-            # if loader_test.finished_reading_scene(): #For shapenet
-            if True: #for nerf
+            if phase.loader.finished_reading_scene(): #For shapenet
+            # if True: #for nerf
 
                 # if phase.loader.has_data() and loader_test.has_data():
                 # if phase.loader.has_data(): #for nerf
@@ -396,7 +434,16 @@ def run():
                     if phase.grad:
                         frame=random.choice(phase.frames)
                     else:
-                        frame=phase.frames[i]
+                        use_orbit_frame=True
+                        if not use_orbit_frame:
+                            frame=phase.frames[i]
+                        else:
+                            #get novel frame that is an orbit around the origin 
+                            frame=phase.frames[0]
+                            model_matrix = frame.frame.tf_cam_world.inverse()
+                            model_matrix=model_matrix.orbit_y_around_point([0,0,0], 10)
+                            frame.frame.tf_cam_world = model_matrix.inverse()
+                            frame=FramePY(frame.frame)
                     TIME_START("all")
                     #get a subsampled frame if necessary
                     frame_full_res=frame
@@ -425,6 +472,12 @@ def run():
                                 frame_subsampled= frame_close.subsampled_frames[factor_subsample_close_frames-1]
                                 frames_close_subsampled.append(frame_subsampled)
                             frames_close= frames_close_subsampled
+
+                        #load the image data for this frames that we selected
+                        frame.load_images()
+                        for i in range(len(frames_close)):
+                            frames_close[i].load_images()
+
 
                         #prepare rgb data and rest of things
                         rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
@@ -713,6 +766,32 @@ def run():
                     TIME_END("all")
 
 
+                    #load the next scene 
+                    TIME_START("load")
+                    if phase.iter_nr%1==0 and is_training:
+                    # if False:
+                        if isinstance(loader_train, DataLoaderShapeNetImg):
+                            TIME_START("justload")
+                            phases[0].loader.start_reading_next_scene()
+                            phases[1].loader.start_reading_next_scene()
+                            #wait until they are read
+                            while True:
+                                if( phases[0].loader.finished_reading_scene() and  phases[1].loader.finished_reading_scene() ): 
+                                    break
+                            TIME_END("justload")
+                            frames_train=[]
+                            frames_test=[]
+                            for i in range(phases[0].loader.nr_samples()):
+                                frame_cur=phases[0].loader.get_frame_at_idx(i)
+                                frames_train.append(FramePY(frame_cur, create_subsamples=True))
+                            for i in range(phases[1].loader.nr_samples()):
+                                frame_cur=phases[1].loader.get_frame_at_idx(i)
+                                frames_test.append(FramePY(frame_cur, create_subsamples=True))
+                            phases[0].frames=frames_train 
+                            phases[1].frames=frames_test
+                    TIME_END("load")
+
+
                     if not ( use_pixel_indices and is_training): 
                         with torch.set_grad_enabled(False):
                             #VIEW pred
@@ -741,8 +820,9 @@ def run():
                                 Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
                                 # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
                                 depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                                depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
+                                # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
                                 # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
+                                depth_vis=map_range(depth_vis, 0.9, 1.5, 0.0, 1.0) #for the shapenetimgs
                                 depth_vis=depth_vis.repeat(1,3,1,1)
                                 depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
                                 Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)

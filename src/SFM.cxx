@@ -888,12 +888,12 @@ easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::
     // Eigen::Vector3d sphere_center = std::get<0>(sphere_params);
     // double sphere_radius = std::get<1>(sphere_params);
 
-    // //make sphere and check that it looks ok
-    // auto sphere= easy_pbr::Mesh::create();
-    // sphere->create_sphere(sphere_center, sphere_radius);
-    // sphere->m_vis.m_show_mesh=false;
-    // sphere->m_vis.m_show_points=true;
-    // // easy_pbr::Scene::show(sphere,"sphere");
+    // make sphere and check that it looks ok
+    auto sphere= easy_pbr::Mesh::create();
+    sphere->create_sphere(sphere_center, sphere_radius);
+    sphere->m_vis.m_show_mesh=false;
+    sphere->m_vis.m_show_points=true;
+    easy_pbr::Scene::show(sphere,"sphere");
 
     //project sphere using stereographic projection https://en.wikipedia.org/wiki/Stereographic_projection
     //we use the bottom points of the sphere to start the projection from
