@@ -407,6 +407,7 @@ def run():
     #usa_subsampled_frames
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=0
+    use_novel_orbit_frame=True #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
 
@@ -430,12 +431,17 @@ def run():
                 # if phase.loader.has_data(): #for nerf
                 # if True: #Shapenet IMg always had ata at this point 
                 # for frame_idx, frame in enumerate(frames_all_selected):
-                for i in range(phase.loader.nr_samples()):
+                nr_frames=0
+                if use_novel_orbit_frame and not is_training:
+                    nr_frames=36
+                else:
+                    nr_frames=phase.loader.nr_samples()
+                # for i in range(phase.loader.nr_samples()):
+                for i in range( nr_frames ):
                     if phase.grad:
                         frame=random.choice(phase.frames)
                     else:
-                        use_orbit_frame=True
-                        if not use_orbit_frame:
+                        if not use_novel_orbit_frame:
                             frame=phase.frames[i]
                         else:
                             #get novel frame that is an orbit around the origin 
