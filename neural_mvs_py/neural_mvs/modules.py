@@ -18,6 +18,220 @@ from neural_mvs_py.neural_mvs.pac import *
 from latticenet_py.lattice.lattice_modules import *
 
 
+from dataloaders import *
+
+
+
+def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, discard_same_idx):
+    frames_close=loader.get_close_frames(frame_py.frame, nr_frames_close, discard_same_idx)
+    # print("frames_close in py is ", len(frames_close))
+    # print("all_frames_py_list", len(all_frames_py_list))
+    #fromt his frame close get the frames from frame_py_list with the same indexes
+    frames_selected=[]
+    for frame in frames_close:
+        frame_idx=frame.frame_idx
+        # print("looking for a frame with frame_idx", frame_idx)
+        #find in all_frames_py_list the one with this frame idx
+        for frame_py in all_frames_py_list:
+            # print("cur frame has frmaeidx", frame_py.frame_idx)
+            if frame_py.frame_idx==frame_idx:
+                frames_selected.append(frame_py)
+
+    return frames_selected
+
+
+def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx, sphere_center, sphere_radius):
+
+    if discard_same_idx:
+        frame_centers, frame_idxs = frames_to_points(all_frames_py_list, discard_frame_with_idx=frame_py.frame_idx)
+    else:
+        frame_centers, frame_idxs = frames_to_points(all_frames_py_list )
+
+    triangulated_mesh=SFM.compute_triangulation_stegreographic( frame_centers, sphere_center, sphere_radius )
+
+    face, weights= SFM.compute_closest_triangle( frame_py.frame.pos_in_world(), triangulated_mesh )
+
+    #from the face get the vertices that we triangulated
+    # print("frame idx ", frame_idx_0, frame_idx_1, frame_idx_2 )
+    frame_idx_0= frame_idxs[face[0]]
+    frame_idx_1= frame_idxs[face[1]]
+    frame_idx_2= frame_idxs[face[2]]
+
+    selected_frames=[]
+    frame_0=None
+    frame_1=None
+    frame_2=None
+    #We have to add them in the same order, so first frame0 andthen 1 and then 2
+    for frame in all_frames_py_list:
+        if frame.frame_idx==frame_idx_0:
+            frame_0=frame
+        if frame.frame_idx==frame_idx_1:
+            frame_1=frame
+        if frame.frame_idx==frame_idx_2:
+            frame_2=frame
+    selected_frames.append(frame_0)
+    selected_frames.append(frame_1)
+    selected_frames.append(frame_2)
+    
+
+    return selected_frames, weights
+
+def create_loader(dataset_name, config_path):
+    if(dataset_name=="nerf_lego"):
+        loader_train=DataLoaderNerf(config_path)
+        loader_test=DataLoaderNerf(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+    elif dataset_name=="colmap":
+        loader_train=DataLoaderColmap(config_path)
+        loader_test=DataLoaderColmap(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+    elif dataset_name=="shapenetimg":
+        loader_train=DataLoaderShapeNetImg(config_path)
+        loader_test=DataLoaderShapeNetImg(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+        #wait until we have data
+        while True:
+            if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
+                break
+    else:
+        err="Datset name not recognized. It is " + dataset_name
+        sys.exit(err)
+
+    return loader_train, loader_test
+
+class FramePY():
+    def __init__(self, frame, create_subsamples=False):
+        #get mask 
+        self.frame=frame
+        # #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
+        # if not frame.mask.empty():
+        #     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
+        #     self.frame.mask=frame.mask
+        # else:
+        #     mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
+        #     self.frame.mask=tensor2mat(mask_tensor)
+        # #get rgb with mask applied 
+        # rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
+        # rgb_tensor=rgb_tensor*mask_tensor
+
+ 
+        if not frame.is_shell:
+            self.load_image_tensors()
+
+            # if frame.mask.empty():
+            #     mask_tensor= torch.ones((1,1,frame.height,frame.width))
+            #     self.frame.mask=tensor2mat(mask_tensor)
+            # #weight and hegiht
+            # # self.height=self.rgb_tensor.shape[2]
+            # # self.width=self.rgb_tensor.shape[3]
+            # self.height=frame.height
+            # self.width=frame.width
+            # #CHECK that the frame width and hegiht has the same values as the rgb 
+            # if frame.height!=frame.rgb_32f.rows or  frame.width!=frame.rgb_32f.cols:
+            #     print("frame dimensions and rgb32 doesnt match. frame.height", frame.height, " frame.rgb_32f.rows", frame.rgb_32f.rows, " frame.width ", frame.width, " frame.rgb_32f.cols ", frame.rgb_32f.cols)
+            # #Ray direction in world coordinates
+            # ray_dirs_mesh=frame.pixels2dirs_mesh()
+            # # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+            # self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
+
+        # self.frame.rgb_32f=tensor2mat(rgb_tensor)
+        #get tf and K
+        self.tf_cam_world=frame.tf_cam_world
+        self.K=frame.K
+        self.R_tensor=torch.from_numpy( frame.tf_cam_world.linear() ).to("cuda")
+        self.t_tensor=torch.from_numpy( frame.tf_cam_world.translation() ).to("cuda")
+        self.K_tensor = torch.from_numpy( frame.K ).to("cuda")
+        #misc
+        self.frame_idx=frame.frame_idx
+        # self.loader=loader
+        #lookdir and cam center
+        self.camera_center=torch.from_numpy( frame.pos_in_world() ).to("cuda")
+        self.camera_center=self.camera_center.view(1,3)
+        self.look_dir=torch.from_numpy( frame.look_dir() ).to("cuda")
+        self.look_dir=self.look_dir.view(1,3)
+        #create tensor to store the bound in z near and zfar for every pixel of this image
+        # self.znear_zfar = torch.nn.Parameter(  torch.ones([1,2,self.height,self.width], dtype=torch.float32, device=torch.device("cuda"))  )
+        # with torch.no_grad():
+        #     self.znear_zfar[:,0,:,:]=znear
+        #     self.znear_zfar[:,1,:,:]=zfar
+        # self.znear_zfar.requires_grad=True
+        # self.cloud=frame.depth2world_xyz_mesh()
+        # self.cloud=frame.assign_color(self.cloud)
+        # self.cloud.remove_vertices_at_zero()
+
+        #make a list of subsampled frames
+        if create_subsamples:
+            self.subsampled_frames=[]
+            for i in range(0):
+                if i==0:
+                    frame_subsampled=frame.subsample(2)
+                else:
+                    frame_subsampled=frame_subsampled.subsample(2)
+                self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
+
+    def create_frustum_mesh(self, scale):
+        frame=Frame()
+        frame.K=self.K
+        frame.tf_cam_world=self.tf_cam_world
+        frame.width=self.width
+        frame.height=self.height
+        cloud=frame.create_frustum_mesh(scale)
+        return cloud
+    def compute_uv(self, cloud):
+        frame=Frame()
+        frame.rgb_32f=self.rgb_32f
+        frame.K=self.K
+        frame.tf_cam_world=self.tf_cam_world
+        frame.width=self.width
+        frame.height=self.height
+        uv=frame.compute_uv(cloud)
+        return uv
+    def compute_uv_with_assign_color(self, cloud):
+        frame=Frame()
+        frame.rgb_32f=self.rgb_32f
+        frame.K=self.K
+        frame.tf_cam_world=self.tf_cam_world
+        frame.width=self.width
+        frame.height=self.height
+        cloud=frame.assign_color(cloud)
+        return cloud.UV.copy()
+
+    def load_images(self):
+        if self.frame.is_shell:
+            self.frame.load_images() 
+
+            #load the img tensors
+            self.load_image_tensors()
+
+    def load_image_tensors(self):
+        if self.frame.mask.empty():
+            mask_tensor= torch.ones((1,1,self.frame.height,self.frame.width))
+            self.frame.mask=tensor2mat(mask_tensor)
+        #weight and hegiht
+        # self.height=self.rgb_tensor.shape[2]
+        # self.width=self.rgb_tensor.shape[3]
+        self.height=self.frame.height
+        self.width=self.frame.width
+        #CHECK that the frame width and hegiht has the same values as the rgb 
+        if self.frame.height!=self.frame.rgb_32f.rows or  self.frame.width!=self.frame.rgb_32f.cols:
+            print("frame dimensions and rgb32 doesnt match. frame.height", self.frame.height, " frame.rgb_32f.rows", self.frame.rgb_32f.rows, " frame.width ", self.frame.width, " frame.rgb_32f.cols ", self.frame.rgb_32f.cols)
+        #Ray direction in world coordinates
+        ray_dirs_mesh=self.frame.pixels2dirs_mesh()
+        # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
+        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
+        
+        
+
+
 #some default arguments are in here https://github.com/sanghyun-son/EDSR-PyTorch/blob/master/src/demo.sh
 
 class EDSR_args():
