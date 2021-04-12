@@ -890,34 +890,44 @@ class UNet(torch.nn.Module):
         for i in range(self.nr_stages):
             print("cur nr_channels ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+
+                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
             ))
             self.nr_layers_ending_stage.append(cur_nr_channels)
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
             if after_coarsening_nr_channels> max_nr_channels:
                 after_coarsening_nr_channels=max_nr_channels
-            self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.coarsen_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
 
 
         self.bottleneck=nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+
+                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
             )
 
         self.up_stages_list = torch.nn.ModuleList([])
         self.squeeze_list = torch.nn.ModuleList([])
         for i in range(self.nr_stages):
             after_finefy_nr_channels=int(cur_nr_channels/2)
-            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.squeeze_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             #we now concat the features from the corresponding stage
             cur_nr_channels=after_finefy_nr_channels
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
             self.up_stages_list.append( nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ##last conv should have a bias because it's not followed by a GN
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+
+                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
             ))
             print("up stage which outputs nr of layers ", cur_nr_channels)
 
@@ -5276,14 +5286,15 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        # self.unet=UNet( nr_channels_start=16, nr_channels_output=16, nr_stages=5, max_nr_channels=128)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=64)
+        # self.unet_rgb=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=1, max_nr_channels=32)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
         # self.unet= SQNet(classes=32)
         # self.unet= LinkNet(classes=32) #converges
         # self.unet= LinkNetImprove(classes=32)  #looks ok
         # self.unet= SegNet(classes=32) #looks ok
-        self.unet= UNet_efficient.UNet(classes=32) #converges
+        # self.unet= UNet_efficient.UNet(classes=32) #converges
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=32)

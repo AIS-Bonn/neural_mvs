@@ -289,7 +289,7 @@ def run():
 
     use_ray_compression=False
     do_superres=False
-    predict_occlusion_map=False
+    predict_occlusion_map=True
 
 
 
