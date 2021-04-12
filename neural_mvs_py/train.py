@@ -118,6 +118,37 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
 
     return selected_frames, weights
 
+def create_loader(dataset_name, config_path):
+    if(dataset_name=="nerf_lego"):
+        loader_train=DataLoaderNerf(config_path)
+        loader_test=DataLoaderNerf(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+    elif dataset_name=="colmap":
+        loader_train=DataLoaderColmap(config_path)
+        loader_test=DataLoaderColmap(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+    elif dataset_name=="shapenetimg":
+        loader_train=DataLoaderShapeNetImg(config_path)
+        loader_test=DataLoaderShapeNetImg(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+        #wait until we have data
+        while True:
+            if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
+                break
+    else:
+        err="Datset name not recognized. It is " + dataset_name
+        sys.exit(err)
+
+    return loader_train, loader_test
 
 class FramePY():
     def __init__(self, frame, create_subsamples=False):
@@ -276,16 +307,15 @@ def run():
     # loader_test=DataLoaderNerf(config_path)
     # loader_train=DataLoaderColmap(config_path)
     # loader_test=DataLoaderColmap(config_path)
-    loader_train=DataLoaderShapeNetImg(config_path)
-    loader_test=DataLoaderShapeNetImg(config_path)
+    # loader_train=DataLoaderShapeNetImg(config_path)
+    # loader_test=DataLoaderShapeNetImg(config_path)
     # loader_train.set_mode_train()
     # loader_test.set_mode_test()
     # loader_train.start()
     # loader_test.start()
+    loader_train, loader_test=create_loader(train_params.dataset_name(), config_path)
 
-    while True:
-        if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
-            break
+   
 
     #create phases
     phases= [
@@ -407,7 +437,7 @@ def run():
     #usa_subsampled_frames
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=0
-    use_novel_orbit_frame=True #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
+    use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
 
@@ -424,7 +454,8 @@ def run():
             model.train(phase.grad)
             is_training=phase.grad
 
-            if phase.loader.finished_reading_scene(): #For shapenet
+            # if phase.loader.finished_reading_scene(): #For shapenet
+            if phase.loader.has_data(): # the nerf will always return true because it preloads all data, the shapenetimg dataset will return true when the scene it actually loaded
             # if True: #for nerf
 
                 # if phase.loader.has_data() and loader_test.has_data():
