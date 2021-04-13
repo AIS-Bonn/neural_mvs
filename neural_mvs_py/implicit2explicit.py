@@ -98,16 +98,6 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader_train=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderColmap(config_path)
-    # loader_train=DataLoaderShapeNetImg(config_path)
-    # loader_test=DataLoaderShapeNetImg(config_path)
-    # loader_train.set_mode_train()
-    # loader_test.set_mode_test()
-    # loader_train.start()
-    # loader_test.start()
     loader_train, loader_test=create_loader(train_params.dataset_name(), config_path)
 
    
@@ -145,68 +135,6 @@ def run():
     #Show only the visdom for the testin
     phases[0].show_visdom=False
     # phases[1].show_visdom=True
-
-    #show all the train and test frames 
-    # for i in range(loader_train.nr_samples()):
-    #     frame=loader_train.get_frame_at_idx(i)
-    #     frustum_mesh=frame.create_frustum_mesh(0.02)
-    #     frustum_mesh.m_vis.m_line_width=1
-    #     Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
-    # for i in range(loader_test.nr_samples()):
-    #     frame=loader_test.get_frame_at_idx(i)
-    #     frustum_mesh=frame.create_frustum_mesh(0.02)
-    #     frustum_mesh.m_vis.m_line_width=1
-    #     frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0] #blue
-    #     Scene.show(frustum_mesh, "frustum_test_"+str(frame.frame_idx) )
-
- 
-    
-    # #compute 3D 
-    # sfm=SFM.create()
-    # selected_frame_idx=np.arange(30) #For colmap
-    # # selected_frame_idx=[10]
-    # frames_query_selected=[]
-    # frames_target_selected=[]
-    # frames_all_selected=[]
-    # meshes_for_query_frames=[]
-    # for i in range(loader_train.nr_samples()):
-    # # for i in range(1 ):
-    #     # frame_0=loader_train.get_frame_at_idx(i+3) 
-    #     if i in selected_frame_idx:
-    #         frame_query=loader_train.get_frame_at_idx(i) 
-    #         # frame_target=loader_train.get_closest_frame(frame_query)
-    #         frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
-    #         frames_query_selected.append(frame_query)
-    #         frames_target_selected.append(frame_target)
-    #         frames_all_selected.append(frame_query)
-    #         frames_all_selected.append(frame_target)
-    #         mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-    #         meshes_for_query_frames.append(mesh_sparse)
-         
-
-
-    # #fuse all the meshes into one
-    # mesh_full=Mesh()
-    # for mesh in meshes_for_query_frames:
-    #     mesh_full.add(mesh)
-    # mesh_full.m_vis.m_show_points=True
-    # mesh_full.m_vis.set_color_pervertcolor()
-    # Scene.show(mesh_full, "mesh_full" )
-    # print("scene scale is ", Scene.get_scale())
-
-
-    # #get for each frame_query the distances of the keypoints
-    # frame_idx2keypoint_data={}
-    # for i in range(loader_train.nr_samples()):
-    #     frame_query=loader_train.get_frame_at_idx(i) 
-    #     frame_target=loader_train.get_closest_frame(frame_query)
-    #     mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-    #     keypoints_distances=torch.from_numpy(keypoints_distances_eigen.copy()).to("cuda")
-    #     keypoints_indices=torch.from_numpy(keypoints_indices_eigen.copy()).to("cuda")
-    #     keypoints_3d =torch.from_numpy(mesh_sparse.V.copy()).float().to("cuda")
-    #     keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
-    #     frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
-
 
     #get the triangulation of the frames 
     frame_centers, frame_idxs = frames_to_points(frames_train)
@@ -248,7 +176,7 @@ def run():
             for phase in phases:
                 cb.epoch_started(phase=phase)
                 cb.phase_started(phase=phase)
-                model.train(phase.grad)
+                # model.train(phase.grad)
                 is_training=phase.grad
 
                 # if phase.loader.finished_reading_scene(): #For shapenet
@@ -462,8 +390,14 @@ def run():
             args= "--in "+file_path_root+"nerf_lego_mesh.ply" + " --out "+ file_path_root+"nerf_lego_mesh_trimmed.ply" + " --trim 7" 
             full_cmd=  poisson_path+"SurfaceTrimmer " + args
             subprocess.run( full_cmd , shell=True)  # doesn't capture output
+            #run the unwrapping from blender
+            args= "-- --in_path "+file_path_root+"nerf_lego_mesh_trimmed.ply" + " --out_path "+ file_path_root+"nerf_lego_mesh_trimmed_uv.ply"
+            blender_unwrap_script_path="/media/rosu/Data/phd/ws/misc_scripts/blender_unwrap_one_mesh.py"
+            full_cmd=  "blender --python "+ blender_unwrap_script_path + args
+            subprocess.run( full_cmd , shell=True)  # doesn't capture output
+
             #load mesh 
-            mesh_trimmed=Mesh(file_path_root+"nerf_lego_mesh_trimmed.ply")
+            mesh_trimmed=Mesh(file_path_root+"nerf_lego_mesh_trimmed_uv.ply")
             Scene.show(mesh_trimmed, "mesh_trimmed")
 
             
