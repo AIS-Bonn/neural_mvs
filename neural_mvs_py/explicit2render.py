@@ -253,20 +253,24 @@ def run():
 
 
                     #render the mesh to get the 3D points that are on the surface
+                    Scene.hide_all()
+                    Scene.get_mesh_with_name("mesh").m_vis.m_is_visible=True
                     original_cam=view.m_camera.clone()
+                    original_viewport=view.m_viewport_size.copy()
                     view.m_camera.from_frame(frame.frame, True)
+                    # view.clear_framebuffers()
+                    view.m_viewport_size=[frame.width, frame.height]
                     view.draw()
                     uv_mat=view.gbuffer_mat_with_name("uv_gtex")
                     uv_mat.flip_y()
                     Gui.show(uv_mat,"uv_mat" )
+                    uv_tensor=mat2tensor(uv_mat, False)
                     # frame.frame.depth=depth_mat 
                     # points3d_mesh_rendered = frame.frame.depth2world_xyz_mesh()
                     # Scene.show(points3d_mesh_rendered, "points3d_mesh_rendered")
-                    # view.m_camera=original_cam
+                    view.m_camera=original_cam
+                    view.m_viewport_size=original_viewport
                     # view.clear_framebuffers()
-                    # print("view.m_camera ", view.m_camera.view_matrix() )
-                    # print("dir", view.m_camera.direction() )
-                    # exit(1)
 
 
 
