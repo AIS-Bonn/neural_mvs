@@ -53,7 +53,7 @@ import subprocess
 # from deps.lnets.lnets.utils.math.autodiff import *
 
 
-config_file="train.cfg"
+config_file="explicit2render.cfg"
 
 torch.manual_seed(0)
 random.seed(0)
@@ -111,10 +111,10 @@ def run():
     model=None
     # model=Net3_SRN(model_params, do_superres).to("cuda")
     model=torch.nn.Sequential(
-        # BlockNerf(activ=torch.nn.GELU(), in_channels=32, out_channels=64,  bias=True ).cuda(),
-        # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
-        # BlockNerf(activ=None, in_channels=64, out_channels=3,  bias=True ).cuda(),
-        BlockNerf(activ=None, in_channels=3, out_channels=3,  bias=True ).cuda(),
+        BlockNerf(activ=torch.nn.GELU(), in_channels=32+3, out_channels=64,  bias=True ).cuda(),
+        BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+        BlockNerf(activ=None, in_channels=64, out_channels=3,  bias=True ).cuda(),
+        # BlockNerf(activ=None, in_channels=3, out_channels=3,  bias=True ).cuda(),
     )
     model.train()
 
@@ -178,7 +178,7 @@ def run():
     mesh=Mesh("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/meshes/nerf_lego_mesh_trimmed_uv.ply")
     Scene.show(mesh,"mesh")
 
-    texture= torch.zeros((1,3, 1024, 1024 )).to("cuda")
+    texture= torch.zeros((1,32, 512, 512 )).to("cuda")
     texture.requires_grad=True
 
     while True:
@@ -306,8 +306,11 @@ def run():
                         # print("texture_features", texture_features.shape)
                         feat_nr=texture_features.shape[1]
                         texture_features=texture_features.permute(0,2,3,1).view(-1,feat_nr) # from N,C,H,W to N,H,W,C
-                        # rgb_pred= model(texture_features)
-                        rgb_pred= texture_features
+                        ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+                        feat_and_dirs=torch.cat([ray_dirs, texture_features],1)
+                        # feat_and_dirs=texture_features
+                        rgb_pred= model(feat_and_dirs)
+                        # rgb_pred= texture_features
                         rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
 
 
@@ -345,7 +348,7 @@ def run():
                                 # texture
                             # ]
                             params_to_train = [texture]
-                            # params_to_train += list(model.parameters())
+                            params_to_train += list(model.parameters())
                             # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer.zero_grad()
@@ -382,10 +385,11 @@ def run():
 
 
                     rgb_pred_mat=tensor2mat(rgb_pred)
-                    texture_mat=tensor2mat(texture)
+                    # texture_mat=tensor2mat(texture)
                     Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                    Gui.show(texture_mat,"texture")
-                    mesh.set_diffuse_tex(texture_mat)
+                    # Gui.show(texture_mat,"texture")
+                    Gui.show(frame.frame.rgb_32f, "rgb_gt")
+                    # mesh.set_diffuse_tex(texture_mat)
 
 
                     # if not ( use_pixel_indices and is_training): 
