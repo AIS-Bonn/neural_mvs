@@ -5628,7 +5628,19 @@ class DeferredNeuralRenderer(torch.nn.Module):
         #models
         num_encoding_directions=4
         self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
-        self.unet=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=2, max_nr_channels=64)
+        self.unet=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64)
+        # self.unet=torch.nn.Sequential(
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=32, out_channels=64,  bias=True ).cuda(),
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=128,  bias=True ).cuda(),
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=128, out_channels=64,  bias=True ).cuda(),
+        #     BlockNerf(activ=None, in_channels=64, out_channels=3,  bias=True ).cuda(),
+        # )
+        # self.unet=torch.nn.Sequential(
+        #     BlockSiren(activ=torch.sin, in_channels=32, out_channels=64,  bias=True, is_first_layer=True, scale_init=10).cuda(),
+        #     BlockSiren(activ=torch.sin, in_channels=64, out_channels=128,  bias=True, is_first_layer=False).cuda(),
+        #     BlockSiren(activ=torch.sin, in_channels=128, out_channels=64,  bias=True, is_first_layer=False).cuda(),
+        #     BlockNerf(activ=torch.tanh, in_channels=64, out_channels=3,  bias=True).cuda(),
+        # )
       
 
        
@@ -5694,10 +5706,18 @@ class DeferredNeuralRenderer(torch.nn.Module):
         # print("basis is ", basis.shape)
 
         texture_features[:, 3:12, :, :] = texture_features[:, 3:12, :, :] * basis
-
         feat_input=texture_features
+        # feat_input=torch.cat([texture_features,basis],1)
+        # ray_directions=ray_directions.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        # feat_input=torch.cat([texture_features,ray_directions],1)
+
+        # feat_nr=feat_input.shape[1]
+        # feat_input=feat_input.permute(0,2,3,1).view(-1,feat_nr)# from N,C,H,W to N,H,W,C
 
         rgb_pred=self.unet( feat_input )
+        rgb_pred=torch.tanh(rgb_pred)
+
+        # rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
        
         return rgb_pred 
 

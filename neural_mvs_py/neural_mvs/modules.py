@@ -1332,7 +1332,7 @@ class BlockPAC(torch.nn.Module):
 
 
 class BlockSiren(MetaModule):
-    def __init__(self, in_channels, out_channels, bias, activ=torch.nn.ReLU(inplace=False), is_first_layer=False ):
+    def __init__(self, in_channels, out_channels, bias, activ=torch.nn.ReLU(inplace=False), is_first_layer=False, scale_init=90 ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.GELU(), init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.sin, init=None ):
     # def __init__(self, out_channels,  kernel_size, stride, padding, dilation, bias, with_dropout, transposed, activ=torch.nn.ELU(), init=None ):
@@ -1342,6 +1342,7 @@ class BlockSiren(MetaModule):
         self.bias=bias 
         self.activ=activ
         self.is_first_layer=is_first_layer
+        self.scale_init=scale_init
         
 
         self.relu=torch.nn.ReLU()
@@ -1380,7 +1381,7 @@ class BlockSiren(MetaModule):
 
         if self.activ==torch.sin:
             if self.is_first_layer: 
-                x=90*x
+                x=self.scale_init*x
             else: 
                 x=x*1
             x=self.activ(x)

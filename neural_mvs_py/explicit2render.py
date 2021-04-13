@@ -79,7 +79,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_6sh"
+    experiment_name="s14shu_ssim"
 
 
     use_ray_compression=False
@@ -323,7 +323,9 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
                         rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        loss+=rgb_loss_l1
+                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        # loss+=rgb_loss_l1
+                        loss+=rgb_loss_ssim_l1
                         print("loss is ", loss)
                         # print("texture min max is ", texture.min(), texture.max() )
 
