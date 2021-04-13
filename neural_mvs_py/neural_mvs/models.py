@@ -890,8 +890,8 @@ class UNet(torch.nn.Module):
         for i in range(self.nr_stages):
             print("cur nr_channels ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -900,14 +900,14 @@ class UNet(torch.nn.Module):
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
             if after_coarsening_nr_channels> max_nr_channels:
                 after_coarsening_nr_channels=max_nr_channels
-            self.coarsen_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
 
 
         self.bottleneck=nn.Sequential(
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -917,14 +917,14 @@ class UNet(torch.nn.Module):
         self.squeeze_list = torch.nn.ModuleList([])
         for i in range(self.nr_stages):
             after_finefy_nr_channels=int(cur_nr_channels/2)
-            self.squeeze_list.append(  GNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=False, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             #we now concat the features from the corresponding stage
             cur_nr_channels=after_finefy_nr_channels
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
             self.up_stages_list.append( nn.Sequential(
                 ##last conv should have a bias because it's not followed by a GN
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -5644,20 +5644,60 @@ class DeferredNeuralRenderer(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
         self.concat_coord=ConcatCoord() 
 
+    #from https://github.com/SSRSGJYD/NeuralTexture/blob/master/model/pipeline.py
+    def _spherical_harmonics_basis(self, extrinsics):
+        '''
+        extrinsics: a tensor shaped (N, 3)
+        output: a tensor shaped (N, 9)
+        '''
+        batch = extrinsics.shape[0]
+        sh_bands = torch.ones((batch, 9), dtype=torch.float)
+        coff_0 = 1 / (2.0*math.sqrt(np.pi))
+        coff_1 = math.sqrt(3.0) * coff_0
+        coff_2 = math.sqrt(15.0) * coff_0
+        coff_3 = math.sqrt(1.25) * coff_0
+        # l=0
+        sh_bands[:, 0] = coff_0
+        # l=1
+        sh_bands[:, 1] = extrinsics[:, 1] * coff_1
+        sh_bands[:, 2] = extrinsics[:, 2] * coff_1
+        sh_bands[:, 3] = extrinsics[:, 0] * coff_1
+        # l=2
+        sh_bands[:, 4] = extrinsics[:, 0] * extrinsics[:, 1] * coff_2
+        sh_bands[:, 5] = extrinsics[:, 1] * extrinsics[:, 2] * coff_2
+        sh_bands[:, 6] = (3.0 * extrinsics[:, 2] * extrinsics[:, 2] - 1.0) * coff_3
+        sh_bands[:, 7] = extrinsics[:, 2] * extrinsics[:, 0] * coff_2
+        sh_bands[:, 8] = (extrinsics[:, 0] * extrinsics[:, 0] - extrinsics[:, 2] * extrinsics[:, 2]) * coff_2
+        return sh_bands
+
 
       
     def forward(self, frame, texture_features, ray_directions):
+        # ray_directions=ray_directions.view(-1,3)
+        # ray_directions=F.normalize(ray_directions, p=2, dim=1)
+        # ray_directions=self.learned_pe_dirs(ray_directions, params=None)
+        # ray_directions=ray_directions.view(1, frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        # # print("ray_directions", ray_directions.shape)
+
+        # feat_input=torch.cat([texture_features,ray_directions],1)
+        # # print("feat_input", feat_input.shape)
+
+        # rgb_pred=self.unet( feat_input )
+        # # print("rgb_pred",rgb_pred.shape)
+
+
+        ##atttempt 2 using spherical harmonics
         ray_directions=ray_directions.view(-1,3)
         ray_directions=F.normalize(ray_directions, p=2, dim=1)
-        ray_directions=self.learned_pe_dirs(ray_directions, params=None)
-        ray_directions=ray_directions.view(1, frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-        # print("ray_directions", ray_directions.shape)
+        basis = self._spherical_harmonics_basis(ray_directions).cuda()
+        basis=basis.view(1, frame.height, frame.width, 9).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        # print("basis is ", basis.shape)
 
-        feat_input=torch.cat([texture_features,ray_directions],1)
-        # print("feat_input", feat_input.shape)
+        texture_features[:, 3:12, :, :] = texture_features[:, 3:12, :, :] * basis
+
+        feat_input=texture_features
 
         rgb_pred=self.unet( feat_input )
-        # print("rgb_pred",rgb_pred.shape)
        
         return rgb_pred 
 
