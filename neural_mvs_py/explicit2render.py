@@ -79,7 +79,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s14shu_ssim"
+    experiment_name="s_2lr"
 
 
     use_ray_compression=False
@@ -323,9 +323,9 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
                         rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        # loss+=rgb_loss_l1
-                        loss+=rgb_loss_ssim_l1
+                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        loss+=rgb_loss_l1
+                        # loss+=rgb_loss_ssim_l1
                         print("loss is ", loss)
                         # print("texture min max is ", texture.min(), texture.max() )
 
@@ -358,11 +358,11 @@ def run():
                             params_to_train = [texture]
                             params_to_train += list(model.parameters())
                             # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            # optimizer=GC_Adam.AdamW( [
-                                # {'params': model.parameters()},
-                                # {'params': [texture], 'lr': train_params.lr()*10 }
-                            # ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            # optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=GC_Adam.AdamW( [
+                                {'params': model.parameters()},
+                                {'params': [texture], 'lr': train_params.lr()*100 }
+                            ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
                             optimizer.zero_grad()
                         cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
