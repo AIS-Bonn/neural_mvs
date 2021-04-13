@@ -105,7 +105,7 @@ def run():
     #create phases
     phases= [
         Phase('train', loader_train, grad=True),
-        # Phase('test', loader_test, grad=False)
+        Phase('test', loader_test, grad=False)
     ]
     #model 
     model=None
@@ -138,10 +138,10 @@ def run():
         frame=loader_test.get_frame_at_idx(i)
         frames_test.append(FramePY(frame, create_subsamples=True))
     phases[0].frames=frames_train 
-    # phases[1].frames=frames_test
+    phases[1].frames=frames_test
     #Show only the visdom for the testin
     phases[0].show_visdom=False
-    # phases[1].show_visdom=True
+    phases[1].show_visdom=True
 
     #get the triangulation of the frames 
     frame_centers, frame_idxs = frames_to_points(frames_train)
@@ -197,7 +197,11 @@ def run():
             
                 for i in range(phase.loader.nr_samples()):
                 # for i in range(2):
-                    frame=phase.frames[i]
+                    # frame=phase.frames[i]
+                    if phase.grad:
+                        frame=random.choice(phase.frames)
+                    else:
+                        frame=phase.frames[i]
                     TIME_START("all")
                     #get a subsampled frame if necessary
                     frame_full_res=frame
@@ -294,7 +298,7 @@ def run():
 
 
                     #forward attempt 2 using a network with differetnaible ray march
-                    with torch.set_grad_enabled(True):
+                    with torch.set_grad_enabled(is_training):
 
                         
                         #get the texture_features 
@@ -353,10 +357,16 @@ def run():
                             params_to_train += list(model.parameters())
                             # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                            optimizer.zero_grad()
+                            # optimizer=GC_Adam.AdamW( [
+                                # {'params': model.parameters()},
+                                # {'params': [texture], 'lr': train_params.lr()*10 }
+                            # ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
-                    # if is_training:
-                    if True:
+                            optimizer.zero_grad()
+                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+
+                    if is_training:
+                    # if True:
                         # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
                             # scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
                         # warmup_scheduler.dampen()
