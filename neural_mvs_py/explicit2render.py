@@ -110,12 +110,13 @@ def run():
     #model 
     model=None
     # model=Net3_SRN(model_params, do_superres).to("cuda")
-    model=torch.nn.Sequential(
-        BlockNerf(activ=torch.nn.GELU(), in_channels=32+3, out_channels=64,  bias=True ).cuda(),
-        BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
-        BlockNerf(activ=None, in_channels=64, out_channels=3,  bias=True ).cuda(),
-        # BlockNerf(activ=None, in_channels=3, out_channels=3,  bias=True ).cuda(),
-    )
+    # model=torch.nn.Sequential(
+    #     BlockNerf(activ=torch.nn.GELU(), in_channels=32+3, out_channels=64,  bias=True ).cuda(),
+    #     BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+    #     BlockNerf(activ=None, in_channels=64, out_channels=3,  bias=True ).cuda(),
+    #     # BlockNerf(activ=None, in_channels=3, out_channels=3,  bias=True ).cuda(),
+    # )
+    model=DeferredNeuralRenderer()
     model.train()
 
     scheduler=None
@@ -305,13 +306,14 @@ def run():
                         texture_features=torch.nn.functional.grid_sample( texture, uv_tensor, align_corners=False, mode="bilinear" ) 
                         # print("texture_features", texture_features.shape)
                         feat_nr=texture_features.shape[1]
-                        texture_features=texture_features.permute(0,2,3,1).view(-1,feat_nr) # from N,C,H,W to N,H,W,C
+                        # texture_features=texture_features.permute(0,2,3,1).view(-1,feat_nr) # from N,C,H,W to N,H,W,C
                         ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
-                        feat_and_dirs=torch.cat([ray_dirs, texture_features],1)
+                        # feat_and_dirs=torch.cat([ray_dirs, texture_features],1)
                         # feat_and_dirs=texture_features
-                        rgb_pred= model(feat_and_dirs)
+                        # rgb_pred= model(feat_and_dirs)
+                        rgb_pred= model(frame, texture_features, ray_dirs)
                         # rgb_pred= texture_features
-                        rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        # rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
 
 
                         loss=0
@@ -369,12 +371,12 @@ def run():
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
-                        # #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
-                        # clip_percentile=10
-                        # obs_grad_norm = get_grad_norm(model)
-                        # grad_history.append(obs_grad_norm)
-                        # clip_value = np.percentile(grad_history, clip_percentile)
-                        # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+                        #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
+                        clip_percentile=10
+                        obs_grad_norm = get_grad_norm(model)
+                        grad_history.append(obs_grad_norm)
+                        clip_value = np.percentile(grad_history, clip_percentile)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
 
                         # model.summary()
                         # exit()

@@ -5619,6 +5619,48 @@ class Net3_SRN(torch.nn.Module):
 
 
 
+class DeferredNeuralRenderer(torch.nn.Module):
+    def __init__(self):
+        super(DeferredNeuralRenderer, self).__init__()
+
+        self.first_time=True
+
+        #models
+        num_encoding_directions=4
+        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        self.unet=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=2, max_nr_channels=64)
+      
+
+       
+
+
+        #activ
+        self.relu=torch.nn.ReLU()
+        self.sigmoid=torch.nn.Sigmoid()
+        self.tanh=torch.nn.Tanh()
+
+        #params
+        self.slice_texture= SliceTextureModule()
+        self.splat_texture= SplatTextureModule()
+        self.concat_coord=ConcatCoord() 
+
+
+      
+    def forward(self, frame, texture_features, ray_directions):
+        ray_directions=ray_directions.view(-1,3)
+        ray_directions=F.normalize(ray_directions, p=2, dim=1)
+        ray_directions=self.learned_pe_dirs(ray_directions, params=None)
+        ray_directions=ray_directions.view(1, frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        # print("ray_directions", ray_directions.shape)
+
+        feat_input=torch.cat([texture_features,ray_directions],1)
+        # print("feat_input", feat_input.shape)
+
+        rgb_pred=self.unet( feat_input )
+        # print("rgb_pred",rgb_pred.shape)
+       
+        return rgb_pred 
+
 class PCA(Function):
     # @staticmethod
     def forward(ctx, sv): #sv corresponds to the slices values, it has dimensions nr_positions x val_full_dim
