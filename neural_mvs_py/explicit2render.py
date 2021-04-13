@@ -109,7 +109,13 @@ def run():
     ]
     #model 
     model=None
-    model=Net3_SRN(model_params, do_superres).to("cuda")
+    # model=Net3_SRN(model_params, do_superres).to("cuda")
+    model=torch.nn.Sequential(
+        # BlockNerf(activ=torch.nn.GELU(), in_channels=32, out_channels=64,  bias=True ).cuda(),
+        # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+        # BlockNerf(activ=None, in_channels=64, out_channels=3,  bias=True ).cuda(),
+        BlockNerf(activ=None, in_channels=3, out_channels=3,  bias=True ).cuda(),
+    )
     model.train()
 
     scheduler=None
@@ -171,6 +177,9 @@ def run():
 
     mesh=Mesh("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/meshes/nerf_lego_mesh_trimmed_uv.ply")
     Scene.show(mesh,"mesh")
+
+    texture= torch.zeros((1,3, 1024, 1024 )).to("cuda")
+    texture.requires_grad=True
 
     while True:
 
@@ -264,7 +273,7 @@ def run():
                     uv_mat=view.gbuffer_mat_with_name("uv_gtex")
                     uv_mat.flip_y()
                     Gui.show(uv_mat,"uv_mat" )
-                    uv_tensor=mat2tensor(uv_mat, False)
+                    uv_tensor=mat2tensor(uv_mat, False).to("cuda")
                     # frame.frame.depth=depth_mat 
                     # points3d_mesh_rendered = frame.frame.depth2world_xyz_mesh()
                     # Scene.show(points3d_mesh_rendered, "points3d_mesh_rendered")
@@ -273,117 +282,196 @@ def run():
                     # view.clear_framebuffers()
 
 
+                    # #get the texture_features 
+                    # uv_tensor=uv_tensor.permute(0,2,3,1).view(-1.2) # from N,C,H,W to N,H,W,C
+                    # texture_features=torch.nn.functional.grid_sample( texture_tensor, uv_tensor, align_corners=False, mode="bilinear" ) 
+                    # print("texture_features", texture_features.shape)
+                    # rgb_pred= model(texture_features)
+
+
 
 
 
                     #forward attempt 2 using a network with differetnaible ray march
-                    with torch.set_grad_enabled(False):
+                    with torch.set_grad_enabled(True):
+
+                        
+                        #get the texture_features 
+                        uv_tensor=uv_tensor*2 -1.0 #get the uv from [0,1] to [-1,1]
+                        # print("uv_tensor ", uv_tensor.shape)
+                        uv_tensor=uv_tensor.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
+                        #flip the y axis 
+                        uv_tensor[:,:,:, 1:2]=-uv_tensor[:,:,:, 1:2]
+                        texture_features=torch.nn.functional.grid_sample( texture, uv_tensor, align_corners=False, mode="bilinear" ) 
+                        # print("texture_features", texture_features.shape)
+                        feat_nr=texture_features.shape[1]
+                        texture_features=texture_features.permute(0,2,3,1).view(-1,feat_nr) # from N,C,H,W to N,H,W,C
+                        # rgb_pred= model(texture_features)
+                        rgb_pred= texture_features
+                        rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
 
 
-                        TIME_START("forward")
-                        # print( torch.cuda.memory_summary() )
-                        # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
-                        TIME_END("forward")
+                        loss=0
+                        rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
+                        rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
+                        loss+=rgb_loss_l1
+                        print("loss is ", loss)
+                        # print("texture min max is ", texture.min(), texture.max() )
+
+
+
+                        # TIME_START("forward")
+                        # # print( torch.cuda.memory_summary() )
+                        # # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
+                        # rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                        # TIME_END("forward")
+
+                        # if first_time:
+                        #     first_time=False
+                        #     # now that all the parameters are created we can fill them with a model from a file
+                        #     model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_sub4/model_e_100.pt" ))
+                        #     rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                        # # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
+
+
+                        # #sometimes the refined one doesnt upsample nicely to the full res 
+                        # if do_superres and rgb_refined.shape!=rgb_gt_fullres:
+                        #     rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(rgb_gt_fullres.shape[2], rgb_gt_fullres.shape[3]), mode='bilinear')
 
                         if first_time:
                             first_time=False
-                            # now that all the parameters are created we can fill them with a model from a file
-                            model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_sub4/model_e_100.pt" ))
-                            rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
-                        # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
+                            # params=[
+                                # model.parameters(),
+                                # texture
+                            # ]
+                            params_to_train = [texture]
+                            # params_to_train += list(model.parameters())
+                            # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                            optimizer.zero_grad()
 
+                    # if is_training:
+                    if True:
+                        # if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+                            # scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
+                        # warmup_scheduler.dampen()
+                        optimizer.zero_grad()
+                        cb.before_backward_pass()
+                        TIME_START("backward")
+                        loss.backward()
+                        # loss.backward(create_graph=True) #IS NEEDED BY ADAHESIAN but it doesnt work becasue grid sampler doesnt have a second derrivative
+                        TIME_END("backward")
+                        cb.after_backward_pass()
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
-                        #sometimes the refined one doesnt upsample nicely to the full res 
-                        if do_superres and rgb_refined.shape!=rgb_gt_fullres:
-                            rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(rgb_gt_fullres.shape[2], rgb_gt_fullres.shape[3]), mode='bilinear')
+                        # #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
+                        # clip_percentile=10
+                        # obs_grad_norm = get_grad_norm(model)
+                        # grad_history.append(obs_grad_norm)
+                        # clip_value = np.percentile(grad_history, clip_percentile)
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+
+                        # model.summary()
+                        # exit()
+
+                        optimizer.step()
 
                     TIME_END("all")
 
-                    if not ( use_pixel_indices and is_training): 
-                        with torch.set_grad_enabled(False):
-                            #VIEW pred
-                            #make masks 
-                            mask_pred_thresh=mask_pred<0.3
-                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                            rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
-                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                            if phase.iter_nr%show_every==0:
-                                #view diff 
-                                diff=( rgb_gt-rgb_pred)**2*10
-                                Gui.show(tensor2mat(diff),"diff_"+phase.name)
-                                #mask
-                                if predict_occlusion_map:
-                                    rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
-                                rgb_pred_mat=tensor2mat(rgb_pred)
-                                Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                                if do_superres:
-                                    rgb_refined_mat=tensor2mat(rgb_refined)
-                                    Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
-                                #view gt
-                                Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
-                                Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
-                                Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
-                                # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
-                                depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                                # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
-                                # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
-                                depth_vis=map_range(depth_vis, 0.9, 1.5, 0.0, 1.0) #for the shapenetimgs
-                                depth_vis=depth_vis.repeat(1,3,1,1)
-                                depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
-                                Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
-                                #show rgb for frame close 
-                                Gui.show(tensor2mat(rgb_close_batch_list[0]),"rgbclose" )
+
+                    rgb_pred_mat=tensor2mat(rgb_pred)
+                    texture_mat=tensor2mat(texture)
+                    Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
+                    Gui.show(texture_mat,"texture")
+                    mesh.set_diffuse_tex(texture_mat)
+
+
+                    # if not ( use_pixel_indices and is_training): 
+                    #     with torch.set_grad_enabled(False):
+                    #         #VIEW pred
+                    #         #make masks 
+                    #         mask_pred_thresh=mask_pred<0.3
+                    #         rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                    #         rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                    #         rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                    #         rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
+                    #         rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                    #         if phase.iter_nr%show_every==0:
+                    #             #view diff 
+                    #             diff=( rgb_gt-rgb_pred)**2*10
+                    #             Gui.show(tensor2mat(diff),"diff_"+phase.name)
+                    #             #mask
+                    #             if predict_occlusion_map:
+                    #                 rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
+                    #             rgb_pred_mat=tensor2mat(rgb_pred)
+                    #             Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
+                    #             if do_superres:
+                    #                 rgb_refined_mat=tensor2mat(rgb_refined)
+                    #                 Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                    #             #view gt
+                    #             Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
+                    #             Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
+                    #             Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
+                    #             # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
+                    #             depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+                    #             # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
+                    #             # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
+                    #             depth_vis=map_range(depth_vis, 0.9, 1.5, 0.0, 1.0) #for the shapenetimgs
+                    #             depth_vis=depth_vis.repeat(1,3,1,1)
+                    #             depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
+                    #             Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
+                    #             #show rgb for frame close 
+                    #             Gui.show(tensor2mat(rgb_close_batch_list[0]),"rgbclose" )
 
                             
-                            #VIEW 3d points   at the end of the ray march
-                            camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
-                            camera_center=camera_center.view(1,3)
-                            points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
-                            #get the point that have a color of black (correspond to background) and put them to zero
-                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-                            points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
-                            #mask also the points that still have a signed distance 
-                            signed_dist=signed_distances_for_marchlvl[ -1 ]
-                            signed_dist_mask= signed_dist.abs()>0.03
-                            signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                            # points3D[signed_dist_mask]=0.0
+                    #         #VIEW 3d points   at the end of the ray march
+                    #         camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+                    #         camera_center=camera_center.view(1,3)
+                    #         points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                    #         #get the point that have a color of black (correspond to background) and put them to zero
+                    #         rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                    #         rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                    #         rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                    #         rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                    #         points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                    #         points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
+                    #         #mask also the points that still have a signed distance 
+                    #         signed_dist=signed_distances_for_marchlvl[ -1 ]
+                    #         signed_dist_mask= signed_dist.abs()>0.03
+                    #         signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
+                    #         # points3D[signed_dist_mask]=0.0
 
-                            #view normal
-                            points3D_img=points3D.view(1, frame.height, frame.width, 3)
-                            points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                            normal_img=compute_normal(points3D_img)
-                            normal_vis=(normal_img+1.0)*0.5
-                            # normal_vis=normal_img
-                            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
-                            signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
-                            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                            signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                            normal_vis[rgb_pred_zeros_mask_img]=0.0
-                            # normal_vis[signed_dist_mask_img]=0.0
-                            normal_mat=tensor2mat(normal_vis)
-                            Gui.show(normal_mat, "normal")
+                    #         #view normal
+                    #         points3D_img=points3D.view(1, frame.height, frame.width, 3)
+                    #         points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                    #         normal_img=compute_normal(points3D_img)
+                    #         normal_vis=(normal_img+1.0)*0.5
+                    #         # normal_vis=normal_img
+                    #         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
+                    #         signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
+                    #         rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                    #         signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                    #         normal_vis[rgb_pred_zeros_mask_img]=0.0
+                    #         # normal_vis[signed_dist_mask_img]=0.0
+                    #         normal_mat=tensor2mat(normal_vis)
+                    #         Gui.show(normal_mat, "normal")
 
-                            #mask based on grazing angle between normal and view angle
-                            normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                            normal=normal.view(-1,3)
-                            dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
-                            dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
-                            dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                            # points3D[dot_view_normal_mask]=0.0
+                    #         #mask based on grazing angle between normal and view angle
+                    #         normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                    #         normal=normal.view(-1,3)
+                    #         dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
+                    #         dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
+                    #         dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
+                    #         # points3D[dot_view_normal_mask]=0.0
 
-                            #show things
-                            # if is_training:
-                                # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
-                            points3d_mesh=show_3D_points(points3D, color=rgb_pred)
-                            points3d_mesh.NV= normal.detach().cpu().numpy()
-                            Scene.show(points3d_mesh, "points3d_mesh")
+                    #         #show things
+                    #         # if is_training:
+                    #             # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
+                    #         points3d_mesh=show_3D_points(points3D, color=rgb_pred)
+                    #         points3d_mesh.NV= normal.detach().cpu().numpy()
+                    #         Scene.show(points3d_mesh, "points3d_mesh")
 
 
 
