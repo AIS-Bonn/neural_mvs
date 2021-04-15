@@ -375,8 +375,11 @@ def run():
                             # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=GC_Adam.AdamW( [
-                                {'params': model.parameters()},
-                                {'params': [model.texture], 'lr': train_params.lr()*100 }
+                                {'params': [model.texture1], 'lr': train_params.lr()*100, 'weight_decay': 0 },
+                                {'params': [model.texture2], 'lr': train_params.lr()*100, 'weight_decay': 0.0001 },
+                                {'params': [model.texture3], 'lr': train_params.lr()*100, 'weight_decay': 0.001},
+                                {'params': [model.texture4], 'lr': train_params.lr()*100, 'weight_decay': 0.01 },
+                                {'params': model.parameters()}
                             ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
                             optimizer.zero_grad()

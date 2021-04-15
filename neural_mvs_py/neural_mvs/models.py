@@ -5650,8 +5650,16 @@ class DeferredNeuralRenderer(torch.nn.Module):
         # )
       
 
-        self.texture= torch.zeros((1,32, 256, 256 )).to("cuda") #too high resolution will lead to flickering because we will optimize only some texels that are sampled during training but during testing we will sample other texels
-        self.texture.requires_grad=True
+        #too high resolution will lead to flickering because we will optimize only some texels that are sampled during training but during testing we will sample other texels
+        max_texture_size=512
+        self.texture1= torch.zeros((1,32, max_texture_size, max_texture_size )).to("cuda") 
+        self.texture2= torch.zeros((1,32, max_texture_size//2, max_texture_size//2 )).to("cuda") 
+        self.texture3= torch.zeros((1,32, max_texture_size//4, max_texture_size//4 )).to("cuda") 
+        self.texture4= torch.zeros((1,32, max_texture_size//8, max_texture_size//8 )).to("cuda") 
+        self.texture1.requires_grad=True
+        self.texture2.requires_grad=True
+        self.texture3.requires_grad=True
+        self.texture4.requires_grad=True
        
 
 
@@ -5705,7 +5713,12 @@ class DeferredNeuralRenderer(torch.nn.Module):
 
 
         #sample features 
-        texture_features=torch.nn.functional.grid_sample( self.texture, uv_tensor, align_corners=False, mode="bilinear" ) 
+        texture_features1=torch.nn.functional.grid_sample( self.texture1, uv_tensor, align_corners=False, mode="bilinear" ) 
+        texture_features2=torch.nn.functional.grid_sample( self.texture2, uv_tensor, align_corners=False, mode="bilinear" ) 
+        texture_features3=torch.nn.functional.grid_sample( self.texture3, uv_tensor, align_corners=False, mode="bilinear" ) 
+        texture_features4=torch.nn.functional.grid_sample( self.texture4, uv_tensor, align_corners=False, mode="bilinear" ) 
+        texture_features= (texture_features1 + texture_features2 + texture_features3 + texture_features4) / 4
+
 
 
 
