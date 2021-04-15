@@ -167,7 +167,7 @@ def run():
     #usa_subsampled_frames
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=0
-    use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
+    use_novel_orbit_frame=True #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
 
@@ -176,10 +176,13 @@ def run():
     torch.cuda.empty_cache()
     print( torch.cuda.memory_summary() )
 
-    mesh=Mesh("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/meshes/nerf_lego_mesh_trimmed_uv.ply")
+    # mesh=Mesh("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/meshes/nerf_lego_mesh_trimmed_uv.ply")
+    mesh=Mesh("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/meshes/head_s16_mesh_trimmed_uv.ply")
     Scene.show(mesh,"mesh")
 
-    texture= torch.zeros((1,32, 512, 512 )).to("cuda")
+    # texture= torch.zeros((1,32, 512, 512 )).to("cuda")
+    # texture= torch.zeros((1,32, 128, 128 )).to("cuda")
+    texture= torch.zeros((1,32, 256, 256 )).to("cuda") #too high resolution will lead to flickering because we will optimize only some texels that are sampled during training but during testing we will sample other texels
     texture.requires_grad=True
 
     while True:
@@ -194,14 +197,28 @@ def run():
             # if phase.loader.finished_reading_scene(): #For shapenet
             if phase.loader.has_data(): # the nerf will always return true because it preloads all data, the shapenetimg dataset will return true when the scene it actually loaded
 
-            
-                for i in range(phase.loader.nr_samples()):
+                nr_frames=0
+                if use_novel_orbit_frame and not is_training:
+                    nr_frames=360
+                else:
+                    nr_frames=phase.loader.nr_samples()
+                for i in range(nr_frames):
+                # for i in range(phase.loader.nr_samples()):
                 # for i in range(2):
                     # frame=phase.frames[i]
                     if phase.grad:
                         frame=random.choice(phase.frames)
                     else:
-                        frame=phase.frames[i]
+                        # frame=phase.frames[i]
+                        if not use_novel_orbit_frame:
+                            frame=phase.frames[i]
+                        else:
+                            #get novel frame that is an orbit around the origin 
+                            frame=phase.frames[0]
+                            model_matrix = frame.frame.tf_cam_world.inverse()
+                            model_matrix=model_matrix.orbit_y_around_point([0,0,0], 360/nr_frames)
+                            frame.frame.tf_cam_world = model_matrix.inverse()
+                            frame=FramePY(frame.frame)
                     TIME_START("all")
                     #get a subsampled frame if necessary
                     frame_full_res=frame
@@ -323,10 +340,10 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
                         rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
-                        loss+=rgb_loss_l1
-                        # loss+=rgb_loss_ssim_l1
-                        print("loss is ", loss)
+                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        # loss+=rgb_loss_l1
+                        loss+=rgb_loss_ssim_l1
+                        # print("loss is ", loss)
                         # print("texture min max is ", texture.min(), texture.max() )
 
 

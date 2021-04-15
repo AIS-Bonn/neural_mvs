@@ -5712,11 +5712,14 @@ class DeferredNeuralRenderer(torch.nn.Module):
         basis=basis.view(1, frame.height, frame.width, 9).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
         # print("basis is ", basis.shape)
 
-        texture_features[:, 3:12, :, :] = texture_features[:, 3:12, :, :] * basis
-        feat_input=texture_features
+        # texture_features[:, 3:12, :, :] = texture_features[:, 3:12, :, :] * basis
+        # feat_input=texture_features
         # feat_input=torch.cat([texture_features,basis],1)
-        # ray_directions=ray_directions.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-        # feat_input=torch.cat([texture_features,ray_directions],1)
+        #concating the dirs
+        ray_directions=self.learned_pe_dirs(ray_directions, params=None)
+        feat_dirs=ray_directions.shape[1]
+        ray_directions=ray_directions.view(1,frame.height, frame.width, feat_dirs).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        feat_input=torch.cat([texture_features,ray_directions],1)
 
         # feat_nr=feat_input.shape[1]
         # feat_input=feat_input.permute(0,2,3,1).view(-1,feat_nr)# from N,C,H,W to N,H,W,C
