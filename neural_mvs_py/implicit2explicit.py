@@ -264,7 +264,8 @@ def run():
                             if first_time:
                                 first_time=False
                                 # now that all the parameters are created we can fill them with a model from a file
-                                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_sub4/model_e_100.pt" ))
+                                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_sub4/model_e_100.pt" ))
+                                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/head_s16/model_e_100.pt" ))
                                 rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
                             # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
@@ -376,28 +377,29 @@ def run():
                 points3d_mesh.add(points3d_meshes[i])
             print("final mesh ash shape ", points3d_mesh.V.shape)
             file_path_root= "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/meshes/"
-            file_path= file_path_root+"nerf_lego_pc.ply"
+            file_name="head_s16"
+            file_path= file_path_root+file_name+"_pc.ply"
             points3d_mesh.remove_vertices_at_zero()
             points3d_mesh.save_to_file(file_path)
             # Scene.show(points3d_mesh, "points3d_mesh")
 
             #run poisson
             poisson_path="/media/rosu/Data/phd/ws/PoissonRecon/Bin/Linux/"
-            args= "--in "+file_path + " --out "+ file_path_root+"nerf_lego_mesh.ply" + " --bType 2"  + " --depth 10  --samplesPerNode 10 --density --pointWeight 0.1 --verbose"
+            args= "--in "+file_path + " --out "+ file_path_root+file_name+"_mesh.ply" + " --bType 2"  + " --depth 10  --samplesPerNode 10 --density --pointWeight 0.1 --verbose"
             full_cmd=  poisson_path+"PoissonRecon " + args
             subprocess.run( full_cmd , shell=True)  # doesn't capture output
             #trim 
-            args= "--in "+file_path_root+"nerf_lego_mesh.ply" + " --out "+ file_path_root+"nerf_lego_mesh_trimmed.ply" + " --trim 7" 
+            args= "--in "+file_path_root+file_name+"_mesh.ply" + " --out "+ file_path_root+file_name+"_mesh_trimmed.ply" + " --trim 7" 
             full_cmd=  poisson_path+"SurfaceTrimmer " + args
             subprocess.run( full_cmd , shell=True)  # doesn't capture output
             #run the unwrapping from blender
-            args= "-- --in_path "+file_path_root+"nerf_lego_mesh_trimmed.ply" + " --out_path "+ file_path_root+"nerf_lego_mesh_trimmed_uv.ply"
+            args= " -- --in_path "+file_path_root+file_name+"_mesh_trimmed.ply" + " --out_path "+ file_path_root+file_name+"_mesh_trimmed_uv.ply"
             blender_unwrap_script_path="/media/rosu/Data/phd/ws/misc_scripts/blender_unwrap_one_mesh.py"
             full_cmd=  "blender --python "+ blender_unwrap_script_path + args
             subprocess.run( full_cmd , shell=True)  # doesn't capture output
 
             #load mesh 
-            mesh_trimmed=Mesh(file_path_root+"nerf_lego_mesh_trimmed_uv.ply")
+            mesh_trimmed=Mesh(file_path_root+file_name+"_mesh_trimmed_uv.ply")
             Scene.show(mesh_trimmed, "mesh_trimmed")
 
             

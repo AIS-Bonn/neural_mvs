@@ -428,10 +428,10 @@ def run():
                         #     if phase.iter_nr<1000:
                         #         loss+=loss_depth*100
 
-                            #smoothness loss
+                            # smoothness loss
                             # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                             # smooth_loss = smooth(depth_pred*mask_tensor, rgb_gt)
-                            # loss+=smooth_loss* min(phase.iter_nr*0.1,1000)
+                            # loss+=smooth_loss*1.0
                             # print("smooth_loss",smooth_loss)
 
                         #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
