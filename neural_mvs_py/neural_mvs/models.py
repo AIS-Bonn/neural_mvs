@@ -5650,6 +5650,8 @@ class DeferredNeuralRenderer(torch.nn.Module):
         # )
       
 
+        self.texture= torch.zeros((1,32, 256, 256 )).to("cuda") #too high resolution will lead to flickering because we will optimize only some texels that are sampled during training but during testing we will sample other texels
+        self.texture.requires_grad=True
        
 
 
@@ -5658,10 +5660,7 @@ class DeferredNeuralRenderer(torch.nn.Module):
         self.sigmoid=torch.nn.Sigmoid()
         self.tanh=torch.nn.Tanh()
 
-        #params
-        self.slice_texture= SliceTextureModule()
-        self.splat_texture= SplatTextureModule()
-        self.concat_coord=ConcatCoord() 
+      
 
     #from https://github.com/SSRSGJYD/NeuralTexture/blob/master/model/pipeline.py
     def _spherical_harmonics_basis(self, extrinsics):
@@ -5691,7 +5690,7 @@ class DeferredNeuralRenderer(torch.nn.Module):
 
 
       
-    def forward(self, frame, texture_features, ray_directions):
+    def forward(self, frame, uv_tensor, ray_directions):
         # ray_directions=ray_directions.view(-1,3)
         # ray_directions=F.normalize(ray_directions, p=2, dim=1)
         # ray_directions=self.learned_pe_dirs(ray_directions, params=None)
@@ -5703,6 +5702,11 @@ class DeferredNeuralRenderer(torch.nn.Module):
 
         # rgb_pred=self.unet( feat_input )
         # # print("rgb_pred",rgb_pred.shape)
+
+
+        #sample features 
+        texture_features=torch.nn.functional.grid_sample( self.texture, uv_tensor, align_corners=False, mode="bilinear" ) 
+
 
 
         ##atttempt 2 using spherical harmonics

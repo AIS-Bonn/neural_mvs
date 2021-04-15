@@ -182,8 +182,6 @@ def run():
 
     # texture= torch.zeros((1,32, 512, 512 )).to("cuda")
     # texture= torch.zeros((1,32, 128, 128 )).to("cuda")
-    texture= torch.zeros((1,32, 256, 256 )).to("cuda") #too high resolution will lead to flickering because we will optimize only some texels that are sampled during training but during testing we will sample other texels
-    texture.requires_grad=True
 
     while True:
 
@@ -324,15 +322,15 @@ def run():
                         uv_tensor=uv_tensor.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
                         #flip the y axis 
                         uv_tensor[:,:,:, 1:2]=-uv_tensor[:,:,:, 1:2]
-                        texture_features=torch.nn.functional.grid_sample( texture, uv_tensor, align_corners=False, mode="bilinear" ) 
+                        # texture_features=torch.nn.functional.grid_sample( texture, uv_tensor, align_corners=False, mode="bilinear" ) 
                         # print("texture_features", texture_features.shape)
-                        feat_nr=texture_features.shape[1]
+                        # feat_nr=texture_features.shape[1]
                         # texture_features=texture_features.permute(0,2,3,1).view(-1,feat_nr) # from N,C,H,W to N,H,W,C
                         ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                         # feat_and_dirs=torch.cat([ray_dirs, texture_features],1)
                         # feat_and_dirs=texture_features
                         # rgb_pred= model(feat_and_dirs)
-                        rgb_pred= model(frame, texture_features, ray_dirs)
+                        rgb_pred= model(frame, uv_tensor, ray_dirs)
                         # rgb_pred= texture_features
                         # rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
 
@@ -372,13 +370,13 @@ def run():
                                 # model.parameters(),
                                 # texture
                             # ]
-                            params_to_train = [texture]
-                            params_to_train += list(model.parameters())
+                            # params_to_train = [self.texture]
+                            # params_to_train += list(model.parameters())
                             # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=GC_Adam.AdamW( [
                                 {'params': model.parameters()},
-                                {'params': [texture], 'lr': train_params.lr()*100 }
+                                {'params': [model.texture], 'lr': train_params.lr()*100 }
                             ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
                             optimizer.zero_grad()
