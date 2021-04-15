@@ -77,9 +77,23 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
     return selected_frames, weights
 
 def create_loader(dataset_name, config_path):
-    if(dataset_name=="nerf_lego"):
+    if(dataset_name=="volref"):
+        loader_train=DataLoaderVolRef(config_path)
+        loader_test=DataLoaderVolRef(config_path)
+        # loader_train.set_mode_train()
+        # loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+    elif(dataset_name=="nerf_lego"):
         loader_train=DataLoaderNerf(config_path)
         loader_test=DataLoaderNerf(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
+    elif(dataset_name=="easypbr"):
+        loader_train=DataLoaderEasyPBR(config_path)
+        loader_test=DataLoaderEasyPBR(config_path)
         loader_train.set_mode_train()
         loader_test.set_mode_test()
         loader_train.start()

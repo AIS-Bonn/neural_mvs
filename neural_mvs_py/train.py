@@ -130,10 +130,10 @@ def run():
     frames_test=[]
     for i in range(loader_train.nr_samples()):
         frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame, create_subsamples=True))
+        frames_train.append(FramePY(frame, create_subsamples=False))
     for i in range(loader_test.nr_samples()):
         frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame, create_subsamples=True))
+        frames_test.append(FramePY(frame, create_subsamples=False))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
@@ -226,7 +226,7 @@ def run():
     #usa_subsampled_frames
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=0
-    use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
+    use_novel_orbit_frame=True #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
 
@@ -253,7 +253,7 @@ def run():
                 # for frame_idx, frame in enumerate(frames_all_selected):
                 nr_frames=0
                 if use_novel_orbit_frame and not is_training:
-                    nr_frames=36
+                    nr_frames=360
                 else:
                     nr_frames=phase.loader.nr_samples()
                 # for i in range(phase.loader.nr_samples()):
@@ -267,7 +267,7 @@ def run():
                             #get novel frame that is an orbit around the origin 
                             frame=phase.frames[0]
                             model_matrix = frame.frame.tf_cam_world.inverse()
-                            model_matrix=model_matrix.orbit_y_around_point([0,0,0], 10)
+                            model_matrix=model_matrix.orbit_y_around_point([0,0,0], 360/nr_frames)
                             frame.frame.tf_cam_world = model_matrix.inverse()
                             frame=FramePY(frame.frame)
                     TIME_START("all")
@@ -384,17 +384,20 @@ def run():
 
                         #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
                         #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend
+                        # rgb_pred_before_confidence_blending=rgb_pred
+                        rgb_pred_with_confidence_blending=rgb_pred
                         if predict_occlusion_map:
-                            rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt_selected
+                            # rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt_selected
+                            rgb_pred_with_confidence_blending=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt_selected
                             if do_superres:
                                 mask_pred_superres= torch.nn.functional.interpolate(mask_pred,size=(rgb_refined.shape[2], rgb_refined.shape[3]), mode='bilinear')
                                 rgb_refined=mask_pred_superres*rgb_refined + (1-mask_pred_superres)*rgb_gt_fullres
                      
                         #loss
                         loss=0
-                        rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
-                        rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        rgb_loss=(( rgb_gt_selected-rgb_pred_with_confidence_blending)**2).mean()
+                        rgb_loss_l1=(( rgb_gt_selected-rgb_pred_with_confidence_blending).abs()).mean()
+                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
                         # loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
                         loss+=rgb_loss_l1
@@ -648,7 +651,8 @@ def run():
                                 depth_vis=depth_pred.view(1,1,frame.height,frame.width)
                                 # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
                                 # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
-                                depth_vis=map_range(depth_vis, 0.9, 1.5, 0.0, 1.0) #for the shapenetimgs
+                                # depth_vis=map_range(depth_vis, 0.9, 1.5, 0.0, 1.0) #for the shapenetimgs
+                                depth_vis=map_range(depth_vis, 0.7, 1.0, 0.0, 1.0) #for the volref socrates
                                 depth_vis=depth_vis.repeat(1,3,1,1)
                                 depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
                                 Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)

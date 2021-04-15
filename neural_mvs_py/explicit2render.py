@@ -79,7 +79,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_2lr"
+    experiment_name="s_4tinyunet"
 
 
     use_ray_compression=False

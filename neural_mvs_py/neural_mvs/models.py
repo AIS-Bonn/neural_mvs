@@ -953,7 +953,7 @@ class UNet(torch.nn.Module):
     # @profile_every(1)
     def forward(self, x):
         if self.first_conv==None:
-            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False).cuda() 
+            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
 
         
         #attempot 1
@@ -988,9 +988,10 @@ class UNet(torch.nn.Module):
             # print("after finefy ", i, " x is", x.shape)
             vertical_feats= features_ending_stage.pop()
             x=self.squeeze_list[i](x) #upsample resolution and reduced the channels
-            if x.shape[2]!=vertical_feats.shape[2] and x.shape[3]!=vertical_feats.shape[3]:
+            if x.shape[2]!=vertical_feats.shape[2] or x.shape[3]!=vertical_feats.shape[3]:
                 # print("x has shape", x.shape, "vertical feat have shape ", vertical_feats.shape)
                 x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
+            # print("x is", x.shape , " verticalFeats ", vertical_feats.shape)
             x=torch.cat([x,vertical_feats],1)
             # print("x shape before seuqqeing is ", i, "  ", x.shape)
             # print("x shape after seuqqeing is ", i, "  ", x.shape)
@@ -5640,6 +5641,12 @@ class DeferredNeuralRenderer(torch.nn.Module):
         #     BlockSiren(activ=torch.sin, in_channels=64, out_channels=128,  bias=True, is_first_layer=False).cuda(),
         #     BlockSiren(activ=torch.sin, in_channels=128, out_channels=64,  bias=True, is_first_layer=False).cuda(),
         #     BlockNerf(activ=torch.tanh, in_channels=64, out_channels=3,  bias=True).cuda(),
+        # )
+        # self.unet=torch.nn.Sequential(
+        #     torch.nn.Conv2d( 32, 64, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+        #     ResnetBlock2D(64, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+        #     ResnetBlock2D(64, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+        #     torch.nn.Conv2d( 64, 3, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
         # )
       
 
