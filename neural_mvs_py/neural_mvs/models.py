@@ -5643,7 +5643,7 @@ class DeferredNeuralRenderer(torch.nn.Module):
         #     BlockNerf(activ=torch.tanh, in_channels=64, out_channels=3,  bias=True).cuda(),
         # )
         # self.unet=torch.nn.Sequential(
-        #     torch.nn.Conv2d( 32, 64, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
+        #     torch.nn.Conv2d( 59, 64, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda(),
         #     ResnetBlock2D(64, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
         #     ResnetBlock2D(64, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
         #     torch.nn.Conv2d( 64, 3, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
@@ -5668,6 +5668,7 @@ class DeferredNeuralRenderer(torch.nn.Module):
         self.sigmoid=torch.nn.Sigmoid()
         self.tanh=torch.nn.Tanh()
 
+        self.i=0
       
 
     #from https://github.com/SSRSGJYD/NeuralTexture/blob/master/model/pipeline.py
@@ -5725,8 +5726,8 @@ class DeferredNeuralRenderer(torch.nn.Module):
         ##atttempt 2 using spherical harmonics
         ray_directions=ray_directions.view(-1,3)
         ray_directions=F.normalize(ray_directions, p=2, dim=1)
-        basis = self._spherical_harmonics_basis(ray_directions).cuda()
-        basis=basis.view(1, frame.height, frame.width, 9).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        # basis = self._spherical_harmonics_basis(ray_directions).cuda()
+        # basis=basis.view(1, frame.height, frame.width, 9).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
         # print("basis is ", basis.shape)
 
         # texture_features[:, 3:12, :, :] = texture_features[:, 3:12, :, :] * basis
@@ -5735,7 +5736,7 @@ class DeferredNeuralRenderer(torch.nn.Module):
         #concating the dirs
         ray_directions=self.learned_pe_dirs(ray_directions, params=None)
         feat_dirs=ray_directions.shape[1]
-        ray_directions=ray_directions.view(1,frame.height, frame.width, feat_dirs).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        ray_directions=ray_directions.view(1,uv_tensor.shape[1], uv_tensor.shape[2], feat_dirs).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
         feat_input=torch.cat([texture_features,ray_directions],1)
 
         # feat_nr=feat_input.shape[1]
@@ -5745,8 +5746,76 @@ class DeferredNeuralRenderer(torch.nn.Module):
         rgb_pred=torch.tanh(rgb_pred)
 
         # rgb_pred=rgb_pred.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        self.i+=1
+
+        # #show pca texture 
+        # if(self.i%100*10)==0:
+        #     img_features=self.texture3
+        #     height=img_features.shape[2]
+        #     width=img_features.shape[3]
+        #     img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+        #     img_features_for_pca=img_features_for_pca.view(height*width, -1)
+        #     pca=PCA.apply(img_features_for_pca)
+        #     pca=pca.view(height, width, 3)
+        #     pca=pca.permute(2,0,1).unsqueeze(0)
+        #     pca_mat=tensor2mat(pca)
+        #     Gui.show(pca_mat, "pca_mat")
        
         return rgb_pred 
+
+    #https://github.com/pytorch/pytorch/issues/2001
+    def summary(self,file=sys.stderr):
+        def repr(model):
+            # We treat the extra repr like the sub-module, one item per line
+            extra_lines = []
+            extra_repr = model.extra_repr()
+            # empty string will be split into list ['']
+            if extra_repr:
+                extra_lines = extra_repr.split('\n')
+            child_lines = []
+            total_params = 0
+            for key, module in model._modules.items():
+                mod_str, num_params = repr(module)
+                mod_str = _addindent(mod_str, 2)
+                child_lines.append('(' + key + '): ' + mod_str)
+                total_params += num_params
+            lines = extra_lines + child_lines
+
+            for name, p in model._parameters.items():
+                if p is not None:
+                    total_params += reduce(lambda x, y: x * y, p.shape)
+                    # if(p.grad==None):
+                    #     print("p has no grad", name)
+                    # else:
+                    #     print("p has gradnorm ", name ,p.grad.norm() )
+
+            main_str = model._get_name() + '('
+            if lines:
+                # simple one-liner info, which most builtin Modules will use
+                if len(extra_lines) == 1 and not child_lines:
+                    main_str += extra_lines[0]
+                else:
+                    main_str += '\n  ' + '\n  '.join(lines) + '\n'
+
+            main_str += ')'
+            if file is sys.stderr:
+                main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
+                for name, p in model._parameters.items():
+                    if hasattr(p, 'grad'):
+                        if(p.grad==None):
+                            # print("p has no grad", name)
+                            main_str+="p no grad"
+                        else:
+                            # print("p has gradnorm ", name ,p.grad.norm() )
+                            main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
+            else:
+                main_str += ', {:,} params'.format(total_params)
+            return main_str, total_params
+
+        string, count = repr(self)
+        if file is not None:
+            print(string, file=file)
+        return count
 
 class PCA(Function):
     # @staticmethod

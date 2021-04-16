@@ -40,6 +40,7 @@ from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
 import neural_mvs.warmup_scheduler as warmup  #https://github.com/Tony-Y/pytorch_warmup
 from torchsummary.torchsummary import *
+import torchvision.transforms.functional as TF
 
 #debug 
 from easypbr import Gui
@@ -58,7 +59,7 @@ config_file="explicit2render.cfg"
 torch.manual_seed(0)
 random.seed(0)
 # torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = True
+# torch.backends.cudnn.benchmark = True #When using random cropping this absolutely destroys performacne because it will constantly try to findd good kernels
 # torch.autograd.set_detect_anomaly(True)
 torch.set_printoptions(edgeitems=3)
 
@@ -68,7 +69,8 @@ model_params=ModelParams.create(config_file)
 
 # d
 
-     
+def rand_true(probability_of_true):
+    return random.random() < probability_of_true
 
 
 
@@ -133,10 +135,10 @@ def run():
     frames_test=[]
     for i in range(loader_train.nr_samples()):
         frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame, create_subsamples=True))
+        frames_train.append(FramePY(frame, create_subsamples=False))
     for i in range(loader_test.nr_samples()):
         frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame, create_subsamples=True))
+        frames_test.append(FramePY(frame, create_subsamples=False))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
@@ -262,53 +264,64 @@ def run():
                             rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
                             rgb_close_batch_list.append(rgb_close_frame)
                         rgb_close_batch=torch.cat(rgb_close_batch_list,0)
-                    # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
-                    # print("frame has shape ", rgb_gt.shape)
-                    # print("rgb close frame ", rgb_close_frame.shape)
 
-                    # print( torch.cuda.memory_summary() )
+                        #ray dirs
+                        ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+   
 
-                    #select certian pixels 
-                    pixels_indices=None
-                    use_pixel_indices=False
-                    rgb_gt_selected=rgb_gt
+                        #select certian pixels 
+                        pixels_indices=None
+                        use_pixel_indices=False
+                        rgb_gt_selected=rgb_gt
+                        
+                        #view current active frame
+                        frustum_mesh=frame.frame.create_frustum_mesh(0.02)
+                        frustum_mesh.m_vis.m_line_width=3
+                        frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
+                        Scene.show(frustum_mesh, "frustum_activ" )
+
+
+
+                        #render the mesh to get the 3D points that are on the surface
+                        Scene.hide_all()
+                        Scene.get_mesh_with_name("mesh").m_vis.m_is_visible=True
+                        original_cam=view.m_camera.clone()
+                        original_viewport=view.m_viewport_size.copy()
+                        view.m_camera.from_frame(frame.frame, True)
+                        # view.clear_framebuffers()
+                        view.m_viewport_size=[frame.width, frame.height]
+                        view.draw()
+                        uv_mat=view.gbuffer_mat_with_name("uv_gtex")
+                        uv_mat.flip_y()
+                        Gui.show(uv_mat,"uv_mat" )
+                        uv_tensor=mat2tensor(uv_mat, False).to("cuda")
+                        # frame.frame.depth=depth_mat 
+                        # points3d_mesh_rendered = frame.frame.depth2world_xyz_mesh()
+                        # Scene.show(points3d_mesh_rendered, "points3d_mesh_rendered")
+                        view.m_camera=original_cam
+                        view.m_viewport_size=original_viewport
+                        # view.clear_framebuffers()
+
+
+                        #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
+                        TIME_START("crop")
+                        if rand_true(0.5) and is_training:
+                            max_size= min(uv_tensor.shape[2], uv_tensor.shape[3])
+                            max_size=random.randint(max_size//4, max_size)
+                            crop_indices = torchvision.transforms.RandomCrop.get_params( uv_tensor, output_size=(max_size, max_size))
+                            i, j, h, w = crop_indices
+                            uv_tensor = TF.crop(uv_tensor, i, j, h, w)
+                            rgb_gt_selected= TF.crop(rgb_gt_selected, i, j, h, w)
+                            ray_dirs=ray_dirs.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                            ray_dirs= TF.crop(ray_dirs, i, j, h, w)
+                            #in order to make the unet access pixels that are further apart or closer apart, we upscale the cropped image to the full size
+                            uv_tensor = torch.nn.functional.interpolate(uv_tensor,size=(frame.height, frame.width), mode='nearest')
+                            rgb_gt_selected = torch.nn.functional.interpolate(rgb_gt_selected,size=(frame.height, frame.width), mode='bilinear')
+                            ray_dirs = torch.nn.functional.interpolate(ray_dirs,size=(frame.height, frame.width), mode='bilinear')
+                            #back to Nx3 rays
+                            ray_dirs=ray_dirs.permute(0,2,3,1).reshape(-1,3) #from NCHW to NHWC
+                        TIME_END("crop")
                     
-                    #view current active frame
-                    frustum_mesh=frame.frame.create_frustum_mesh(0.02)
-                    frustum_mesh.m_vis.m_line_width=3
-                    frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
-                    Scene.show(frustum_mesh, "frustum_activ" )
-
-
-
-                    #render the mesh to get the 3D points that are on the surface
-                    Scene.hide_all()
-                    Scene.get_mesh_with_name("mesh").m_vis.m_is_visible=True
-                    original_cam=view.m_camera.clone()
-                    original_viewport=view.m_viewport_size.copy()
-                    view.m_camera.from_frame(frame.frame, True)
-                    # view.clear_framebuffers()
-                    view.m_viewport_size=[frame.width, frame.height]
-                    view.draw()
-                    uv_mat=view.gbuffer_mat_with_name("uv_gtex")
-                    uv_mat.flip_y()
-                    Gui.show(uv_mat,"uv_mat" )
-                    uv_tensor=mat2tensor(uv_mat, False).to("cuda")
-                    # frame.frame.depth=depth_mat 
-                    # points3d_mesh_rendered = frame.frame.depth2world_xyz_mesh()
-                    # Scene.show(points3d_mesh_rendered, "points3d_mesh_rendered")
-                    view.m_camera=original_cam
-                    view.m_viewport_size=original_viewport
-                    # view.clear_framebuffers()
-
-
-                    # #get the texture_features 
-                    # uv_tensor=uv_tensor.permute(0,2,3,1).view(-1.2) # from N,C,H,W to N,H,W,C
-                    # texture_features=torch.nn.functional.grid_sample( texture_tensor, uv_tensor, align_corners=False, mode="bilinear" ) 
-                    # print("texture_features", texture_features.shape)
-                    # rgb_pred= model(texture_features)
-
-
 
 
 
@@ -326,7 +339,6 @@ def run():
                         # print("texture_features", texture_features.shape)
                         # feat_nr=texture_features.shape[1]
                         # texture_features=texture_features.permute(0,2,3,1).view(-1,feat_nr) # from N,C,H,W to N,H,W,C
-                        ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                         # feat_and_dirs=torch.cat([ray_dirs, texture_features],1)
                         # feat_and_dirs=texture_features
                         # rgb_pred= model(feat_and_dirs)
@@ -338,7 +350,7 @@ def run():
                         loss=0
                         rgb_loss=(( rgb_gt_selected-rgb_pred)**2).mean()
                         rgb_loss_l1=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred)
+                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt_selected, rgb_pred)
                         # loss+=rgb_loss_l1
                         loss+=rgb_loss_ssim_l1
                         # print("loss is ", loss)
@@ -375,10 +387,14 @@ def run():
                             # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             # optimizer=GC_Adam.AdamW( params_to_train, lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                             optimizer=GC_Adam.AdamW( [
-                                {'params': [model.texture1], 'lr': train_params.lr()*100, 'weight_decay': 0 },
-                                {'params': [model.texture2], 'lr': train_params.lr()*100, 'weight_decay': 0.0001 },
-                                {'params': [model.texture3], 'lr': train_params.lr()*100, 'weight_decay': 0.001},
-                                {'params': [model.texture4], 'lr': train_params.lr()*100, 'weight_decay': 0.01 },
+                                # {'params': [model.texture1], 'lr': 0.01 , 'weight_decay': 0 },
+                                # {'params': [model.texture2], 'lr': 0.01, 'weight_decay': 0.0001 },
+                                # {'params': [model.texture3], 'lr': 0.01, 'weight_decay': 0.001},
+                                # {'params': [model.texture4], 'lr': 0.01, 'weight_decay': 0.01 },
+                                {'params': [model.texture1], 'lr': 0.01, 'weight_decay': 0.01 },
+                                {'params': [model.texture2], 'lr': 0.01, 'weight_decay': 0.001 },
+                                {'params': [model.texture3], 'lr': 0.01, 'weight_decay': 0.0001 },
+                                {'params': [model.texture4], 'lr': 0.01, 'weight_decay': 0.0 },
                                 {'params': model.parameters()}
                             ], lr=train_params.lr(), weight_decay=train_params.weight_decay() )
 
