@@ -306,6 +306,7 @@ def run():
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
                         TIME_START("crop")
                         if rand_true(0.5) and is_training:
+                        # if False:
                             max_size= min(uv_tensor.shape[2], uv_tensor.shape[3])
                             max_size=random.randint(max_size//4, max_size)
                             crop_indices = torchvision.transforms.RandomCrop.get_params( uv_tensor, output_size=(max_size, max_size))

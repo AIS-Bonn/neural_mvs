@@ -3505,7 +3505,7 @@ class RGB_predictor_simple(MetaModule):
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
-        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
+        self.pred_rgb=BlockNerf(activ=None, init="tanh", in_channels=64, out_channels=3,  bias=True ).cuda()    
         self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
 
 
@@ -5517,6 +5517,7 @@ class Net3_SRN(torch.nn.Module):
             rgb_pred=radiance_field_flattened[:, 0:3]
             rgb_pred=rgb_pred.view(frame.height, frame.width,3)
             rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+            rgb_pred=torch.tanh(rgb_pred) #similar to the differentiable neural rendering
 
             mask_pred=mask_pred.view(frame.height, frame.width,1)
             mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)

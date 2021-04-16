@@ -116,6 +116,17 @@ def create_loader(dataset_name, config_path):
         while True:
             if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
                 break
+    elif dataset_name=="srn":
+        loader_train=DataLoaderSRN(config_path)
+        loader_test=DataLoaderSRN(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        # loader_train.start()
+        # loader_test.start()
+        #wait until we have data
+        while True:
+            if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
+                break
     else:
         err="Datset name not recognized. It is " + dataset_name
         sys.exit(err)
@@ -1444,6 +1455,12 @@ class BlockNerf(MetaModule):
                 torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
         elif init=="sigmoid":
             torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='sigmoid')
+            if self.bias is not None:
+                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(self.conv[-1].bias, -bound, bound)
+        elif init=="tanh":
+            torch.nn.init.kaiming_uniform_(self.conv[-1].weight, a=math.sqrt(5), mode='fan_in', nonlinearity='tanh')
             if self.bias is not None:
                 fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv[-1].weight)
                 bound = 1 / math.sqrt(fan_in)

@@ -78,7 +78,7 @@ def run():
 
     use_ray_compression=False
     do_superres=False
-    predict_occlusion_map=True
+    predict_occlusion_map=False
 
 
 
@@ -411,6 +411,9 @@ def run():
                             # loss_mask=((1.0-mask_pred).abs()).mean()
                             loss_mask=((1.0-mask_pred)**2).mean()
                             loss+=loss_mask*0.1
+                        #at the beggining we just optimize so that the lstm predicts the center of the sphere 
+                        weight=map_range( torch.tensor(phase.iter_nr), 0, 1000, 0.0, 1.0)
+                        loss*=weight
             
 
                         # #loss on depth 
@@ -460,7 +463,7 @@ def run():
                         # loss+=raymarcher_loss*0.01
 
                         #loss that pushes the points to be in the middle of the space 
-                        if phase.iter_nr<100:
+                        if phase.iter_nr<1000:
                             loss+=( ( torch.from_numpy(sphere_center).view(1,3).cuda()-point3d).norm(dim=1)).mean()*0.2
 
 
@@ -628,7 +631,9 @@ def run():
                             mask_pred_thresh=mask_pred<0.3
                             rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                            # rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                            rgb_pred_zeros_mask= rgb_pred_zeros>0.95
+                            # rgb_pred_zeros_mask=torch.logical_or(rgb_pred_zeros_mask,rgb_pred_ones_mask)
                             rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
                             rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                             if phase.iter_nr%show_every==0:
@@ -669,7 +674,7 @@ def run():
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
                             rgb_pred_zeros_mask= rgb_pred_zeros<0.05
                             rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                            # points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
                             # points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
                             #mask also the points that still have a signed distance 
                             signed_dist=signed_distances_for_marchlvl[ -1 ]
