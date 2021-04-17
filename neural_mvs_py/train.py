@@ -206,7 +206,7 @@ def run():
     frame_centers, frame_idxs = frames_to_points(frames_train)
     sphere_center, sphere_radius=SFM.fit_sphere(frame_centers)
     #if ithe shapentimg we put the center to zero because we know where it is
-    if isinstance(loader_train, DataLoaderShapeNetImg):
+    if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderDTU):
         sphere_center= np.array([0,0,0])
         sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
     print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
@@ -283,10 +283,10 @@ def run():
                     ##PREPARE data 
                     with torch.set_grad_enabled(False):
                         discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
-                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN):
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                             discard_same_idx=True
                         frames_to_consider_for_neighbourhood=frames_train
-                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                             frames_to_consider_for_neighbourhood=phase.frames
                         do_close_computation_with_delaunay=True
                         if not do_close_computation_with_delaunay:
@@ -608,7 +608,7 @@ def run():
                     TIME_START("load")
                     if phase.iter_nr%1==0 and is_training:
                     # if False:
-                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN):
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                             TIME_START("justload")
                             phases[0].loader.start_reading_next_scene()
                             phases[1].loader.start_reading_next_scene()

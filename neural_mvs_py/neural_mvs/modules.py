@@ -127,6 +127,17 @@ def create_loader(dataset_name, config_path):
         while True:
             if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
                 break
+    elif dataset_name=="dtu":
+        loader_train=DataLoaderDTU(config_path)
+        loader_test=DataLoaderDTU(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
+        loader_train.start()
+        loader_test.start()
+        #wait until we have data
+        while True:
+            if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
+                break
     else:
         err="Datset name not recognized. It is " + dataset_name
         sys.exit(err)
