@@ -121,8 +121,8 @@ def create_loader(dataset_name, config_path):
         loader_test=DataLoaderSRN(config_path)
         loader_train.set_mode_train()
         loader_test.set_mode_test()
-        # loader_train.start()
-        # loader_test.start()
+        loader_train.start()
+        loader_test.start()
         #wait until we have data
         while True:
             if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 

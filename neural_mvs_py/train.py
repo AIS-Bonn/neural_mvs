@@ -226,7 +226,7 @@ def run():
     #usa_subsampled_frames
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=0
-    use_novel_orbit_frame=True #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
+    use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
 
@@ -283,12 +283,17 @@ def run():
                     ##PREPARE data 
                     with torch.set_grad_enabled(False):
                         discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN):
+                            discard_same_idx=True
+                        frames_to_consider_for_neighbourhood=frames_train
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
+                            frames_to_consider_for_neighbourhood=phase.frames
                         do_close_computation_with_delaunay=True
                         if not do_close_computation_with_delaunay:
-                            frames_close=get_close_frames(loader_train, frame, frames_train, 5, discard_same_idx) #the neighbour are only from the training set
+                            frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 5, discard_same_idx) #the neighbour are only from the training set
                             weights= frame_weights_computer(frame, frames_close)
                         else:
-                            frames_close, weights=get_close_frames_barycentric(frame, frames_train, discard_same_idx, sphere_center, sphere_radius)
+                            frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius)
                             weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
                         #the frames close may need to be subsampled
@@ -303,6 +308,7 @@ def run():
                         frame.load_images()
                         for i in range(len(frames_close)):
                             frames_close[i].load_images()
+                            Gui.show(frames_close[i].frame.rgb_32f,"close_"+phase.name+"_"+str(i) )
 
 
                         #prepare rgb data and rest of things
@@ -602,7 +608,7 @@ def run():
                     TIME_START("load")
                     if phase.iter_nr%1==0 and is_training:
                     # if False:
-                        if isinstance(loader_train, DataLoaderShapeNetImg):
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN):
                             TIME_START("justload")
                             phases[0].loader.start_reading_next_scene()
                             phases[1].loader.start_reading_next_scene()
@@ -615,10 +621,10 @@ def run():
                             frames_test=[]
                             for i in range(phases[0].loader.nr_samples()):
                                 frame_cur=phases[0].loader.get_frame_at_idx(i)
-                                frames_train.append(FramePY(frame_cur, create_subsamples=True))
+                                frames_train.append(FramePY(frame_cur, create_subsamples=False))
                             for i in range(phases[1].loader.nr_samples()):
                                 frame_cur=phases[1].loader.get_frame_at_idx(i)
-                                frames_test.append(FramePY(frame_cur, create_subsamples=True))
+                                frames_test.append(FramePY(frame_cur, create_subsamples=False))
                             phases[0].frames=frames_train 
                             phases[1].frames=frames_test
                     TIME_END("load")
@@ -631,9 +637,9 @@ def run():
                             mask_pred_thresh=mask_pred<0.3
                             rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                            # rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                            rgb_pred_zeros_mask= rgb_pred_zeros>0.95
-                            # rgb_pred_zeros_mask=torch.logical_or(rgb_pred_zeros_mask,rgb_pred_ones_mask)
+                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                            rgb_pred_ones_mask= rgb_pred_zeros>0.95
+                            rgb_pred_zeros_mask=torch.logical_or(rgb_pred_zeros_mask,rgb_pred_ones_mask)
                             rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
                             rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                             if phase.iter_nr%show_every==0:
@@ -670,11 +676,11 @@ def run():
                             camera_center=camera_center.view(1,3)
                             points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
                             #get the point that have a color of black (correspond to background) and put them to zero
-                            rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                            # points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+                            # rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                            # rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+                            # rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+                            # rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+                            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
                             # points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
                             #mask also the points that still have a signed distance 
                             signed_dist=signed_distances_for_marchlvl[ -1 ]
