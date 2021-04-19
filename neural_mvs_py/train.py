@@ -73,11 +73,11 @@ def run():
 
 
     first_time=True
-    experiment_name="s_"
+    experiment_name="s_15refu_lowlr"
 
 
     use_ray_compression=False
-    do_superres=False
+    do_superres=True
     predict_occlusion_map=False
 
 
@@ -321,6 +321,14 @@ def run():
                             rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
                             rgb_close_batch_list.append(rgb_close_frame)
                         rgb_close_batch=torch.cat(rgb_close_batch_list,0)
+                        #make also a batch fo directions
+                        raydirs_close_batch_list=[]
+                        for frame_close in frames_close:
+                            ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
+                            ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
+                            ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                            raydirs_close_batch_list.append(ray_dirs_close)
+                        ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
                     # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
                     # print("frame has shape ", rgb_gt.shape)
                     # print("rgb close frame ", rgb_close_frame.shape)
@@ -562,7 +570,8 @@ def run():
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=200)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        # cb.after_forward_pass(loss=rgb_loss.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=rgb_refined_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
 
 

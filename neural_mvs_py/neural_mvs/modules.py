@@ -15,6 +15,7 @@ from torchmeta.modules.utils import *
 from torchmeta.modules import (MetaModule, MetaSequential)
 
 from neural_mvs_py.neural_mvs.pac import *
+from neural_mvs_py.neural_mvs.deform_conv import *
 from latticenet_py.lattice.lattice_modules import *
 
 
@@ -618,9 +619,9 @@ class FeatureAgregatorLinear(torch.nn.Module):
 
 
         self.pred=MetaSequential( 
-            BlockNerf(activ=torch.nn.GELU(), in_channels=16*3, out_channels=32,  bias=True ).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=32, out_channels=32,  bias=True ).cuda(),
-            BlockNerf(activ=None, in_channels=32, out_channels=32,  bias=True ).cuda()
+            BlockNerf(activ=torch.nn.GELU(), in_channels=32*3, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+            BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda()
             )
 
     def forward(self, feat_sliced_per_frame, weights, novel=False):
@@ -1084,6 +1085,7 @@ class WNReluConv(torch.nn.Module):
                 self.conv= torch.nn.utils.weight_norm( torch.nn.ConvTranspose2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
             else:
                 self.conv= torch.nn.utils.weight_norm( torch.nn.Conv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()  )
+                # self.conv=  DeformConv2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=self.bias).cuda()  
         else: 
             if self.transposed:
                 self.conv=torch.nn.ConvTranspose2d(in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1, bias=self.bias).cuda()

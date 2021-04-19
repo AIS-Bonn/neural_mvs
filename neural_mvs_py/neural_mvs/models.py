@@ -943,7 +943,12 @@ class UNet(torch.nn.Module):
         #     self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
         # print("last conv is ", cur_nr_channels)
+        # self.last_conv1=DeformConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
+        # self.last_conv2=DeformConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
+        # self.last_conv1=PacConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
+        # self.last_conv2=PacConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
         self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+        # self.last_conv=DeformConv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
         # self.last_conv =  GNReluConv(in_channels=cur_nr_channels, out_channels=nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False ).cuda()
 
         self.relu=torch.nn.ReLU(inplace=False)
@@ -962,6 +967,8 @@ class UNet(torch.nn.Module):
 
         # for layer in self.resnet_list:
         #     x=layer(x,x)
+
+        # x=self.concat_coord(x)
 
 
         #attempt 2 to make an actual unet
@@ -1001,6 +1008,8 @@ class UNet(torch.nn.Module):
 
         # print("x before the final conv has mean ", x.mean(), " and std ", x.std())
         # x=torch.cat([x,initial_x],1) #bad idea to concat the rgb here. It introduces way too much high frequency in the output which makes the ray marker get stuck in not knowing wheere to predict the depth so that the slicing slcies the correct features. IF we dont concat, then the unet features are kinda smooth and they act like a wise basin of converges that tell the lstm, to predict a depth close a certain position so that the features it slices will be better
+        # x=self.last_conv1(x,x)
+        # x=self.last_conv2(x,x)
         x=self.last_conv(x)
         
         return x
@@ -3928,7 +3937,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
         # self.feature_aggregator=  FeatureAgregator() 
-        self.feature_aggregator=  FeatureAgregatorLinear() 
+        # self.feature_aggregator=  FeatureAgregatorLinear() 
         # self.feature_aggregator=  FeatureAgregatorInvariant()  #loss is lower than FeatureAgregatorLinear but the normal map looks worse and more noisy
         self.feature_aggregator_traced=None
         self.slice_texture= SliceTextureModule()
@@ -5315,8 +5324,9 @@ class Net3_SRN(torch.nn.Module):
             edsr_args.n_in_channels=67
             edsr_args.n_resblocks=4
             edsr_args.n_feats=64
-            edsr_args.scale=2
-            self.super_res=EDSR(edsr_args)
+            edsr_args.scale=1
+            # self.super_res=EDSR(edsr_args)
+            self.super_res=UNet( nr_channels_start=67, nr_channels_output=3, nr_stages=3, max_nr_channels=64)
 
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
@@ -5368,7 +5378,9 @@ class Net3_SRN(torch.nn.Module):
         TIME_START("unet")
         # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
         # exit(1)
+        # unet_input=torch.cat([rgb_close_batch, ray_dirs_close_batch],1)
         frames_features=self.unet( rgb_close_batch )
+        # frames_features=self.unet( unet_input )
         # exit(1)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
         # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
@@ -5529,7 +5541,7 @@ class Net3_SRN(torch.nn.Module):
                 last_features=last_features.permute(2,0,1).unsqueeze(0)
                 rgb_low_res=torch.cat([rgb_pred,last_features],1)
                 # print("rgb_low_res", rgb_low_res.shape)
-                rgb_refined=self.super_res(rgb_low_res)
+                rgb_refined=self.super_res(rgb_low_res )
                 # print("rgb_refined",rgb_refined.shape)
                 # # rgb_refined=self.rgb_refiner(rgb_pred)
                 TIME_END("superres")
