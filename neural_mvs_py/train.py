@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_7gatedmulinit"
+    experiment_name="s_8gated_fixed"
 
 
     use_ray_compression=False

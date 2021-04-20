@@ -892,7 +892,7 @@ class UNet(torch.nn.Module):
             print("cur nr_channels ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -908,7 +908,7 @@ class UNet(torch.nn.Module):
 
         self.bottleneck=nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -925,7 +925,7 @@ class UNet(torch.nn.Module):
             self.up_stages_list.append( nn.Sequential(
                 ##last conv should have a bias because it's not followed by a GN
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -3946,6 +3946,12 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
+        # self.feature_fuser = torch.nn.Sequential(
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
+        #     # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+        #     # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
+        # )
+
         self.concat_coord=ConcatCoord()
 
         #activ
@@ -4081,7 +4087,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
             TIME_START("raymarch_fuse")
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
             feat=torch.cat([feat,img_features_aggregated],1)
+            #make the featues into an image
+            # feat_nr=feat.shape[1]
+            # feat=feat.view(1,frame.height, frame.width, feat_nr).permute(1,3,1,2) #from N,H,W,C to N,C,H,W
             feat=self.feature_fuser(feat)
+            # feat_nr=feat.shape[1]
+            #make it agian into linear
+            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
             # print(prof)
             TIME_END("raymarch_fuse")
 
