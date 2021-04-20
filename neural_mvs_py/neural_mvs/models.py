@@ -866,7 +866,7 @@ class SpatialEncoderDense2D(torch.nn.Module):
 
 
 class UNet(torch.nn.Module):
-    def __init__(self, nr_channels_start, nr_channels_output, nr_stages, max_nr_channels=999990):
+    def __init__(self, nr_channels_start, nr_channels_output, nr_stages, max_nr_channels=999990, block_type=WNReluConv ):
         super(UNet, self).__init__()
 
 
@@ -876,6 +876,7 @@ class UNet(torch.nn.Module):
         self.start_nr_channels=nr_channels_start
         self.nr_stages=nr_stages
         self.compression_factor=1.0
+        self.block_type=block_type
 
 
 
@@ -891,7 +892,7 @@ class UNet(torch.nn.Module):
             print("cur nr_channels ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -900,14 +901,14 @@ class UNet(torch.nn.Module):
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
             if after_coarsening_nr_channels> max_nr_channels:
                 after_coarsening_nr_channels=max_nr_channels
-            self.coarsen_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.coarsen_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
             print("adding unet stage with output ", cur_nr_channels)
 
 
         self.bottleneck=nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -917,14 +918,14 @@ class UNet(torch.nn.Module):
         self.squeeze_list = torch.nn.ModuleList([])
         for i in range(self.nr_stages):
             after_finefy_nr_channels=int(cur_nr_channels/2)
-            self.squeeze_list.append(  WNReluConv(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.squeeze_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             #we now concat the features from the corresponding stage
             cur_nr_channels=after_finefy_nr_channels
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
             self.up_stages_list.append( nn.Sequential(
                 ##last conv should have a bias because it's not followed by a GN
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True ),
+                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -943,13 +944,8 @@ class UNet(torch.nn.Module):
         #     self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
 
         # print("last conv is ", cur_nr_channels)
-        # self.last_conv1=DeformConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
-        # self.last_conv2=DeformConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
-        # self.last_conv1=PacConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
         # self.last_conv2=PacConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
-        self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
-        # self.last_conv=DeformConv2d(cur_nr_channels, nr_channels_output, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
-        # self.last_conv =  GNReluConv(in_channels=cur_nr_channels, out_channels=nr_channels_output, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.relu, is_first_layer=False ).cuda()
+        self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True).cuda() 
 
         self.relu=torch.nn.ReLU(inplace=False)
         self.concat_coord=ConcatCoord() 
@@ -958,7 +954,8 @@ class UNet(torch.nn.Module):
     # @profile_every(1)
     def forward(self, x):
         if self.first_conv==None:
-            self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+            # self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
+            self.first_conv = self.block_type( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda() 
 
         
         #attempot 1
@@ -3514,7 +3511,7 @@ class RGB_predictor_simple(MetaModule):
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
-        self.pred_rgb=BlockNerf(activ=None, init="tanh", in_channels=64, out_channels=3,  bias=True ).cuda()    
+        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
         self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
 
 
@@ -5327,7 +5324,7 @@ class Net3_SRN(torch.nn.Module):
             edsr_args.n_feats=64
             edsr_args.scale=1
             # self.super_res=EDSR(edsr_args)
-            self.super_res=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64)
+            self.super_res=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64, block_type=WNGatedConvRelu)
 
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
@@ -5531,7 +5528,7 @@ class Net3_SRN(torch.nn.Module):
             rgb_pred=radiance_field_flattened[:, 0:3]
             rgb_pred=rgb_pred.view(frame.height, frame.width,3)
             rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
-            rgb_pred=torch.tanh(rgb_pred) #similar to the differentiable neural rendering
+            # rgb_pred=torch.tanh(rgb_pred) #similar to the differentiable neural rendering
 
             mask_pred=mask_pred.view(frame.height, frame.width,1)
             mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
@@ -5549,9 +5546,13 @@ class Net3_SRN(torch.nn.Module):
                 #this is similar to the approach of andre
                 sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
                 input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
-                input_superres=torch.cat([input_superres, last_features, mask_pred],1)
+                # input_superres=torch.cat([input_superres, last_features, mask_pred],1)
+                input_superres=torch.cat([input_superres, last_features],1)
                 # mask_pred_thresh=mask_pred<0.3
                 # input_superres.masked_fill_(mask_pred_thresh, 0.0)
+                #multiply causes the gradients to explode for some reason
+                input_superres=input_superres*mask_pred
+                input_superres=torch.cat([input_superres,mask_pred],1)
 
                 # print("input_superres",input_superres.shape)
                 rgb_refined=self.super_res(input_superres )
