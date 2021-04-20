@@ -3940,17 +3940,25 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
   
-        self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
-            # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
-            # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
-        )
-
         # self.feature_fuser = torch.nn.Sequential(
         #     BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
         #     # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
         #     # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         # )
+
+        self.feature_fuser = torch.nn.Sequential(
+            WNReluConv(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
+            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+        )
+
+        # #with gated conv 
+        # self.feature_fuser = torch.nn.Sequential(
+        #     WNGatedConvRelu(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        # )
+
 
         self.concat_coord=ConcatCoord()
 
@@ -4056,6 +4064,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_START("raymarch_slice")
             uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear" ) #sliced features is N,C,H,W
+            sliced_feat_batched_img=sliced_feat_batched
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
             sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it nr_frames x nr_pixels x FEATDIM
@@ -4080,21 +4089,44 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #     new_loss+=std
             # if iter_nr == self.nr_iters-2:
             #     new_loss-=torch.clamp(std, 0.0, 1.0)
+
+
+                      
+            # TIME_START("raymarch_fuse")
+            # # with torch.autograd.profiler.profile(use_cuda=True) as prof:
+            # feat=torch.cat([feat,img_features_aggregated],1)
+            # feat=self.feature_fuser(feat)
+            # # print(prof)
+            # TIME_END("raymarch_fuse")
             
             
 
             
-            TIME_START("raymarch_fuse")
-            # with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            feat=torch.cat([feat,img_features_aggregated],1)
-            #make the featues into an image
+            # TIME_START("raymarch_fuse")
+            # # with torch.autograd.profiler.profile(use_cuda=True) as prof:
+            # feat=torch.cat([feat,img_features_aggregated],1)
+            # #make the featues into an image
             # feat_nr=feat.shape[1]
-            # feat=feat.view(1,frame.height, frame.width, feat_nr).permute(1,3,1,2) #from N,H,W,C to N,C,H,W
-            feat=self.feature_fuser(feat)
+            # feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # feat=self.feature_fuser(feat)
             # feat_nr=feat.shape[1]
-            #make it agian into linear
+            # #make it agian into linear
             # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # print(prof)
+            # # print(prof)
+            # TIME_END("raymarch_fuse")
+
+
+            #attempt 2 to fuse 
+            TIME_START("raymarch_fuse")
+            # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+            feat_imgs= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
+            feat_nr=feat.shape[1]
+            feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            feat=torch.cat([feat,feat_imgs],1)
+            feat=self.feature_fuser(feat)
+            feat_nr=feat.shape[1]
+            #make it agian into linear
+            feat=feat.permute(0,2,3,1).view(-1,feat_nr)
             TIME_END("raymarch_fuse")
 
 
