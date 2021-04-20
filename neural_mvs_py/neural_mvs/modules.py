@@ -52,6 +52,16 @@ def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx,
 
     face, weights= SFM.compute_closest_triangle( frame_py.frame.pos_in_world(), triangulated_mesh )
 
+    #sort the face indices and the weight in order of the weights
+    sorted_indices =np.argsort(-1*weights) #the -1* is just a trick to make it sort in descending order because god forbid numpy would have an option to just sort in descending...
+    weights=weights[sorted_indices]
+    face=face[sorted_indices]
+
+
+
+
+
+
     #from the face get the vertices that we triangulated
     # print("frame idx ", frame_idx_0, frame_idx_1, frame_idx_2 )
     frame_idx_0= frame_idxs[face[0]]

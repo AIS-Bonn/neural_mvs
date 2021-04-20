@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_15refu_lowlr"
+    experiment_name="s_18Better"
 
 
     use_ray_compression=False

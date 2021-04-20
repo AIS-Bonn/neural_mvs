@@ -5480,6 +5480,7 @@ class Net3_SRN(torch.nn.Module):
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
         sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear" ) #sliced features is N,C,H,W
+        sliced_feat_batched_img=sliced_feat_batched
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
         sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
@@ -5541,7 +5542,18 @@ class Net3_SRN(torch.nn.Module):
                 last_features=last_features.permute(2,0,1).unsqueeze(0)
                 rgb_low_res=torch.cat([rgb_pred,last_features],1)
                 # print("rgb_low_res", rgb_low_res.shape)
-                rgb_refined=self.super_res(rgb_low_res )
+
+
+                #get the sliced_feat_batched_img which are N,C,H,W into 1, c*N, h,W
+                #this is similar to the approach of andre
+                sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+                input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
+                # print("input_superres",input_superres.shape)
+                rgb_refined=self.super_res(input_superres )
+
+
+                # rgb_refined=self.super_res(rgb_low_res )
+
                 # print("rgb_refined",rgb_refined.shape)
                 # # rgb_refined=self.rgb_refiner(rgb_pred)
                 TIME_END("superres")
