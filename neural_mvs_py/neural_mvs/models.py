@@ -3946,8 +3946,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #     # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         # )
 
+        self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.feature_fuser = torch.nn.Sequential(
-            WNReluConv(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
         )
@@ -4123,7 +4123,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
             feat_nr=feat.shape[1]
             feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             feat=torch.cat([feat,feat_imgs],1)
+            feat=self.feature_fuser_reducer(feat)
+            identity=feat
             feat=self.feature_fuser(feat)
+            feat+=identity
             feat_nr=feat.shape[1]
             #make it agian into linear
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
