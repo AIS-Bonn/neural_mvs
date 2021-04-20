@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_9rmean_cm"
+    experiment_name="s_10rweighted"
 
 
     use_ray_compression=False

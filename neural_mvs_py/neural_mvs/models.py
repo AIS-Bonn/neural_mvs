@@ -3936,7 +3936,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
-        # self.feature_aggregator=  FeatureAgregator() 
+        self.feature_aggregator=  FeatureAgregator() 
         # self.feature_aggregator=  FeatureAgregatorLinear() 
         # self.feature_aggregator=  FeatureAgregatorInvariant()  #loss is lower than FeatureAgregatorLinear but the normal map looks worse and more noisy
         self.feature_aggregator_traced=None
@@ -4061,11 +4061,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
             
             #attempt 2 
             # TIME_START("raymarch_aggr")
-            # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images
-            # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel)
-            mean=sliced_feat_batched.mean(dim=0)
-            std=sliced_feat_batched.std(dim=0)
-            img_features_aggregated=torch.cat([mean,std],1)
+            # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images. ACTUALLY, weigthing or not weighting doesnt make much of a difference and therefore we leave the weighting because it allows for way smoother interpolation to novel views
+            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
+            # mean=sliced_feat_batched.mean(dim=0)
+            # std=sliced_feat_batched.std(dim=0)
+            # img_features_aggregated=torch.cat([mean,std],1)
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
 
