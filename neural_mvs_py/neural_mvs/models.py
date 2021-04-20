@@ -5321,12 +5321,13 @@ class Net3_SRN(torch.nn.Module):
         self.do_superres=do_superres
         if do_superres:
             edsr_args=EDSR_args()
-            edsr_args.n_in_channels=67
+            # edsr_args.n_in_channels=67
+            edsr_args.n_in_channels=32*3
             edsr_args.n_resblocks=4
             edsr_args.n_feats=64
             edsr_args.scale=1
             # self.super_res=EDSR(edsr_args)
-            self.super_res=UNet( nr_channels_start=67, nr_channels_output=3, nr_stages=3, max_nr_channels=64)
+            self.super_res=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64)
 
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
@@ -5548,6 +5549,10 @@ class Net3_SRN(torch.nn.Module):
                 #this is similar to the approach of andre
                 sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
                 input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
+                input_superres=torch.cat([input_superres, last_features, mask_pred],1)
+                # mask_pred_thresh=mask_pred<0.3
+                # input_superres.masked_fill_(mask_pred_thresh, 0.0)
+
                 # print("input_superres",input_superres.shape)
                 rgb_refined=self.super_res(input_superres )
 

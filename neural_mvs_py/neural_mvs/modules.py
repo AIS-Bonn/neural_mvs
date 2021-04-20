@@ -643,11 +643,11 @@ class FeatureAgregatorLinear(torch.nn.Module):
         feat_dim= feat_sliced_per_frame.shape[2]
         weights=weights.view(-1,1,1)
 
-        #since we don't want the network to overfit to a perticular  order of the Nr_frames, we randomize their order 
-        if not novel:
-            randperm=torch.randperm(nr_frames)
-            feat_sliced_per_frame=feat_sliced_per_frame[randperm,:,:]
-            weights=weights[randperm,:,:]
+        # #since we don't want the network to overfit to a perticular  order of the Nr_frames, we randomize their order 
+        # if not novel:
+        #     randperm=torch.randperm(nr_frames)
+        #     feat_sliced_per_frame=feat_sliced_per_frame[randperm,:,:]
+        #     weights=weights[randperm,:,:]
 
 
         img_features_concat_weighted=feat_sliced_per_frame*weights
