@@ -3516,13 +3516,13 @@ class RGB_predictor_simple(MetaModule):
         # self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
 
         #with conv
-        self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False)
+        self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
         self.pred_feat=MetaSequential( 
-            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
-            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
+            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
             )
-        self.pred_rgb=WNReluConv(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )   
-        self.pred_mask=WNReluConv(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )   
+        self.pred_rgb=WNReluConv(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
+        self.pred_mask=WNReluConv(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
 
         # #with pac 
         # self.pred_feat_reducer= BlockPAC(in_channels=cur_nr_channels, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
@@ -3992,10 +3992,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #     # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         # )
 
-        self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
+        self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         self.feature_fuser = torch.nn.Sequential(
-            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
-            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
+            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
         )
 
         #withpac

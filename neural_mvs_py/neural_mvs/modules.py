@@ -1107,12 +1107,12 @@ class WNReluConv(torch.nn.Module):
         
 
        
-        print("initializing with kaiming uniform")
-        torch.nn.init.kaiming_uniform_(self.conv.weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
-        if self.bias is not False:
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv.weight)
-            bound = 1 / math.sqrt(fan_in)
-            torch.nn.init.uniform_(self.conv.bias, -bound, bound)
+        # print("initializing with kaiming uniform")
+        # torch.nn.init.kaiming_uniform_(self.conv.weight, a=math.sqrt(5), mode='fan_in', nonlinearity='relu')
+        # if self.bias is not False:
+        #     fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.conv.weight)
+        #     bound = 1 / math.sqrt(fan_in)
+        #     torch.nn.init.uniform_(self.conv.bias, -bound, bound)
     
 
     def forward(self, x):
