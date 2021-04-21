@@ -5434,7 +5434,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=False):
+    def forward(self, frame, ray_dirs, rgb_close_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5452,9 +5452,9 @@ class Net3_SRN(torch.nn.Module):
         TIME_START("unet")
         # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
         # exit(1)
-        # unet_input=torch.cat([rgb_close_batch, ray_dirs_close_batch],1)
-        frames_features=self.unet( rgb_close_batch )
-        # frames_features=self.unet( unet_input )
+        unet_input=torch.cat([rgb_close_batch, ray_dirs_close_batch],1)
+        frames_features=self.unet( unet_input )
+        # frames_features=self.unet( rgb_close_batch )
         # exit(1)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
         # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))

@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_7ssim"
+    experiment_name="s_8dirssim"
 
 
     use_ray_compression=False
@@ -382,7 +382,7 @@ def run():
                         TIME_START("forward")
                         # print( torch.cuda.memory_summary() )
                         # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
                         TIME_END("forward")
                         # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
