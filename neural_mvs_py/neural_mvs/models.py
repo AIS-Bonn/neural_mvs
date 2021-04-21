@@ -3575,14 +3575,17 @@ class RGB_predictor_simple(MetaModule):
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
 
-        #get the x into an image
-        x_feat_nr=x.shape[1]
-        x=x.view(1,frame.height,frame.width,x_feat_nr).permute(0,3,1,2) #N,H,W,C to N,C,H,W
 
         # x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
         # last_features=x
         # rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
         # mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
+
+
+
+        # get the x into an image
+        x_feat_nr=x.shape[1]
+        x=x.view(1,frame.height,frame.width,x_feat_nr).permute(0,3,1,2) #N,H,W,C to N,C,H,W
 
         #as if they were images 
         x=  self.pred_feat_reducer(x  )  
@@ -3594,14 +3597,6 @@ class RGB_predictor_simple(MetaModule):
         mask_pred=  self.pred_mask(last_features  )  
         mask_pred=torch.sigmoid(mask_pred)
 
-        #concat 
-        # print("rgb is", rgb.shape)
-        # print("sigma_a is", sigma_a.shape)
-
-        # x=x.permute(2,3,0,1).contiguous() #from 30,nr_out_channels,71,107 to  71,107,30,4
-
-
-        # print("rgb is ", rgb.mean(), rgb.min(), rgb.max() ) 
       
         #bacl to linear
         rgb=rgb.permute(0,2,3,1).view(-1,3) # from N,C,H,W to N,H,W,C
@@ -3981,6 +3976,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
         )
+
+        #withpac
+        # self.feature_fuser_reducer=BlockPAC(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        # self.feature_fuser = BlockPAC(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
         # #with gated conv 
         # self.feature_fuser = torch.nn.Sequential(

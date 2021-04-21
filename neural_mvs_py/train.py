@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_"
+    experiment_name="s_7ssim"
 
 
     use_ray_compression=False
@@ -413,10 +413,10 @@ def run():
                         # rgb_loss=(( rgb_gt_selected-rgb_pred_with_confidence_blending)**2).mean()
                         rgb_loss_l1=(( rgb_gt_selected-rgb_pred_with_confidence_blending).abs()).mean()
                         rgb_loss_l1_no_confidence_blend=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
-                        # loss+=rgb_loss_ssim_l1
+                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
+                        loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
-                        loss+=rgb_loss_l1
+                        # loss+=rgb_loss_l1
                         #loss on the rgb_refiend
                         if do_superres:
                             loss=loss*0.5
