@@ -5408,7 +5408,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        # self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=64)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=64)
         # self.unet_rgb=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=1, max_nr_channels=32)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
@@ -5416,7 +5416,7 @@ class Net3_SRN(torch.nn.Module):
         # self.unet= LinkNet(classes=32) #converges
         # self.unet= LinkNetImprove(classes=32)  #looks ok
         # self.unet= SegNet(classes=32) #looks ok
-        self.unet= UNet_efficient.UNet(classes=32) #converges and it seems to have better gradient propagation through the network than my unet, probably because it uses groupnorm
+        # self.unet= UNet_efficient.UNet(classes=32) #converges and it seems to have better gradient propagation through the network than my unet, probably because it uses groupnorm
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=32)
