@@ -3491,6 +3491,7 @@ class RGB_predictor_simple(MetaModule):
         # self.first_conv=BlockSiren(activ=torch.sin, in_channels=3, out_channels=128,  bias=True, is_first_layer=True).cuda()
 
         cur_nr_channels+=64 #for point features
+        # cur_nr_channels+=32*3 #for point features
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=32 #concating also the signed distnace
@@ -3505,21 +3506,30 @@ class RGB_predictor_simple(MetaModule):
             # dirs_channels=64
             # cur_nr_channels+=128 #point
             cur_nr_channels+=dirs_channels
+        # self.pred_feat=MetaSequential( 
+        #     # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=64,  bias=True ).cuda(),
+        #     # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
+        #     )
+        # self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
+        # self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
+
+        #with conv
+        self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False)
         self.pred_feat=MetaSequential( 
-            # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=64,  bias=True ).cuda(),
-            # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
+            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
             )
-        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
-        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
+        self.pred_rgb=WNReluConv(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )   
+        self.pred_mask=WNReluConv(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )   
 
 
 
 
 
 
-    def forward(self, x, ray_directions, point_features, nr_points_per_ray, params=None):
+    def forward(self, frame, x, ray_directions, point_features, nr_points_per_ray, params=None):
         if params is None:
             params = OrderedDict(self.named_parameters())
 
@@ -3564,10 +3574,26 @@ class RGB_predictor_simple(MetaModule):
         #predict rgb
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
-        x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
+
+        #get the x into an image
+        x_feat_nr=x.shape[1]
+        x=x.view(1,frame.height,frame.width,x_feat_nr).permute(0,3,1,2) #N,H,W,C to N,C,H,W
+
+        # x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
+        # last_features=x
+        # rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
+        # mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
+
+        #as if they were images 
+        x=  self.pred_feat_reducer(x  )  
+        identity=x
+        x=  self.pred_feat(x  )  
+        x+=identity
         last_features=x
-        rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
-        mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
+        rgb=  self.pred_rgb(last_features  )  
+        mask_pred=  self.pred_mask(last_features  )  
+        mask_pred=torch.sigmoid(mask_pred)
+
         #concat 
         # print("rgb is", rgb.shape)
         # print("sigma_a is", sigma_a.shape)
@@ -3577,7 +3603,11 @@ class RGB_predictor_simple(MetaModule):
 
         # print("rgb is ", rgb.mean(), rgb.min(), rgb.max() ) 
       
-
+        #bacl to linear
+        rgb=rgb.permute(0,2,3,1).view(-1,3) # from N,C,H,W to N,H,W,C
+        mask_pred=mask_pred.permute(0,2,3,1).view(-1,1)
+        last_features_nr=last_features.shape[1]
+        last_features=last_features.permute(0,2,3,1).view(-1,last_features_nr)
 
 
        
@@ -5564,11 +5594,17 @@ class Net3_SRN(torch.nn.Module):
         # img_features_aggregated=torch.cat([img_features_aggregated, normal],1)
 
 
+        #try to just concat the features from the images instead of aggregating them but it gives worse results
+        # img_features_aggregated=sliced_feat_batched_img*weights.view(3,1,1,1)
+        # img_features_aggregated= img_features_aggregated.view(1,-1, frame.height, frame.width)
+        # feat_nr=img_features_aggregated.shape[1]
+        # img_features_aggregated=img_features_aggregated.permute(0,2,3,1).view(-1,feat_nr)
+
 
 
 
         TIME_START("rgb_predict")
-        radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+        radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(frame, point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
         TIME_END("rgb_predict")
 
         if pixels_indices==None:

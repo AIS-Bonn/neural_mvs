@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_2skip"
+    experiment_name="s_"
 
 
     use_ray_compression=False
@@ -653,7 +653,7 @@ def run():
                             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
                             rgb_pred_zeros_mask= rgb_pred_zeros<0.05
                             rgb_pred_ones_mask= rgb_pred_zeros>0.95
-                            rgb_pred_zeros_mask=torch.logical_or(rgb_pred_zeros_mask,rgb_pred_ones_mask)
+                            # rgb_pred_zeros_mask=torch.logical_or(rgb_pred_zeros_mask,rgb_pred_ones_mask)
                             rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame.height,frame.width)
                             rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                             if phase.iter_nr%show_every==0:
