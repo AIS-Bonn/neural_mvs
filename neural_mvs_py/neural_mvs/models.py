@@ -3524,6 +3524,15 @@ class RGB_predictor_simple(MetaModule):
         self.pred_rgb=WNReluConv(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )   
         self.pred_mask=WNReluConv(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )   
 
+        # #with pac 
+        # self.pred_feat_reducer= BlockPAC(in_channels=cur_nr_channels, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
+        # self.pred_feat= BlockPAC(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+        # self.pred_feat2= BlockPAC(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+        # self.pred_rgb=WNReluConv(in_channels=32, out_channels=3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
+        # self.pred_mask=WNReluConv(in_channels=32, out_channels=1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
+
+
+
 
 
 
@@ -3587,7 +3596,7 @@ class RGB_predictor_simple(MetaModule):
         x_feat_nr=x.shape[1]
         x=x.view(1,frame.height,frame.width,x_feat_nr).permute(0,3,1,2) #N,H,W,C to N,C,H,W
 
-        #as if they were images 
+        # as if they were images 
         x=  self.pred_feat_reducer(x  )  
         identity=x
         x=  self.pred_feat(x  )  
@@ -3596,6 +3605,18 @@ class RGB_predictor_simple(MetaModule):
         rgb=  self.pred_rgb(last_features  )  
         mask_pred=  self.pred_mask(last_features  )  
         mask_pred=torch.sigmoid(mask_pred)
+
+
+        # #with pac
+        # x=  self.pred_feat_reducer(x,x )  
+        # identity=x
+        # x=  self.pred_feat(x,x  )  
+        # x=  self.pred_feat2(x,x  )  
+        # x+=identity
+        # last_features=x
+        # rgb=  self.pred_rgb(last_features  )  
+        # mask_pred=  self.pred_mask(last_features  )  
+        # mask_pred=torch.sigmoid(mask_pred)
 
       
         #bacl to linear
@@ -3958,7 +3979,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
         # self.frame_weights_computer= FrameWeightComputer()
-        self.feature_aggregator=  FeatureAgregator() 
+        # self.feature_aggregator=  FeatureAgregator() 
         # self.feature_aggregator=  FeatureAgregatorLinear() 
         # self.feature_aggregator=  FeatureAgregatorInvariant()  #loss is lower than FeatureAgregatorLinear but the normal map looks worse and more noisy
         self.feature_aggregator_traced=None
@@ -3971,7 +3992,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #     # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         # )
 
-        self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
+        self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.feature_fuser = torch.nn.Sequential(
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
@@ -4103,10 +4124,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #attempt 2 
             # TIME_START("raymarch_aggr")
             # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images. ACTUALLY, weigthing or not weighting doesnt make much of a difference and therefore we leave the weighting because it allows for way smoother interpolation to novel views
-            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
-            # mean=sliced_feat_batched.mean(dim=0)
-            # std=sliced_feat_batched.std(dim=0)
-            # img_features_aggregated=torch.cat([mean,std],1)
+            # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
+            mean=sliced_feat_batched.mean(dim=0)
+            std=sliced_feat_batched.std(dim=0)
+            img_features_aggregated=torch.cat([mean,std],1)
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
 
@@ -4145,17 +4166,35 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_END("raymarch_fuse")
 
 
+            # #attempt 2 to fuse 
+            # TIME_START("raymarch_fuse")
+            # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+            # feat_imgs= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
+            # feat_nr=feat.shape[1]
+            # feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # feat=torch.cat([feat,feat_imgs],1)
+            # feat=self.feature_fuser_reducer(feat)
+            # # identity=feat
+            # feat=self.feature_fuser(feat)
+            # # feat+=identity # this is not a good idea because the activations keep increasing and since this parts is an rnn the gradient keep exploding
+            # feat_nr=feat.shape[1]
+            # #make it agian into linear
+            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
+            # TIME_END("raymarch_fuse")
+
+            # fuse not by concating but jsut with mean and std and position works better than concating the fatures directly, this happens both for the marcher and the rgb
             #attempt 2 to fuse 
             TIME_START("raymarch_fuse")
             # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-            feat_imgs= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
-            feat_nr=feat.shape[1]
-            feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            feat=torch.cat([feat,feat_imgs],1)
+            feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            mean=mean.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            std=std.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            feat=torch.cat([feat,img_features_aggregated],1)
             feat=self.feature_fuser_reducer(feat)
-            identity=feat
+            # identity=feat
             feat=self.feature_fuser(feat)
-            feat+=identity
+            # feat+=identity # this is not a good idea because the activations keep increasing and since this parts is an rnn the gradient keep exploding
             feat_nr=feat.shape[1]
             #make it agian into linear
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
@@ -5369,7 +5408,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=64)
+        # self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=64)
         # self.unet_rgb=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=1, max_nr_channels=32)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
@@ -5377,7 +5416,7 @@ class Net3_SRN(torch.nn.Module):
         # self.unet= LinkNet(classes=32) #converges
         # self.unet= LinkNetImprove(classes=32)  #looks ok
         # self.unet= SegNet(classes=32) #looks ok
-        # self.unet= UNet_efficient.UNet(classes=32) #converges
+        self.unet= UNet_efficient.UNet(classes=32) #converges and it seems to have better gradient propagation through the network than my unet, probably because it uses groupnorm
         # self.unet= ENet(classes=16) #eror
         # self.unet= ERFNet(classes=16) #eror
         # self.unet= CGNet(classes=32)
@@ -5565,6 +5604,7 @@ class Net3_SRN(torch.nn.Module):
         # img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
         img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights)
         std= img_features_aggregated[:, -16]
+        std=None
 
         # show the frames and with a line weight depending on the weight
         # if novel:

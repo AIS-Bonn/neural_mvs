@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_8dirssim"
+    experiment_name="s"
 
 
     use_ray_compression=False

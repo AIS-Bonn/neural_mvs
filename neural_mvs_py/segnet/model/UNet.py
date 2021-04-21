@@ -102,7 +102,7 @@ class outconv(nn.Module):
 class UNet(nn.Module):
     def __init__(self, classes):
         super(UNet, self).__init__()
-        self.inc = inconv(3, 32)
+        self.inc = inconv(6, 32)
         self.down1 = down(32, 32)
         self.down2 = down(32, 64)
         self.down3 = down(64, 128)
