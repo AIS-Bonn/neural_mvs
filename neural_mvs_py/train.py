@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s_"
+    experiment_name="5morergb"
 
 
     use_ray_compression=False

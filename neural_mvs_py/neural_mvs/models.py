@@ -1008,6 +1008,8 @@ class UNet(torch.nn.Module):
         # x=self.last_conv1(x,x)
         # x=self.last_conv2(x,x)
         x=self.last_conv(x)
+
+        x[:,0:6,:,:]=initial_x
         
         return x
 
@@ -3998,13 +4000,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
             WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
         )
 
-        #withpac
-        # self.feature_fuser_reducer=BlockPAC(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        # # withpac
+        # self.feature_fuser_reducer=BlockPAC(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         # self.feature_fuser = BlockPAC(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
         # #with gated conv 
+        # self.feature_fuser_reducer=WNGatedConvRelu(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
         # self.feature_fuser = torch.nn.Sequential(
-        #     WNGatedConvRelu(in_channels=3+3*num_encodings*2  +32*3, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
         #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
         #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         # )
@@ -4102,6 +4104,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             TIME_START("raymarch_pe")
             feat=self.learned_pe(world_coords[-1])
+            pos_encoded=feat
             TIME_END("raymarch_pe")
 
             # TIME_START("raymarch_uv")
