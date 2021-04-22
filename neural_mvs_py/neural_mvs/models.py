@@ -3499,6 +3499,7 @@ class RGB_predictor_simple(MetaModule):
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=32 #concating also the signed distnace
         # cur_nr_channels+=3 #concating also the normals
+        cur_nr_channels+=6 #if we concat theRGB at the end of unet we get an additional mean and std for it
       
         if use_ray_dirs:
             num_encoding_directions=4
@@ -3515,8 +3516,8 @@ class RGB_predictor_simple(MetaModule):
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
-        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
-        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
+        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64+70, out_channels=3,  bias=True ).cuda()    
+        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64+70, out_channels=1,  bias=True ).cuda()    
 
         # #with conv
         # self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
@@ -3589,7 +3590,8 @@ class RGB_predictor_simple(MetaModule):
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
 
         x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
-        last_features=x
+        # last_features=x
+        last_features=torch.cat([x,point_features],1)  #readd the point features because here the network can easily find the RGB values while the x is already kind tainted with the directionality information
         rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
         mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
 
@@ -3990,7 +3992,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
   
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64 +6, out_channels=32,  bias=True ).cuda(),
             # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
@@ -4013,8 +4015,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # )
 
         #just some pacs 
-        self.pac1 = BlockPAC(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
-        self.pac2 = BlockPAC(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+        self.pac1 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        self.pac2 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
 
         self.concat_coord=ConcatCoord()
@@ -5529,7 +5531,7 @@ class Net3_SRN(torch.nn.Module):
         unet_input=torch.cat([rgb_close_batch, ray_dirs_close_batch],1)
         frames_features=self.unet( unet_input )
         # frames_features=self.unet( rgb_close_batch )
-        # frames_features=torch.cat([frames_features,rgb_close_batch],1)
+        frames_features=torch.cat([frames_features,rgb_close_batch],1)
         # exit(1)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
         # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
