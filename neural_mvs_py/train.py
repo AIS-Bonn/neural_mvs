@@ -73,7 +73,7 @@ def run():
 
 
     first_time=True
-    experiment_name="5morergb"
+    experiment_name="9nope"
 
 
     use_ray_compression=False
@@ -571,7 +571,7 @@ def run():
 
                             #  )
                             scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
-                            # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=200)
+                            # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                             optimizer.zero_grad()
 
                         cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 

@@ -3482,8 +3482,8 @@ class RGB_predictor_simple(MetaModule):
         self.use_ray_dirs = use_ray_dirs
 
         cur_nr_channels=in_channels
-        self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=9)
-        cur_nr_channels=256+in_channels
+        # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=9)
+        # cur_nr_channels=256+in_channels
         ###GAUSSIAN encoding works a tiny bit better but I prefer the normal positonal encoding because I don't have to deal witht he std paramter which is a bit sensitive
         # num_encodings=8
         # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
@@ -3555,7 +3555,7 @@ class RGB_predictor_simple(MetaModule):
 
         #from 71,107,30,3  to Nx3
         x=x.view(-1,3)
-        x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
+        # x=self.learned_pe(x, params=get_subdict(params, 'learned_pe') )
         # x=x.view(height, width, nr_points, -1 )
         # x=x.permute(2,3,0,1).contiguous() #from 71,107,30,3 to 30,3,71,107
 
