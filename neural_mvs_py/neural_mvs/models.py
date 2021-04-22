@@ -3481,7 +3481,8 @@ class RGB_predictor_simple(MetaModule):
 
         self.use_ray_dirs = use_ray_dirs
 
-        cur_nr_channels=in_channels
+        # cur_nr_channels=in_channels
+        cur_nr_channels=0
         # self.learned_pe=LearnedPEGaussian(in_channels=in_channels, out_channels=256, std=9)
         # cur_nr_channels=256+in_channels
         ###GAUSSIAN encoding works a tiny bit better but I prefer the normal positonal encoding because I don't have to deal witht he std paramter which is a bit sensitive
@@ -3562,7 +3563,8 @@ class RGB_predictor_simple(MetaModule):
       
 
 
-        x=torch.cat([x,point_features],1)
+        # x=torch.cat([x,point_features],1)
+        x=point_features
 
   
         if self.use_ray_dirs:
