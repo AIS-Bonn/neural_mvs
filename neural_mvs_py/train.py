@@ -36,6 +36,8 @@ import optimizers.gradient_centralization.ranger2020 as GC_Ranger #incorporated 
 import optimizers.gradient_centralization.Adam as GC_Adam
 import optimizers.gradient_centralization.RAdam as GC_RAdam
 
+import piq
+
 from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
 import neural_mvs.warmup_scheduler as warmup  #https://github.com/Tony-Y/pytorch_warmup
@@ -73,7 +75,8 @@ def run():
 
 
     first_time=True
-    experiment_name="10nope"
+    # experiment_name="13lhighlr"
+    experiment_name="2raypac"
 
 
     use_ray_compression=False
@@ -414,6 +417,8 @@ def run():
                         rgb_loss_l1=(( rgb_gt_selected-rgb_pred_with_confidence_blending).abs()).mean()
                         rgb_loss_l1_no_confidence_blend=(( rgb_gt_selected-rgb_pred).abs()).mean()
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
+                        psnr_index = piq.psnr(rgb_gt_selected, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
+                        # psnr_index = piq.psnr(rgb_gt_selected, rgb_pred, data_range=1.0 )
                         loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
                         # loss+=rgb_loss_l1
@@ -574,7 +579,8 @@ def run():
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                             optimizer.zero_grad()
 
-                        cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        cb.after_forward_pass(loss=psnr_index.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                        # cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=rgb_refined_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio

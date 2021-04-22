@@ -1009,7 +1009,7 @@ class UNet(torch.nn.Module):
         # x=self.last_conv2(x,x)
         x=self.last_conv(x)
 
-        x[:,0:6,:,:]=initial_x
+        # x[:,0:6,:,:]=initial_x
         
         return x
 
@@ -3509,23 +3509,23 @@ class RGB_predictor_simple(MetaModule):
             # dirs_channels=64
             # cur_nr_channels+=128 #point
             cur_nr_channels+=dirs_channels
-        # self.pred_feat=MetaSequential( 
-        #     # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-        #     BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=64,  bias=True ).cuda(),
-        #     # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
-        #     BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
-        #     )
-        # self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
-        # self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
-
-        #with conv
-        self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
         self.pred_feat=MetaSequential( 
-            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
-            WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+            # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=cur_nr_channels, out_channels=64,  bias=True ).cuda(),
+            # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
-        self.pred_rgb=WNReluConv(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
-        self.pred_mask=WNReluConv(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
+        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
+        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
+
+        # #with conv
+        # self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
+        # self.pred_feat=MetaSequential( 
+        #     WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+        #     )
+        # self.pred_rgb=WNReluConv(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
+        # self.pred_mask=WNReluConv(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )   
 
         # #with pac 
         # self.pred_feat_reducer= BlockPAC(in_channels=cur_nr_channels, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
@@ -3588,27 +3588,26 @@ class RGB_predictor_simple(MetaModule):
         # rgb=torch.sigmoid(  (self.pred_rgb(feat_and_dirs,  params=get_subdict(params, 'pred_rgb') ) +1.0)*0.5 )
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
 
-
-        # x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
-        # last_features=x
-        # rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
-        # mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
-
-
-
-        # get the x into an image
-        x_feat_nr=x.shape[1]
-        x=x.view(1,frame.height,frame.width,x_feat_nr).permute(0,3,1,2) #N,H,W,C to N,C,H,W
-
-        # as if they were images 
-        x=  self.pred_feat_reducer(x  )  
-        identity=x
-        x=  self.pred_feat(x  )  
-        x+=identity
+        x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
         last_features=x
-        rgb=  self.pred_rgb(last_features  )  
-        mask_pred=  self.pred_mask(last_features  )  
-        mask_pred=torch.sigmoid(mask_pred)
+        rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
+        mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  
+
+
+
+        # # get the x into an image
+        # x_feat_nr=x.shape[1]
+        # x=x.view(1,frame.height,frame.width,x_feat_nr).permute(0,3,1,2) #N,H,W,C to N,C,H,W
+
+        # # as if they were images 
+        # x=  self.pred_feat_reducer(x  )  
+        # identity=x
+        # x=  self.pred_feat(x  )  
+        # x+=identity
+        # last_features=x
+        # rgb=  self.pred_rgb(last_features  )  
+        # mask_pred=  self.pred_mask(last_features  )  
+        # mask_pred=torch.sigmoid(mask_pred)
 
 
         # #with pac
@@ -3623,11 +3622,11 @@ class RGB_predictor_simple(MetaModule):
         # mask_pred=torch.sigmoid(mask_pred)
 
       
-        #bacl to linear
-        rgb=rgb.permute(0,2,3,1).view(-1,3) # from N,C,H,W to N,H,W,C
-        mask_pred=mask_pred.permute(0,2,3,1).view(-1,1)
-        last_features_nr=last_features.shape[1]
-        last_features=last_features.permute(0,2,3,1).view(-1,last_features_nr)
+        # #bacl to linear
+        # rgb=rgb.permute(0,2,3,1).view(-1,3) # from N,C,H,W to N,H,W,C
+        # mask_pred=mask_pred.permute(0,2,3,1).view(-1,1)
+        # last_features_nr=last_features.shape[1]
+        # last_features=last_features.permute(0,2,3,1).view(-1,last_features_nr)
 
 
        
@@ -3990,17 +3989,17 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
   
-        # self.feature_fuser = torch.nn.Sequential(
-        #     BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
-        #     # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
-        #     # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
-        # )
-
-        self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         self.feature_fuser = torch.nn.Sequential(
-            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
-            WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
+            # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
+            # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
+
+        # self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        # self.feature_fuser = torch.nn.Sequential(
+        #     WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+        # )
 
         # # withpac
         # self.feature_fuser_reducer=BlockPAC(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
@@ -4012,6 +4011,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
         #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         # )
+
+        #just some pacs 
+        self.pac1 = BlockPAC(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        self.pac2 = BlockPAC(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
 
         self.concat_coord=ConcatCoord()
@@ -4189,21 +4192,37 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             # fuse not by concating but jsut with mean and std and position works better than concating the fatures directly, this happens both for the marcher and the rgb
             #attempt 2 to fuse 
+            # TIME_START("raymarch_fuse")
+            # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+            # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # mean=mean.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # std=std.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # feat=torch.cat([feat,img_features_aggregated],1)
+            # feat=self.feature_fuser_reducer(feat)
+            # # identity=feat
+            # feat=self.feature_fuser(feat)
+            # # feat+=identity # this is not a good idea because the activations keep increasing and since this parts is an rnn the gradient keep exploding
+            # feat_nr=feat.shape[1]
+            # #make it agian into linear
+            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
+            # TIME_END("raymarch_fuse")
+
+
+            #pac conv the img featues and than concat with position and then some 1x1 convs 
             TIME_START("raymarch_fuse")
             # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
             feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            mean=mean.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            std=std.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            img_features_aggregated=self.pac1(img_features_aggregated,img_features_aggregated)
+            img_features_aggregated=self.pac2(img_features_aggregated,img_features_aggregated)
             feat=torch.cat([feat,img_features_aggregated],1)
-            feat=self.feature_fuser_reducer(feat)
-            # identity=feat
-            feat=self.feature_fuser(feat)
-            # feat+=identity # this is not a good idea because the activations keep increasing and since this parts is an rnn the gradient keep exploding
-            feat_nr=feat.shape[1]
             #make it agian into linear
+            feat_nr=feat.shape[1]
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
+            feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
+            
 
 
             #create the lstm if not created 
@@ -5414,8 +5433,19 @@ class Net3_SRN(torch.nn.Module):
 
         #models
         self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=64)
-        # self.unet_rgb=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=1, max_nr_channels=32)
+        # self.unet_rgb=UNet( nr_channels_start=32, nr_channels_output=32, nr_stages=0, max_nr_channels=64)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
+
+        # num_encoding_directions=4
+        # self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        # dirs_channels=3+ 3*num_encoding_directions*2
+
+        # self.fuse_with_dirs=MetaSequential( 
+        #     # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=32+3 + dirs_channels, out_channels=64,  bias=True ).cuda(),
+        #     # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
+        #     BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=32,  bias=True ).cuda()
+        #     )
 
         # self.unet= SQNet(classes=32)
         # self.unet= LinkNet(classes=32) #converges
@@ -5499,6 +5529,7 @@ class Net3_SRN(torch.nn.Module):
         unet_input=torch.cat([rgb_close_batch, ray_dirs_close_batch],1)
         frames_features=self.unet( unet_input )
         # frames_features=self.unet( rgb_close_batch )
+        # frames_features=torch.cat([frames_features,rgb_close_batch],1)
         # exit(1)
         # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
         # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
@@ -5575,6 +5606,23 @@ class Net3_SRN(torch.nn.Module):
         #rgb gets other features than the ray marcher 
         # frames_features_rgb=self.unet_rgb(rgb_close_batch)
         frames_features_rgb=frames_features
+        # unet fuse with normal dirs
+        # frames_features_rgb=torch.cat([frames_features,ray_dirs_close_batch],1)
+        # frames_features_rgb=self.unet_rgb(frames_features_rgb)
+
+        # # 1x1 fuse with position encoded dirs
+        # ray_dirs_close_batch=ray_dirs_close_batch.permute(0,2,3,1).view(-1,3)
+        # ray_dirs_close_batch_encoded=self.learned_pe_dirs(ray_dirs_close_batch)
+        # # ray_dirs_close_batch_encoded=ray_dirs_close_batch_encoded.view(3,frame.height,frame.width,-1).permute(0,3,1,2)
+        # #linearize also the frame_features
+        # f=frames_features.shape[1]
+        # frames_features=frames_features.permute(0,2,3,1).contiguous().view(-1,f)
+        # frames_features_rgb=torch.cat([frames_features,ray_dirs_close_batch_encoded],1)
+        # frames_features_rgb=self.fuse_with_dirs(frames_features_rgb)
+        # #to img
+        # frames_features_rgb = frames_features_rgb.view(3,frame.height,frame.width,-1).permute(0,3,1,2)
+
+
 
         nr_nearby_frames=len(frames_close)
         R_list=[]
