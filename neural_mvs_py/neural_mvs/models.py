@@ -3997,7 +3997,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
 
-        # self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        # ////////////
+        # self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64 +6, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         # self.feature_fuser = torch.nn.Sequential(
         #     WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
         #     WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
@@ -4015,8 +4016,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # )
 
         #just some pacs 
-        self.pac1 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
-        self.pac2 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+        # self.pac1 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        # self.pac2 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
+
+        self.conv1= WNReluConv(in_channels=70, out_channels=70, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
+        self.conv2= WNReluConv(in_channels=70, out_channels=70, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
 
         self.concat_coord=ConcatCoord()
@@ -4193,7 +4197,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_END("raymarch_fuse")
 
             # fuse not by concating but jsut with mean and std and position works better than concating the fatures directly, this happens both for the marcher and the rgb
-            #attempt 2 to fuse 
+            # attempt 2 to fuse ----------------------------------------------------------------------
             # TIME_START("raymarch_fuse")
             # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
             # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
@@ -4211,19 +4215,35 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_END("raymarch_fuse")
 
 
-            #pac conv the img featues and than concat with position and then some 1x1 convs 
+            # #pac conv the img featues and than concat with position and then some 1x1 convs 
+            # TIME_START("raymarch_fuse")
+            # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+            # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # img_features_aggregated=self.pac1(img_features_aggregated,img_features_aggregated)
+            # img_features_aggregated=self.pac2(img_features_aggregated,img_features_aggregated)
+            # feat=torch.cat([feat,img_features_aggregated],1)
+            # #make it agian into linear
+            # feat_nr=feat.shape[1]
+            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
+            # feat=self.feature_fuser(feat)
+            # TIME_END("raymarch_fuse")
+
+
+            #conv the img featues and than concat with position and then some 1x1 convs 
             TIME_START("raymarch_fuse")
             # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
             feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            img_features_aggregated=self.pac1(img_features_aggregated,img_features_aggregated)
-            img_features_aggregated=self.pac2(img_features_aggregated,img_features_aggregated)
+            img_features_aggregated=self.conv1(img_features_aggregated)
+            img_features_aggregated=self.conv2(img_features_aggregated)
             feat=torch.cat([feat,img_features_aggregated],1)
             #make it agian into linear
             feat_nr=feat.shape[1]
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
             feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
+            
             
 
 

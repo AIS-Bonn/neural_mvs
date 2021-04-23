@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="3raypac_mrgb"
+    experiment_name="5ray3x32_mrgb"
 
 
     use_ray_compression=False
