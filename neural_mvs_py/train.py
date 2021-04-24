@@ -76,11 +76,11 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="15rg.c0.003"
+    experiment_name="16sr"
 
 
     use_ray_compression=False
-    do_superres=False
+    do_superres=True
     predict_occlusion_map=False
 
 
@@ -133,10 +133,10 @@ def run():
     frames_test=[]
     for i in range(loader_train.nr_samples()):
         frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame, create_subsamples=False))
+        frames_train.append(FramePY(frame, create_subsamples=True))
     for i in range(loader_test.nr_samples()):
         frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame, create_subsamples=False))
+        frames_test.append(FramePY(frame, create_subsamples=True))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
@@ -227,8 +227,8 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=0
+    factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=2
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
@@ -274,6 +274,9 @@ def run():
                             frame.frame.tf_cam_world = model_matrix.inverse()
                             frame=FramePY(frame.frame)
                     TIME_START("all")
+
+
+                    frame.load_images()
                     #get a subsampled frame if necessary
                     frame_full_res=frame
                     if factor_subsample_depth_pred!=0:
@@ -299,6 +302,10 @@ def run():
                             frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius)
                             weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
+                        #load the image data for this frames that we selected
+                        for i in range(len(frames_close)):
+                            frames_close[i].load_images()
+
                         #the frames close may need to be subsampled
                         if factor_subsample_close_frames!=0:
                             frames_close_subsampled=[]
@@ -308,9 +315,7 @@ def run():
                             frames_close= frames_close_subsampled
 
                         #load the image data for this frames that we selected
-                        frame.load_images()
                         for i in range(len(frames_close)):
-                            frames_close[i].load_images()
                             Gui.show(frames_close[i].frame.rgb_32f,"close_"+phase.name+"_"+str(i) )
 
 
@@ -427,7 +432,9 @@ def run():
                             loss=loss*0.5
                             rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined_with_confidence_blending).abs()).mean()
                             rgb_refined_loss_l1_no_confidence_blend= ((rgb_gt_fullres- rgb_refined).abs()).mean()
-                            loss+=rgb_refined_loss_l1_no_confidence_blend*0.5
+                            rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt_fullres, rgb_refined)
+                            psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_refined,0.0,1.0), data_range=1.0 )
+                            loss+=rgb_refined_loss_ssim_l1*0.5
 
                         #make the mask to be mostly white
                         if predict_occlusion_map:
@@ -641,10 +648,10 @@ def run():
                             frames_test=[]
                             for i in range(phases[0].loader.nr_samples()):
                                 frame_cur=phases[0].loader.get_frame_at_idx(i)
-                                frames_train.append(FramePY(frame_cur, create_subsamples=False))
+                                frames_train.append(FramePY(frame_cur, create_subsamples=True))
                             for i in range(phases[1].loader.nr_samples()):
                                 frame_cur=phases[1].loader.get_frame_at_idx(i)
-                                frames_test.append(FramePY(frame_cur, create_subsamples=False))
+                                frames_test.append(FramePY(frame_cur, create_subsamples=True))
                             phases[0].frames=frames_train 
                             phases[1].frames=frames_test
                     TIME_END("load")

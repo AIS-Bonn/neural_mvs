@@ -159,6 +159,7 @@ class FramePY():
     def __init__(self, frame, create_subsamples=False):
         #get mask 
         self.frame=frame
+        self.create_subsamples=create_subsamples
         # #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
         # if not frame.mask.empty():
         #     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
@@ -216,9 +217,9 @@ class FramePY():
         # self.cloud.remove_vertices_at_zero()
 
         #make a list of subsampled frames
-        if create_subsamples:
+        if create_subsamples and not frame.is_shell:
             self.subsampled_frames=[]
-            for i in range(0):
+            for i in range(3):
                 if i==0:
                     frame_subsampled=frame.subsample(2)
                 else:
@@ -258,6 +259,15 @@ class FramePY():
 
             #load the img tensors
             self.load_image_tensors()
+
+        if self.create_subsamples and not self.frame.is_shell:
+            self.subsampled_frames=[]
+            for i in range(3):
+                if i==0:
+                    frame_subsampled=self.frame.subsample(2)
+                else:
+                    frame_subsampled=frame_subsampled.subsample(2)
+                self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
 
     def load_image_tensors(self):
         if self.frame.mask.empty():

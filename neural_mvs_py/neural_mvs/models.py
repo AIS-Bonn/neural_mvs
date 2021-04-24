@@ -5491,12 +5491,14 @@ class Net3_SRN(torch.nn.Module):
         if do_superres:
             edsr_args=EDSR_args()
             # edsr_args.n_in_channels=67
-            edsr_args.n_in_channels=32*3
+            # edsr_args.n_in_channels=32*3
+            # edsr_args.n_in_channels=70
+            edsr_args.n_in_channels=134
             edsr_args.n_resblocks=4
             edsr_args.n_feats=64
-            edsr_args.scale=1
-            # self.super_res=EDSR(edsr_args)
-            self.super_res=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64, block_type=WNGatedConvRelu)
+            edsr_args.scale=4
+            self.super_res=EDSR(edsr_args)
+            # self.super_res=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64, block_type=WNGatedConvRelu)
 
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
@@ -5735,21 +5737,23 @@ class Net3_SRN(torch.nn.Module):
                 TIME_START("superres")
                 last_features=last_features.view(frame.height, frame.width,-1)
                 last_features=last_features.permute(2,0,1).unsqueeze(0)
-                rgb_low_res=torch.cat([rgb_pred,last_features],1)
+                # rgb_low_res=torch.cat([rgb_pred,last_features],1)
                 # print("rgb_low_res", rgb_low_res.shape)
 
 
-                #get the sliced_feat_batched_img which are N,C,H,W into 1, c*N, h,W
-                #this is similar to the approach of andre
-                sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-                input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
-                # input_superres=torch.cat([input_superres, last_features, mask_pred],1)
-                input_superres=torch.cat([input_superres, last_features],1)
-                # mask_pred_thresh=mask_pred<0.3
-                # input_superres.masked_fill_(mask_pred_thresh, 0.0)
-                #multiply causes the gradients to explode for some reason
-                input_superres=input_superres*mask_pred
-                input_superres=torch.cat([input_superres,mask_pred],1)
+                # #get the sliced_feat_batched_img which are N,C,H,W into 1, c*N, h,W
+                # #this is similar to the approach of andre
+                # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+                # input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
+                # # input_superres=torch.cat([input_superres, last_features, mask_pred],1)
+                # input_superres=torch.cat([input_superres, last_features],1)
+                # # mask_pred_thresh=mask_pred<0.3
+                # # input_superres.masked_fill_(mask_pred_thresh, 0.0)
+                # #multiply causes the gradients to explode for some reason
+                # input_superres=input_superres*mask_pred
+                # input_superres=torch.cat([input_superres,mask_pred],1)
+
+                input_superres=last_features
 
                 # print("input_superres",input_superres.shape)
                 rgb_refined=self.super_res(input_superres )
