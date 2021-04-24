@@ -76,12 +76,12 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="5ray3x32_mrgb"
+    experiment_name="15rg.c0.003"
 
 
     use_ray_compression=False
     do_superres=False
-    predict_occlusion_map=True
+    predict_occlusion_map=False
 
 
 
@@ -454,10 +454,10 @@ def run():
                         #     if phase.iter_nr<1000:
                         #         loss+=loss_depth*100
 
-                            # smoothness loss
-                            # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                            # smooth_loss = smooth(depth_pred*mask_tensor, rgb_gt)
-                            # loss+=smooth_loss*1.0
+                        # smoothness loss
+                        # depth_pred=depth_pred.view(1, frame.height, frame.width, 1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        # smooth_loss = smooth(depth_pred*mask_tensor, rgb_gt)
+                        # loss+=smooth_loss*0.01
                             # print("smooth_loss",smooth_loss)
 
                         #loss on the signed distance, making it be zero as soon as possible for all levels of the mark
