@@ -3516,8 +3516,8 @@ class RGB_predictor_simple(MetaModule):
             # torch.nn.GroupNorm( int(cur_nr_channels/2), cur_nr_channels).cuda(),
             BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda()
             )
-        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64*2, out_channels=3,  bias=True ).cuda()    
-        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64*2, out_channels=1,  bias=True ).cuda()    
+        self.pred_rgb=BlockNerf(activ=None, init="sigmoid", in_channels=64, out_channels=3,  bias=True ).cuda()    
+        self.pred_mask=BlockNerf(activ=torch.sigmoid,  in_channels=64, out_channels=1,  bias=True ).cuda()    
 
         # #with conv
         # self.pred_feat_reducer= WNReluConv(in_channels=cur_nr_channels, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False)
@@ -3590,8 +3590,8 @@ class RGB_predictor_simple(MetaModule):
         # x=torch.sigmoid(  self.pred_rgb(x,  params=get_subdict(params, 'pred_rgb') )  )
 
         x=  self.pred_feat(x,  params=get_subdict(params, 'pred_feat') )  
-        # last_features=x
-        last_features=torch.cat([x,point_features],1)  #readd the point features because here the network can easily find the RGB values while the x is already kind tainted with the directionality information
+        last_features=x
+        # last_features=torch.cat([x,point_features],1)  #readd the point features because here the network can easily find the RGB values while the x is already kind tainted with the directionality information
         # last_features+=point_features
         rgb=  self.pred_rgb(last_features,  params=get_subdict(params, 'pred_rgb') )  
         mask_pred=  self.pred_mask(last_features,  params=get_subdict(params, 'pred_mask') )  

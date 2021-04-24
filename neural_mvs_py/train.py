@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="22srnodir3_direct"
+    experiment_name="s_"
 
 
     use_ray_compression=False
