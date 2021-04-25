@@ -47,6 +47,7 @@ from segnet.model.FPENet import FPENet
 
 #superres 
 from super_res.edsr.edsr import EDSR
+from super_res.edsr import common
 
 
 # from pytorch_memlab import LineProfiler
@@ -1131,6 +1132,54 @@ class FeaturePyramid(torch.nn.Module):
         
         return x
             
+
+class SuperRes(nn.Module):
+    def __init__(self, args, conv=common.default_conv):
+        super(SuperRes, self).__init__()
+
+        n_resblocks = args.n_resblocks
+        n_feats = args.n_feats
+        kernel_size = 3 
+        scale = args.scale
+        # act = nn.ReLU(True)
+        # url_name = 'r{}f{}x{}'.format(n_resblocks, n_feats, scale)
+        # if url_name in url:
+        #     self.url = url[url_name]
+        # else:
+        #     self.url = None
+        # self.sub_mean = common.MeanShift(args.rgb_range)
+        # self.add_mean = common.MeanShift(args.rgb_range, sign=1)
+
+        # define head module
+        m_head = [conv(args.n_in_channels, n_feats, kernel_size)]
+
+        # define body module
+        m_body = torch.nn.ModuleList([])
+        for i in range(n_resblocks):
+            m_body.append( ResnetBlock2D(n_feats, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ) )
+
+        # define tail module
+        m_tail = [
+            common.Upsampler(conv, scale, n_feats, act=False),
+            conv(n_feats, args.n_out_channels, kernel_size)
+        ]
+
+        self.head = nn.Sequential(*m_head)
+        self.body = nn.Sequential(*m_body)
+        self.tail = nn.Sequential(*m_tail)
+
+    def forward(self, x):
+        # x = self.sub_mean(x)
+        x = self.head(x)
+
+        res = self.body(x)
+        res += x
+
+        x = self.tail(res)
+        # x = self.add_mean(x)
+
+        return x 
+
 
 
 
@@ -5499,6 +5548,7 @@ class Net3_SRN(torch.nn.Module):
             edsr_args.n_feats=64
             edsr_args.scale=4
             self.super_res=EDSR(edsr_args)
+            # self.super_res=SuperRes(edsr_args)
             # self.super_res=UNet( nr_channels_start=32, nr_channels_output=3, nr_stages=3, max_nr_channels=64, block_type=WNGatedConvRelu)
 
         self.ray_marcher=DifferentiableRayMarcher()

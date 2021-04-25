@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s_"
+    experiment_name="s7SRplatLowLR"
 
 
     use_ray_compression=False
@@ -234,6 +234,7 @@ def run():
     new_frame=None
 
     grad_history = []
+    max_test_psnr=0.0
 
     torch.cuda.empty_cache()
     print( torch.cuda.memory_summary() )
@@ -436,6 +437,11 @@ def run():
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_refined,0.0,1.0), data_range=1.0 )
                             loss+=rgb_refined_loss_ssim_l1*0.5
 
+                        if not is_training and psnr_index.item()>max_test_psnr:
+                            max_test_psnr=psnr_index.item()
+                        # print("max_test_psnr", max_test_psnr)
+                            
+
                         #make the mask to be mostly white
                         if predict_occlusion_map:
                             # loss_mask=((1.0-mask_pred).abs()).mean()
@@ -582,7 +588,8 @@ def run():
                             #     ], lr=train_params.lr(), weight_decay=train_params.weight_decay()
 
                             #  )
-                            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
+                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                             optimizer.zero_grad()
 
@@ -591,6 +598,7 @@ def run():
                         # cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=rgb_refined_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
                         # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
+
 
 
 
@@ -611,7 +619,7 @@ def run():
                         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
                         #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
-                        clip_percentile=10
+                        clip_percentile=5
                         obs_grad_norm = get_grad_norm(model)
                         # print("grad norm", obs_grad_norm)
                         grad_history.append(obs_grad_norm)
@@ -627,6 +635,10 @@ def run():
                     # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
                     #     optimizer.step() # DO it only once after getting gradients for all images
                     #     optimizer.zero_grad()
+
+                    if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                        scheduler.step(max_test_psnr)
+                        # print("scheduler step with ", max_test_psnr)
 
                     TIME_END("all")
 
