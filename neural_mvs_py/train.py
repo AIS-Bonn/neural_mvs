@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s26nopos_1x1"
+    experiment_name="s30noposHR"
 
 
     use_ray_compression=False
@@ -307,6 +307,12 @@ def run():
                         for i in range(len(frames_close)):
                             frames_close[i].load_images()
 
+                        rgb_close_fulres_batch_list=[]
+                        for frame_close in frames_close:
+                            rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+                            rgb_close_fulres_batch_list.append(rgb_close_frame)
+                        rgb_close_fullres_batch=torch.cat(rgb_close_fulres_batch_list,0)
+
                         #the frames close may need to be subsampled
                         if factor_subsample_close_frames!=0:
                             frames_close_subsampled=[]
@@ -391,7 +397,7 @@ def run():
                         TIME_START("forward")
                         # print( torch.cuda.memory_summary() )
                         # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                        rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
                         TIME_END("forward")
                         # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
