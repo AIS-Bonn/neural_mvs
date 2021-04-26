@@ -4042,7 +4042,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
   
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2  +64, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=32,  bias=True ).cuda(),
             # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
@@ -4070,7 +4070,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.pac2 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
         self.conv1= WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
-        self.conv2= WNReluConv(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+        self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
 
 
         self.concat_coord=ConcatCoord()
@@ -4091,11 +4091,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
     def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel=False):
 
 
-        if novel:
-            depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-            depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
-        else:
-            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+        # if novel:
+        #     depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+        #     depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
+        # else:
+        #     depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+
+        depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+        depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
 
         #Select only certain pixels fro the image
         if pixels_indices is not None:
@@ -4164,8 +4167,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             TIME_START("raymarch_pe")
-            feat=self.learned_pe(world_coords[-1])
-            pos_encoded=feat
+            # feat=self.learned_pe(world_coords[-1])
+            # pos_encoded=feat
             TIME_END("raymarch_pe")
 
             # TIME_START("raymarch_uv")
@@ -4177,7 +4180,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # slice with grid_sample
             # TIME_START("raymarch_slice")
             uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
-            sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear" ) #sliced features is N,C,H,W
+            sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear", padding_mode="border" ) #sliced features is N,C,H,W
             sliced_feat_batched_img=sliced_feat_batched
             feat_dim=sliced_feat_batched.shape[1]
             sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
@@ -4212,6 +4215,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # feat=self.feature_fuser(feat)
             # # print(prof)
             # TIME_END("raymarch_fuse")
+
+            # #just the img features with not positinal encogin
+            # TIME_START("raymarch_fuse")
+            # feat= img_features_aggregated
+            # feat=self.feature_fuser(feat)
+            # TIME_END("raymarch_fuse")
+            
             
             
 
@@ -4283,15 +4293,16 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #conv the img featues and than concat with position and then some 1x1 convs 
             TIME_START("raymarch_fuse")
             # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-            feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             img_features_aggregated=self.conv1(img_features_aggregated)
             img_features_aggregated=self.conv2(img_features_aggregated)
-            feat=torch.cat([feat,img_features_aggregated],1)
+            # feat=torch.cat([feat,img_features_aggregated],1)
+            feat=img_features_aggregated
             #make it agian into linear
             feat_nr=feat.shape[1]
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            feat=self.feature_fuser(feat)
+            # feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
             
             
@@ -5718,7 +5729,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear" ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
         sliced_feat_batched_img=sliced_feat_batched
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C

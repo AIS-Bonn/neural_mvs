@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s7SRplatLowLR"
+    experiment_name="s26nopos_1x1"
 
 
     use_ray_compression=False
