@@ -125,10 +125,10 @@ def run():
     frames_test=[]
     for i in range(loader_train.nr_samples()):
         frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame))
+        frames_train.append(FramePY(frame, create_subsamples=True))
     for i in range(loader_test.nr_samples()):
         frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame))
+        frames_test.append(FramePY(frame, create_subsamples=True))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
@@ -187,6 +187,10 @@ def run():
     quat=view.m_camera.model_matrix_affine().quat()
     print("quat of the cam is ", quat)
 
+    #usa_subsampled_frames
+    factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=2
+
     while True:
         with torch.set_grad_enabled(False):
 
@@ -194,7 +198,7 @@ def run():
             #get the model matrix of the view and set it to the frame
             cam_tf_world_cam= view.m_camera.model_matrix_affine()
             frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
-            frame=FramePY(frame.frame)
+            frame=FramePY(frame.frame, create_subsamples=True)
 
 
             # discard_same_idx=False
@@ -222,8 +226,27 @@ def run():
 
             #load frames
             frame.load_images()
+
+            frame_full_res=frame
+            if factor_subsample_depth_pred!=0 and first_time:
+                frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
+
             for i in range(len(frames_close)):
                 frames_close[i].load_images()
+
+            rgb_close_fulres_batch_list=[]
+            for frame_close in frames_close:
+                rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+                rgb_close_fulres_batch_list.append(rgb_close_frame)
+            rgb_close_fullres_batch=torch.cat(rgb_close_fulres_batch_list,0)
+
+            #the frames close may need to be subsampled
+            if factor_subsample_close_frames!=0:
+                frames_close_subsampled=[]
+                for frame_close in frames_close:
+                    frame_subsampled= frame_close.subsampled_frames[factor_subsample_close_frames-1]
+                    frames_close_subsampled.append(frame_subsampled)
+                frames_close= frames_close_subsampled
 
             #prepare rgb data and rest of things
             rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
@@ -238,7 +261,7 @@ def run():
             raydirs_close_batch_list=[]
             for frame_close in frames_close:
                 ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
-                ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
+                ray_dirs_close=ray_dirs_close.view(1, frame_close.height, frame_close.width, 3)
                 ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                 raydirs_close_batch_list.append(ray_dirs_close)
             ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
@@ -246,7 +269,7 @@ def run():
 
             pixels_indices=None
 
-            rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=True)
+            rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=True)
             # print("depth_pred", depth_pred.mean())
 
             if first_time:
@@ -254,7 +277,8 @@ def run():
                 #TODO load checkpoint
                 # now that all the parameters are created we can fill them with a model from a file
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/fine_leaves_home_plant/model_e_900.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v6/model_e_2500.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v6/model_e_2500.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v9_nopos_HR/model_e_650.pt" ))
 
 
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
