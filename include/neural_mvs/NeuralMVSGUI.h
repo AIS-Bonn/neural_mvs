@@ -34,6 +34,8 @@ public:
     bool m_show_rgb;
     bool m_show_depth;
     bool m_show_normal;
+    float m_min_depth;
+    float m_max_depth;
 
 private:
     NeuralMVSGUI(const std::shared_ptr<easy_pbr::Viewer>& view);
