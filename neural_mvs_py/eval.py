@@ -293,10 +293,19 @@ def run():
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
             camera_center=camera_center.view(1,3)
             points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+            #normal
             points3D_img=points3D.view(1, frame.height, frame.width, 3)
             points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             normal_img=compute_normal(points3D_img)
             normal_vis=(normal_img+1.0)*0.
+            #masks
+            rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
+            rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1,frame.height,frame.width,3)
+            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2)
             if neural_mvs_gui.m_show_rgb:
                 pred_mat=tensor2mat(rgb_pred)
             if neural_mvs_gui.m_show_depth:
@@ -304,6 +313,7 @@ def run():
                 # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
                 depth_vis=map_range(depth_vis, neural_mvs_gui.m_min_depth, neural_mvs_gui.m_max_depth, 0.0, 1.0) #for the colamp fine leaves
                 depth_vis=depth_vis.repeat(1,3,1,1)
+                depth_vis[rgb_pred_zeros_mask_img]=1.0 #MASK the point in the background
                 pred_mat=tensor2mat(depth_vis)
             if neural_mvs_gui.m_show_normal:
                 pred_mat=tensor2mat(normal_vis)
@@ -312,7 +322,13 @@ def run():
             #show 3d points 
             normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
             normal=normal.view(-1,3)
-            points3d_mesh=show_3D_points(points3D, color=rgb_pred)
+            rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
+            rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+            points3d_mesh=show_3D_points(points3D, color=rgb_refined_downsized)
             points3d_mesh.NV= normal.detach().cpu().numpy()
             Scene.show(points3d_mesh, "points3d_mesh")
 
