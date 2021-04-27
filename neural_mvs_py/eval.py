@@ -317,8 +317,8 @@ def run():
                 pred_mat=tensor2mat(depth_vis)
             if neural_mvs_gui.m_show_normal:
                 pred_mat=tensor2mat(normal_vis)
-            Gui.show(pred_mat,"pred")
-            Gui.show(tensor2mat(rgb_refined),"pred_refined")
+            Gui.show(pred_mat,"Depth")
+            Gui.show(tensor2mat(rgb_refined),"RGB")
             #show 3d points 
             normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
             normal=normal.view(-1,3)
