@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s30noposHR"
+    experiment_name="s32noposHR_oneloss"
 
 
     use_ray_compression=False
@@ -431,17 +431,18 @@ def run():
                         rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
                         psnr_index = piq.psnr(rgb_gt_selected, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                         # psnr_index = piq.psnr(rgb_gt_selected, rgb_pred, data_range=1.0 )
-                        loss+=rgb_loss_ssim_l1
+                        # loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
                         # loss+=rgb_loss_l1
                         #loss on the rgb_refiend
                         if do_superres:
-                            loss=loss*0.5
+                            # loss=loss*0.5
                             rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined_with_confidence_blending).abs()).mean()
                             rgb_refined_loss_l1_no_confidence_blend= ((rgb_gt_fullres- rgb_refined).abs()).mean()
                             rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt_fullres, rgb_refined)
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_refined,0.0,1.0), data_range=1.0 )
-                            loss+=rgb_refined_loss_ssim_l1*0.5
+                            # loss+=rgb_refined_loss_ssim_l1*0.5
+                            loss+=rgb_refined_loss_ssim_l1
 
                         if not is_training and psnr_index.item()>max_test_psnr:
                             max_test_psnr=psnr_index.item()

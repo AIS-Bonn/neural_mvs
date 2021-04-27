@@ -36,6 +36,7 @@ public:
     bool m_show_normal;
     float m_min_depth;
     float m_max_depth;
+    bool m_control_secondary_cam;
 
 private:
     NeuralMVSGUI(const std::shared_ptr<easy_pbr::Viewer>& view);

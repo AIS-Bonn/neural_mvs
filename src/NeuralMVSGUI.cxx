@@ -58,6 +58,7 @@ NeuralMVSGUI::NeuralMVSGUI(const std::shared_ptr<easy_pbr::Viewer>& view):
     m_show_normal(false),
     m_min_depth(0.0),
     m_max_depth(1.0),
+    m_control_secondary_cam(false),
     m_view(view)
     {
 
@@ -97,6 +98,7 @@ void NeuralMVSGUI::post_draw(easy_pbr::Viewer& view){
     ImGui::Checkbox("Show rgb", &m_show_rgb); 
     ImGui::Checkbox("Show depth", &m_show_depth); 
     ImGui::Checkbox("Show normal", &m_show_normal); 
+    ImGui::Checkbox("Control secondary cam", &m_control_secondary_cam); 
     ImGui::SliderFloat("Min Depth", &m_min_depth, 0.0f, 5.0f);
     ImGui::SliderFloat("Max Depth", &m_max_depth, 0.0f, 5.0f);
 

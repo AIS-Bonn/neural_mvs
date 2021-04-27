@@ -177,9 +177,14 @@ def run():
     #set the camera to be in the same position as the first frame
     # view.m_camera.set_position(  tf_world_cam.translation() )
     # view.m_camera.set_quat(  tf_world_cam.quat() )
-    view.m_camera.set_model_matrix(tf_world_cam)
-    view.m_camera.set_dist_to_lookat(0.3)
-    # view.m_camera.set_lookat( frame.frame.look_dir()*0.5  )
+    # view.m_camera.set_model_matrix(tf_world_cam)
+    # view.m_camera.set_dist_to_lookat(0.3)
+
+
+    #attempt 2 to get two cameras working 
+    cam_for_pred=Camera()
+    cam_for_pred.set_model_matrix(tf_world_cam)
+    cam_for_pred.set_dist_to_lookat(0.3)
 
     #check that the quat is correct 
     pos= view.m_camera.model_matrix_affine().translation()
@@ -194,9 +199,12 @@ def run():
     while True:
         with torch.set_grad_enabled(False):
 
+            # view.m_camera=cam_for_pred
+            # cam_for_pred=view.m_default_camera
         
             #get the model matrix of the view and set it to the frame
-            cam_tf_world_cam= view.m_camera.model_matrix_affine()
+            # cam_tf_world_cam= view.m_camera.model_matrix_affine()
+            cam_tf_world_cam= cam_for_pred.model_matrix_affine()
             frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
             frame=FramePY(frame.frame, create_subsamples=True)
 
@@ -278,12 +286,17 @@ def run():
                 # now that all the parameters are created we can fill them with a model from a file
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/fine_leaves_home_plant/model_e_900.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v6/model_e_2500.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v9_nopos_HR/model_e_650.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v9_nopos_HR/model_e_650.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v11_nopos_HR/model_e_3200.pt" ))
 
 
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
             camera_center=camera_center.view(1,3)
             points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+            points3D_img=points3D.view(1, frame.height, frame.width, 3)
+            points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            normal_img=compute_normal(points3D_img)
+            normal_vis=(normal_img+1.0)*0.
             if neural_mvs_gui.m_show_rgb:
                 pred_mat=tensor2mat(rgb_pred)
             if neural_mvs_gui.m_show_depth:
@@ -293,20 +306,34 @@ def run():
                 depth_vis=depth_vis.repeat(1,3,1,1)
                 pred_mat=tensor2mat(depth_vis)
             if neural_mvs_gui.m_show_normal:
-                points3D_img=points3D.view(1, frame.height, frame.width, 3)
-                points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                normal_img=compute_normal(points3D_img)
-                normal_vis=(normal_img+1.0)*0.5
                 pred_mat=tensor2mat(normal_vis)
             Gui.show(pred_mat,"pred")
             Gui.show(tensor2mat(rgb_refined),"pred_refined")
+            #show 3d points 
+            normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+            normal=normal.view(-1,3)
+            points3d_mesh=show_3D_points(points3D, color=rgb_pred)
+            points3d_mesh.NV= normal.detach().cpu().numpy()
+            Scene.show(points3d_mesh, "points3d_mesh")
 
 
 
 
 
 
+        # view.update()
+        # view.m_camera=view.m_default_camera
+        if neural_mvs_gui.m_control_secondary_cam: 
+            #if we control the secondary cam we set the secondary cam in the viewer and then do an update which will do a glfwpoolevents so that moves the camera
+            view.m_camera=cam_for_pred
+            view.m_swap_buffers=False #we don't need to swap buffers as we only needed to do the update because we updated the movement of this camera
+            view.update()
+        #render the real 3D scene
+        view.m_camera=view.m_default_camera
+        view.m_swap_buffers=True
         view.update()
+        
+
 
          
 

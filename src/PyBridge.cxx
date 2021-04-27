@@ -191,6 +191,7 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def_readwrite("m_show_normal", &NeuralMVSGUI::m_show_normal )
     .def_readwrite("m_min_depth", &NeuralMVSGUI::m_min_depth )
     .def_readwrite("m_max_depth", &NeuralMVSGUI::m_max_depth )
+    .def_readwrite("m_control_secondary_cam", &NeuralMVSGUI::m_control_secondary_cam )
     ;
 
 
