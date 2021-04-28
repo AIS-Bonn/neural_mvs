@@ -262,7 +262,7 @@ class FramePY():
 
         if self.create_subsamples and not self.frame.is_shell:
             self.subsampled_frames=[]
-            for i in range(3):
+            for i in range(2):
                 if i==0:
                     frame_subsampled=self.frame.subsample(2)
                 else:

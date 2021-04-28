@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s32noposHR_oneloss"
+    experiment_name="s7highlr_nopos"
 
 
     use_ray_compression=False
@@ -227,8 +227,8 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=2
+    factor_subsample_close_frames=1 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=1
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
@@ -276,19 +276,15 @@ def run():
                             frame=FramePY(frame.frame)
                     TIME_START("all")
 
-
-                    frame.load_images()
-                    #get a subsampled frame if necessary
-                    frame_full_res=frame
-                    if factor_subsample_depth_pred!=0:
-                        frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
-                    
-
-                    # if frame.frame_idx!=83 or is_training:
-                    #     continue
-
                     ##PREPARE data 
                     with torch.set_grad_enabled(False):
+
+                        frame.load_images()
+                        #get a subsampled frame if necessary
+                        frame_full_res=frame
+                        if factor_subsample_depth_pred!=0:
+                            frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
+
                         discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
                         if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                             discard_same_idx=True
@@ -426,10 +422,10 @@ def run():
                         #loss
                         loss=0
                         # rgb_loss=(( rgb_gt_selected-rgb_pred_with_confidence_blending)**2).mean()
-                        rgb_loss_l1=(( rgb_gt_selected-rgb_pred_with_confidence_blending).abs()).mean()
-                        rgb_loss_l1_no_confidence_blend=(( rgb_gt_selected-rgb_pred).abs()).mean()
-                        rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
-                        psnr_index = piq.psnr(rgb_gt_selected, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
+                        # rgb_loss_l1=(( rgb_gt_selected-rgb_pred_with_confidence_blending).abs()).mean()
+                        # rgb_loss_l1_no_confidence_blend=(( rgb_gt_selected-rgb_pred).abs()).mean()
+                        # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
+                        # psnr_index = piq.psnr(rgb_gt_selected, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                         # psnr_index = piq.psnr(rgb_gt_selected, rgb_pred, data_range=1.0 )
                         # loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
@@ -438,14 +434,15 @@ def run():
                         if do_superres:
                             # loss=loss*0.5
                             rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined_with_confidence_blending).abs()).mean()
-                            rgb_refined_loss_l1_no_confidence_blend= ((rgb_gt_fullres- rgb_refined).abs()).mean()
-                            rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt_fullres, rgb_refined)
+                            # rgb_refined_loss_l1_no_confidence_blend= ((rgb_gt_fullres- rgb_refined).abs()).mean()
+                            # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt_fullres, rgb_refined) #THIS LOSS is slow as heck and makes the backward pass almost twice as slow than the l1 loss
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_refined,0.0,1.0), data_range=1.0 )
                             # loss+=rgb_refined_loss_ssim_l1*0.5
-                            loss+=rgb_refined_loss_ssim_l1
+                            # loss+=rgb_refined_loss_ssim_l1
+                            loss+=rgb_refined_loss_l1
 
                         if not is_training and psnr_index.item()>max_test_psnr:
-                            max_test_psnr=psnr_index.item()
+                            max_test_psnr=psnr_index.detach().item()
                         # print("max_test_psnr", max_test_psnr)
                             
 
@@ -596,7 +593,8 @@ def run():
 
                             #  )
                             # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
-                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
+                            # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
+                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=3000) #FOR nerf
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                             optimizer.zero_grad()
 

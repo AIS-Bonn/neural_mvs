@@ -4042,7 +4042,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
   
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2 + 64, out_channels=32,  bias=True ).cuda(),
             # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
@@ -4297,11 +4297,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
             img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             img_features_aggregated=self.conv1(img_features_aggregated)
             img_features_aggregated=self.conv2(img_features_aggregated)
-            # feat=torch.cat([feat,img_features_aggregated],1)
             feat=img_features_aggregated
             #make it agian into linear
             feat_nr=feat.shape[1]
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
+            # feat=torch.cat([feat,pos_encoded],1)
             # feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
             
@@ -5561,7 +5561,7 @@ class Net3_SRN(torch.nn.Module):
             edsr_args.scale=4
             # self.super_res=EDSR(edsr_args)
             # self.super_res=SuperRes(edsr_args)
-            self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNGatedConvRelu)
+            self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
             # self.refiner=UNet( nr_channels_start=8, nr_channels_output=3, nr_stages=0, max_nr_channels=32, block_type=WNGatedConvRelu)
 
         self.ray_marcher=DifferentiableRayMarcher()
