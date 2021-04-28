@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s7highlr_nopos"
+    experiment_name="s10withpos"
 
 
     use_ray_compression=False

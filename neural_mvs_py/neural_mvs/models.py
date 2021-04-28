@@ -4042,7 +4042,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.splat_texture= SplatTextureModule()
   
         self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2 + 64, out_channels=32,  bias=True ).cuda(),
+            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2 + 32, out_channels=32,  bias=True ).cuda(),
             # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
             # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
         )
@@ -4167,8 +4167,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             TIME_START("raymarch_pe")
-            # feat=self.learned_pe(world_coords[-1])
-            # pos_encoded=feat
+            feat=self.learned_pe(world_coords[-1])
+            pos_encoded=feat
             TIME_END("raymarch_pe")
 
             # TIME_START("raymarch_uv")
@@ -4301,8 +4301,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             #make it agian into linear
             feat_nr=feat.shape[1]
             feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # feat=torch.cat([feat,pos_encoded],1)
-            # feat=self.feature_fuser(feat)
+            feat=torch.cat([feat,pos_encoded],1)
+            feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
             
             
