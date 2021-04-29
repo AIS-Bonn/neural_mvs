@@ -594,7 +594,7 @@ def run():
                             #  )
                             # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
-                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=3000) #FOR nerf
+                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=3000) #FOR nerf
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                             optimizer.zero_grad()
 
