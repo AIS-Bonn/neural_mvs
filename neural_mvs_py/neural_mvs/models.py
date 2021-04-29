@@ -4167,7 +4167,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             TIME_START("raymarch_pe")
-            feat=self.learned_pe(world_coords[-1])
+            #using positional encoding is beneficial weather you are generalizing or overfitting. In the case of overfitting it makes the geoemtry sharper because we have more frequency to work with and in the case of generaliation it manages to get structures in the dataseet like the fact that the floor in DTU is always eithr white or brown and it doesnt need to infer this from just RGB features which can be noisy or can have problems when we have occlusion
+            feat=self.learned_pe(world_coords[-1]) 
             pos_encoded=feat
             TIME_END("raymarch_pe")
 

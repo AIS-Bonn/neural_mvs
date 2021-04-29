@@ -184,7 +184,8 @@ def run():
     #attempt 2 to get two cameras working 
     cam_for_pred=Camera()
     cam_for_pred.set_model_matrix(tf_world_cam)
-    cam_for_pred.set_dist_to_lookat(0.3)
+    # cam_for_pred.set_dist_to_lookat(0.3) #for dtu
+    cam_for_pred.set_dist_to_lookat(0.5) #for dtu
 
     #check that the quat is correct 
     pos= view.m_camera.model_matrix_affine().translation()
@@ -287,7 +288,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/fine_leaves_home_plant/model_e_900.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v6/model_e_2500.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v9_nopos_HR/model_e_650.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v11_nopos_HR/model_e_3200.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v11_nopos_HR/model_e_3200.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_RGB_S400_D_S200_withpos/model_e_150.pt" ))
 
 
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
@@ -302,7 +304,7 @@ def run():
             rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
             rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
             rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+            rgb_pred_zeros_mask= rgb_pred_zeros<0.01
             rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
             rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1,frame.height,frame.width,3)
             rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2)

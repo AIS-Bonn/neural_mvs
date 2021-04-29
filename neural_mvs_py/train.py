@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s10withpos"
+    experiment_name="s_"
 
 
     use_ray_compression=False
@@ -227,8 +227,8 @@ def run():
     depth_min=0.15
     depth_max=1.0
     #usa_subsampled_frames
-    factor_subsample_close_frames=1 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=1
+    factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=2
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
 
     new_frame=None
@@ -594,7 +594,7 @@ def run():
                             #  )
                             # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                             # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
-                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=3000) #FOR nerf
+                            scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=10000) 
                             # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                             optimizer.zero_grad()
 
