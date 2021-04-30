@@ -184,8 +184,8 @@ def run():
     #attempt 2 to get two cameras working 
     cam_for_pred=Camera()
     cam_for_pred.set_model_matrix(tf_world_cam)
-    # cam_for_pred.set_dist_to_lookat(0.3) #for dtu
-    cam_for_pred.set_dist_to_lookat(0.5) #for dtu
+    cam_for_pred.set_dist_to_lookat(0.3) #for dtu
+    # cam_for_pred.set_dist_to_lookat(0.5) #for nerf
 
     #check that the quat is correct 
     pos= view.m_camera.model_matrix_affine().translation()
@@ -289,7 +289,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v6/model_e_2500.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v9_nopos_HR/model_e_650.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v11_nopos_HR/model_e_3200.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_RGB_S400_D_S200_withpos/model_e_150.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_RGB_S400_D_S200_withpos/model_e_150.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/DTU_RGB_S400_D100_posconv/model_e_2350.pt" ))
 
 
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
