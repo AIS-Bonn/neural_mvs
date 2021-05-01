@@ -521,6 +521,16 @@ def get_grad_norm(model):
     total_norm = total_norm ** (1. / 2)
     return total_norm 
 
+def fused_mean_variance(x, weight, dim, use_weights=True):
+    if use_weights:
+        mean = torch.sum(x*weight, dim=dim, keepdim=True)
+        var = torch.sum(weight * (x - mean)**2, dim=dim, keepdim=True)
+    else:
+        mean = torch.sum(x, dim=dim, keepdim=True)
+        var = torch.sum( (x - mean)**2, dim=dim, keepdim=True)
+    mean_var=torch.cat([mean,var],-1)
+    return mean_var
+
 #wraps module, and changes them to become a torchscrip version of them during inference
 class TorchScriptTraceWrapper(torch.nn.Module):
     def __init__(self, module):
@@ -706,6 +716,73 @@ class FeatureAgregatorInvariant(torch.nn.Module):
         
 
         return x
+
+
+class FeatureAgregatorIBRNet(torch.nn.Module):
+
+    def __init__(self ):
+        super(FeatureAgregatorIBRNet, self).__init__()
+
+
+        self.base_fc = nn.Sequential(nn.Linear(32*3, 64),
+                                     nn.ELU(inplace=False),
+                                     nn.Linear(64, 32),
+                                     nn.ELU(inplace=False)
+                                     )
+
+        self.vis_fc = nn.Sequential(nn.Linear(32, 32),
+                                    nn.ELU(inplace=False),
+                                    nn.Linear(32, 33),
+                                    nn.ELU(inplace=False),
+                                    )
+
+        self.vis_fc2 = nn.Sequential(nn.Linear(32, 32),
+                                     nn.ELU(inplace=False),
+                                     nn.Linear(32, 1),
+                                     nn.Sigmoid()
+                                     )
+
+    def forward(self, feat_sliced_per_frame, weights, novel=False):
+
+        weights=weights.view(-1,1,1)
+        
+        # feat_sliced_per_frame is Nr_frames x N x FEATDIM
+        nr_frames= feat_sliced_per_frame.shape[0]
+        nr_pixeles= feat_sliced_per_frame.shape[1]
+        feat_dim= feat_sliced_per_frame.shape[2]
+
+        mean_var=fused_mean_variance(feat_sliced_per_frame,weights, 0, use_weights=False)
+        mean_var_batched = mean_var.view(1,nr_pixeles, -1).repeat(nr_frames,1,1)
+
+        feat_mu_var=torch.cat([feat_sliced_per_frame,mean_var_batched],2)
+        feat_mu_var_reduced = self.base_fc(feat_mu_var)
+
+
+        #from ibnrnet 
+        x=feat_mu_var_reduced
+        weight=weights
+
+        # print("x is ", x.shape)
+
+        x_vis = self.vis_fc(x * weight)
+        x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
+        vis = F.sigmoid(vis)
+        x = x + x_res
+        vis = self.vis_fc2(x * vis)
+        weight = vis / (torch.sum(vis, dim=0, keepdim=True) + 1e-8)
+
+        # print("x", x.shape)
+        # print("weight", weight.shape)
+
+        mean_var = fused_mean_variance(x, weight, 0)
+        # print("mean_var_before lat", mean_var.shape)
+        globalfeat = torch.cat([mean_var.squeeze(0), weight.mean(dim=0)], dim=-1)  # [n_rays, n_samples, 32*2+1]
+
+        # print("global ", globalfeat.shape)
+
+        
+
+        return globalfeat
 
 
 

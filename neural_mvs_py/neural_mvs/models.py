@@ -3549,6 +3549,7 @@ class RGB_predictor_simple(MetaModule):
         # cur_nr_channels+=32 #concating also the signed distnace
         # cur_nr_channels+=3 #concating also the normals
         # cur_nr_channels+=6 #if we concat theRGB at the end of unet we get an additional mean and std for it
+        # cur_nr_channels+=1 #the weight coming from the ibr net aggregator
       
         if use_ray_dirs:
             num_encoding_directions=4
@@ -4037,6 +4038,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.feature_aggregator=  FeatureAgregator() 
         # self.feature_aggregator=  FeatureAgregatorLinear() 
         # self.feature_aggregator=  FeatureAgregatorInvariant()  #loss is lower than FeatureAgregatorLinear but the normal map looks worse and more noisy
+        self.feature_aggregator=  FeatureAgregatorIBRNet() 
         self.feature_aggregator_traced=None
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
@@ -4069,7 +4071,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # self.pac1 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
         # self.pac2 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
 
-        self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
+        self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64 + 1, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
 
 
@@ -4193,9 +4195,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_START("raymarch_aggr")
             # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images. ACTUALLY, weigthing or not weighting doesnt make much of a difference and therefore we leave the weighting because it allows for way smoother interpolation to novel views
             # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
-            mean=sliced_feat_batched.mean(dim=0)
-            std=sliced_feat_batched.std(dim=0)
-            img_features_aggregated=torch.cat([mean,std],1)
+            # mean=sliced_feat_batched.mean(dim=0)
+            # std=sliced_feat_batched.std(dim=0)
+            # img_features_aggregated=torch.cat([mean,std],1)
+            #IBRNET
+            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
 
@@ -5568,6 +5572,8 @@ class Net3_SRN(torch.nn.Module):
             self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
             # self.refiner=UNet( nr_channels_start=8, nr_channels_output=3, nr_stages=0, max_nr_channels=32, block_type=WNGatedConvRelu)
 
+        self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
+
         self.ray_marcher=DifferentiableRayMarcher()
         # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherMasked()
@@ -5583,6 +5589,7 @@ class Net3_SRN(torch.nn.Module):
         # self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
         # self.feature_aggregator= FeatureAgregatorLinear()
+        # self.feature_aggregator= FeatureAgregatorIBRNet()
 
 
         #activ
@@ -5819,22 +5826,49 @@ class Net3_SRN(torch.nn.Module):
                 # input_superres=input_superres*mask_pred
                 # input_superres=torch.cat([input_superres,mask_pred],1)
 
-                input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+                # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+                # full_res_height=rgb_close_fullres_batch.shape[2]
+                # full_res_width=rgb_close_fullres_batch.shape[3]
+                # input_superres = torch.nn.functional.interpolate(input_superres,size=(full_res_height, full_res_width ), mode='bilinear')
+                # #slice also from the high res images and concat that too 
+                # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+                # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+                # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+                # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+                # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+                # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
+                # #make the slcied HR RGB features into 1, 3x3 , H,W 
+                # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+                # input_superres=torch.cat([input_superres,sliced_feat_HR],1)
+                # # print("input_superres",input_superres.shape)
+                # rgb_refined=self.super_res(input_superres )
+
+
+
+
+                #like ibrnet, 
+                mean_var=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
                 full_res_height=rgb_close_fullres_batch.shape[2]
                 full_res_width=rgb_close_fullres_batch.shape[3]
-                input_superres = torch.nn.functional.interpolate(input_superres,size=(full_res_height, full_res_width ), mode='bilinear')
-                #slice also from the high res images and concat that too 
+                mean_var_upsampled = torch.nn.functional.interpolate(mean_var,size=(full_res_height, full_res_width ), mode='bilinear')
+                mean_var_upsampled_batch=mean_var_upsampled.repeat(3,1,1,1)
                 uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
                 uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
                 uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
                 uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-                sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-                sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
-                #make the slcied HR RGB features into 1, 3x3 , H,W 
-                sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-                input_superres=torch.cat([input_superres,sliced_feat_HR],1)
-                # print("input_superres",input_superres.shape)
-                rgb_refined=self.super_res(input_superres )
+                sliced_feat_HR=torch.nn.functional.grid_sample( frames_features, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+                feat_mean_var= torch.cat([sliced_feat_HR, mean_var_upsampled_batch],1) # N,C,H,W
+                #TODO concat also with the directions diff 
+                weights_imgs= self.compute_blending_weights(feat_mean_var) # N,1,H,W
+                weights_imgs = torch.sigmoid(weights_imgs)
+                weights_imgs  = F.softmax(weights_imgs,dim=0)
+                #weight the 
+                sliced_RGB=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) 
+                sliced_RGB_weighted=  sliced_RGB*weights_imgs
+                rgb_refined= sliced_RGB_weighted.sum(dim=0, keepdim=True) #sum over the 3 images with the weights provided
+
+
+
 
 
 
