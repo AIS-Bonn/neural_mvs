@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s20fullibr"
+    experiment_name="s26nomask"
 
 
     use_ray_compression=False
@@ -429,7 +429,7 @@ def run():
                         # psnr_index = piq.psnr(rgb_gt_selected, rgb_pred, data_range=1.0 )
                         # loss+=rgb_loss_ssim_l1
                         # loss+=rgb_loss
-                        # loss+=rgb_loss_l1
+                        # loss+=rgb_loss_l1_no_confidence_blend
                         #loss on the rgb_refiend
                         if do_superres:
                             # loss=loss*0.5

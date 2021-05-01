@@ -398,6 +398,12 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
     points_2d = points_screen[:, :, 0:2] / ( points_screen[:, :, 2:3] +0.0001 )
     points_2d[:,:,1] = height- points_2d[:,:,1] 
 
+    mask = (points_2d[..., 0] <= width - 1.) & \
+               (points_2d[..., 0] >= 0) & \
+               (points_2d[..., 1] <= height - 1.) &\
+               (points_2d[..., 1] >= 0)
+    mask=mask.unsqueeze(2)
+
 
     #get in range 0,1
     scaling = torch.tensor([width, height]).cuda().view(1,1,2)   ######WATCH out we assume that all the frames are the same width and height
@@ -415,7 +421,7 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
     # TIME_END("proj")
 
 
-    return uv_tensor
+    return uv_tensor, mask
 
 def compute_uv_batched_original(frames_list,  points_3D_world):
     if points_3D_world.shape[1] != 3:
@@ -607,7 +613,7 @@ class FeatureAgregator(torch.nn.Module):
         super(FeatureAgregator, self).__init__()
 
 
-    def forward(self, feat_sliced_per_frame, weights, novel=False):
+    def forward(self, feat_sliced_per_frame, weights, mask, use_mask=True, novel=False):
 
         #similar to https://ibrnet.github.io/static/paper.pdf
         # feat_sliced_per_frame is Nr_frames x N x FEATDIM
@@ -615,12 +621,16 @@ class FeatureAgregator(torch.nn.Module):
         weights=weights.view(-1,1,1)
           
         img_features_concat_weighted=feat_sliced_per_frame*weights
+        if(use_mask):
+            img_features_concat_weighted = img_features_concat_weighted*mask
 
         img_features_mean= img_features_concat_weighted.sum(dim=0)
 
         # STD https://stats.stackexchange.com/a/6536
         img_features_normalized=  (feat_sliced_per_frame-img_features_mean.unsqueeze(0))**2 #xi- mu
         img_features_normalized_weighted= img_features_normalized*weights
+        if use_mask:
+            img_features_normalized_weighted = img_features_normalized_weighted *mask
         std= img_features_normalized_weighted.sum(dim=0) #this is just the nominator but the denominator is probably not needed since it's just 1
         # print("stdm in", std.min())
         std=torch.sqrt(std+0.0001) #adding a small espilon to avoid sqrt(negative number) which then cuases nans
@@ -742,7 +752,7 @@ class FeatureAgregatorIBRNet(torch.nn.Module):
                                      nn.Sigmoid()
                                      )
 
-    def forward(self, feat_sliced_per_frame, weights, novel=False):
+    def forward(self, feat_sliced_per_frame, weights, mask, novel=False):
 
         weights=weights.view(-1,1,1)
         
@@ -763,8 +773,10 @@ class FeatureAgregatorIBRNet(torch.nn.Module):
         weight=weights
 
         # print("x is ", x.shape)
+        # print("mask is ", mask.shape)
 
-        x_vis = self.vis_fc(x * weight)
+
+        x_vis = self.vis_fc(x * mask)
         x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
         vis = F.sigmoid(vis)
         x = x + x_res
