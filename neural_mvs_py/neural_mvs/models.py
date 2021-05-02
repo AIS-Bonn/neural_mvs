@@ -4195,15 +4195,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_START("raymarch_aggr")
             # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images. ACTUALLY, weigthing or not weighting doesnt make much of a difference and therefore we leave the weighting because it allows for way smoother interpolation to novel views
             # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
-            # mean=sliced_feat_batched.mean(dim=0)
-            # std=sliced_feat_batched.std(dim=0)
-            # img_features_aggregated=torch.cat([mean,std],1)
+            mean=sliced_feat_batched.mean(dim=0)
+            std=sliced_feat_batched.std(dim=0)
+            img_features_aggregated=torch.cat([mean,std],1)
             #IBRNET
-            mask = mask / (torch.sum(mask, dim=0, keepdim=True) + 1e-8)
-            # weights=weights.detach()
-            # weights=weights.fill(1.0)
-            weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))
-            img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, mask, use_mask=False, novel=novel) 
+            # mask = mask / (torch.sum(mask, dim=0, keepdim=True) + 1e-8)
+            # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))
+            # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, mask, use_mask=False, novel=novel) 
             # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
 
@@ -5760,7 +5758,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
         sliced_feat_batched_img=sliced_feat_batched
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
