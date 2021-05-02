@@ -63,9 +63,10 @@ public:
 private:
     NeuralMVS();
 
-    gl::Shader m_depth_test_shader;
+    // gl::Shader m_depth_test_shader;
+    std::shared_ptr<gl::Shader> m_depth_test_shader;
 
-    gl::GBuffer m_pos_buffer; 
+    std::shared_ptr<gl::GBuffer> m_pos_buffer; 
 
     static std::shared_ptr<NeuralMVSGPU> m_impl;
     // std::shared_ptr<NeuralMVSGPU> m_impl;

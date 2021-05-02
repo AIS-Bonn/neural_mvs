@@ -5574,7 +5574,21 @@ class Net3_SRN(torch.nn.Module):
             # self.super_res=EDSR(edsr_args)
             # self.super_res=SuperRes(edsr_args)
             self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
-            # self.refiner=UNet( nr_channels_start=8, nr_channels_output=3, nr_stages=0, max_nr_channels=32, block_type=WNGatedConvRelu)
+            # self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNGatedConvRelu)
+            # self.super_res=MetaSequential( 
+            #     WNReluConv( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+            #     WNReluConv( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
+            # )
+            # self.super_res=MetaSequential( 
+            #     WNGatedConvRelu( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
+            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
+            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
+            #     WNGatedConvRelu( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
+            # )
 
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
 
@@ -5746,32 +5760,63 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
         sliced_feat_batched_img=sliced_feat_batched
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
         sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
           
 
+        mesh=Mesh()
+        mesh.V= point3d.detach().double().reshape((-1, 3)).cpu().numpy()
+        mask_depth_list=[]
+        for i in range(3):
+            depth_test_eigen = neural_mvs.depth_test(mesh, frames_close[i].tf_cam_world.to_double(), frames_close[i].K.astype(np.double)  )
+            depth_test=torch.from_numpy(depth_test_eigen).float() 
+            mask_depth_list.append(depth_test.unsqueeze(0).cuda())
+            depth_test_img=depth_test.view(1,frame.height, frame.width, 1).permute(0,3,1,2)
+        Gui.show(tensor2mat(depth_test_img), "depth_test_tensor")
+        mask_depth=torch.cat(mask_depth_list,0) #nr_Frames, nr points,1
+        # print("mask_depth",mask_depth.shape)
+        # print("mask",mask.shape)
+        mask= mask*mask_depth
+        mask_without_normalization=mask
+
         ##attempt 4 
         # weights=self.frame_weights_computer(frame, frames_close)
         # img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
         #debug mask
-        mask = mask / (torch.sum(mask, dim=0, keepdim=True) + 1e-8)
-        # mask_0=mask[0:1,:]
-        # mask_0=mask_0.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
-        # Gui.show(tensor2mat(mask_0), "mask_0")
-        # mask_1=mask[1:2,:]
-        # mask_1=mask_1.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
-        # Gui.show(tensor2mat(mask_1), "mask_1")
-        # mask_2=mask[2:3,:]
-        # mask_2=mask_2.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
-        # Gui.show(tensor2mat(mask_2), "mask_2")
+        mask_sum =  torch.sum(mask, dim=0, keepdim=True)
+        # print("mask sum ", mask_sum.shape)
+        mask = mask / ( mask_sum + 1e-8) #shape is nr_close_frames, nr_pixels, 3
+        # mask[mask_sum.repeat(3,1,1)==0] = 1.0/nr_nearby_frames
+        mask_0=mask[0:1,:]
+        mask_0=mask_0.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
+        Gui.show(tensor2mat(mask_0), "mask_0")
+        mask_1=mask[1:2,:]
+        mask_1=mask_1.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
+        Gui.show(tensor2mat(mask_1), "mask_1")
+        mask_2=mask[2:3,:]
+        mask_2=mask_2.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
+        Gui.show(tensor2mat(mask_2), "mask_2")
 
         # print("mask min max is ", mask.min(), " ", mask.max())
         img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights, mask, use_mask=False, novel=False)
         std= img_features_aggregated[:, -16]
         std=None
+
+
+        #show the PCAd features that we aggregated
+        # img_features=img_features_aggregated.view(1, frame.height, frame.width, -1).permute(0,3,1,2)
+        # height=img_features.shape[2]
+        # width=img_features.shape[3]
+        # img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
+        # img_features_for_pca=img_features_for_pca.view(height*width, -1)
+        # pca=PCA.apply(img_features_for_pca)
+        # pca=pca.view(height, width, 3)
+        # pca=pca.permute(2,0,1).unsqueeze(0)
+        # pca_mat=tensor2mat(pca)
+        # Gui.show(pca_mat, "pca_mat")
 
         # show the frames and with a line weight depending on the weight
         # if novel:
@@ -5853,12 +5898,32 @@ class Net3_SRN(torch.nn.Module):
                 uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
                 uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
                 sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+                mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
+                mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
+                mask_img=mask.view(3,1,frame.height,frame.width)
+                mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
+                # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)*mask_hr
                 sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
+                # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr, mask_hr ],1)
+                # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_hr ],1)
+                # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr ],1)
                 #make the slcied HR RGB features into 1, 3x3 , H,W 
                 sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
                 input_superres=torch.cat([input_superres,sliced_feat_HR],1)
+                # input_superres= sliced_feat_HR
                 # print("input_superres",input_superres.shape)
                 rgb_refined=self.super_res(input_superres )
+
+
+
+
+
+
+
+
+
+
+         
 
 
 
@@ -5876,11 +5941,11 @@ class Net3_SRN(torch.nn.Module):
                 # sliced_feat_HR=torch.nn.functional.grid_sample( frames_features, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
                 # feat_mean_var= torch.cat([sliced_feat_HR, mean_var_upsampled_batch],1) # N,C,H,W
                 # #TODO concat also with the directions diff 
-                # mask=mask.view(1,3,frame.height,frame.width)
+                # mask=mask.view(3,1,frame.height,frame.width)
                 # mask_hr= torch.nn.functional.interpolate(mask,size=(full_res_height, full_res_width ), mode='bilinear')
                 # # print("mask_hr",mask_hr.shape)
                 # # print("feat_mean_var",feat_mean_var.shape)
-                # feat_mean_var = torch.cat([feat_mean_var,mask_hr.repeat(3,1,1,1)],1)
+                # feat_mean_var = torch.cat([feat_mean_var,mask_hr ],1)
                 # weights_imgs= self.compute_blending_weights(feat_mean_var) # N,1,H,W
                 # weights_imgs = torch.sigmoid(weights_imgs)
                 # weights_imgs  = F.softmax(weights_imgs,dim=0)

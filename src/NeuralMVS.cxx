@@ -98,16 +98,23 @@ NeuralMVS::~NeuralMVS(){
 
 
 void NeuralMVS::compile_shaders(){
-    m_depth_test_shader.compile( std::string(CMAKE_SOURCE_DIR)+"/shaders/points_vert.glsl", std::string(CMAKE_SOURCE_DIR)+"/shaders/points_frag.glsl" ) ;
+    if(!m_depth_test_shader){
+        m_depth_test_shader = std::make_shared<gl::Shader>();
+    }
+    m_depth_test_shader->compile( std::string(CMAKE_SOURCE_DIR)+"/shaders/points_vert.glsl", std::string(CMAKE_SOURCE_DIR)+"/shaders/points_frag.glsl" ) ;
 }
 
 void NeuralMVS::init_opengl(){
     compile_shaders();
 
-    GL_C( m_pos_buffer.set_size(256, 256 ) ); //established what will be the size of the textures attached to this framebuffer
-    GL_C( m_pos_buffer.add_texture("pos_gtex", GL_RGB32F, GL_RGB, GL_FLOAT) );  
-    GL_C( m_pos_buffer.add_depth("depth_gtex") );
-    m_pos_buffer.sanity_check();
+    if(!m_pos_buffer){
+        m_pos_buffer=std::make_shared<gl::GBuffer>();
+    }
+
+    GL_C( m_pos_buffer->set_size(256, 256 ) ); //established what will be the size of the textures attached to this framebuffer
+    GL_C( m_pos_buffer->add_texture("pos_gtex", GL_RGB32F, GL_RGB, GL_FLOAT) );  
+    GL_C( m_pos_buffer->add_depth("depth_gtex") );
+    m_pos_buffer->sanity_check();
 }
 
 Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh_core, const Eigen::Affine3d tf_cam_world, const Eigen::Matrix3d K){
@@ -135,15 +142,15 @@ Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh
     glViewport(0.0f , 0.0f, viewport_width/subsample_factor, viewport_height/subsample_factor ); 
 
     // make a texture to store the XYZ positions 
-    if(viewport_width/subsample_factor!=m_pos_buffer.width() || viewport_height/subsample_factor!=m_pos_buffer.height()){
-        m_pos_buffer.set_size(viewport_width/subsample_factor, viewport_height/subsample_factor);
+    if(viewport_width/subsample_factor!=m_pos_buffer->width() || viewport_height/subsample_factor!=m_pos_buffer->height()){
+        m_pos_buffer->set_size(viewport_width/subsample_factor, viewport_height/subsample_factor);
     }
-    m_pos_buffer.bind_for_draw();
-    m_pos_buffer.clear();
+    m_pos_buffer->bind_for_draw();
+    m_pos_buffer->clear();
 
 
     //setup
-    gl::Shader &shader =m_depth_test_shader;
+    gl::Shader &shader = *m_depth_test_shader;
     if(mesh->m_core->V.size()){
         mesh->vao.vertex_attribute(shader, "position", mesh->V_buf, 3);
     }
@@ -156,7 +163,7 @@ Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh
     // Eigen::Matrix4f M = Eigen::Matrix4f::Identity();
     Eigen::Matrix4f M=mesh->m_core->model_matrix().cast<float>().matrix();
     Eigen::Matrix4f V = tf_cam_world.matrix().cast<float>();
-    Eigen::Matrix4f P = intrinsics_to_opengl_proj(K.cast<float>(), m_pos_buffer.width(), m_pos_buffer.height());
+    Eigen::Matrix4f P = intrinsics_to_opengl_proj(K.cast<float>(), m_pos_buffer->width(), m_pos_buffer->height());
     // Eigen::Matrix4f MV = V*M;
     Eigen::Matrix4f MVP = P*V*M;
  
@@ -166,8 +173,8 @@ Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh
   
 
 
-    m_pos_buffer.bind_for_draw();
-    shader.draw_into(m_pos_buffer,
+    m_pos_buffer->bind_for_draw();
+    shader.draw_into( *m_pos_buffer,
                                     {
                                     std::make_pair("pos_out", "pos_gtex"),
                                     }
@@ -183,7 +190,7 @@ Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh
     GL_C( glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0) );
 
     //get the texture to cpu 
-    cv::Mat pos_mat= m_pos_buffer.tex_with_name("pos_gtex").download_to_cv_mat();
+    cv::Mat pos_mat= m_pos_buffer->tex_with_name("pos_gtex").download_to_cv_mat();
     easy_pbr::Gui::show(pos_mat, "pos_mat");
 
     //compare each vertex from the mesh to the stored xyz in the texture, if it's close then we deem it as visible
@@ -202,24 +209,19 @@ Eigen::MatrixXi NeuralMVS::depth_test(const std::shared_ptr<easy_pbr::Mesh> mesh
         // int y=m_pos_buffer.height()-point2d.y();
         int y=point2d.y();
 
-        if (y>=0 || y< pos_mat.rows || x>=0 || x<pos_mat.cols ){
+        if (y>=0 && y< pos_mat.rows && x>=0 && x<pos_mat.cols ){
 
+            // VLOG(1) << "Accessing at y,x" << y << " " << x << " of pos mat which has rows and cols " << pos_mat.rows<<" " << pos_mat.cols;
             cv::Vec3f pixel= pos_mat.at<cv::Vec3f>(y,x); 
             Eigen::Vector3d pixel_xyz;
             pixel_xyz << pixel[0], pixel[1], pixel[2];
             float diff=(point-pixel_xyz).norm();
-            if(diff<0.1){
+            if(diff<0.05){
                 is_visible(i,0)=1;
             }
         }
     }
 
-    // //wtff-------------
-    // for(int i=0; i<mesh_core->V.rows(); i++){
-    //     if (i>10){
-    //         is_visible(i,0)=1;
-    //     }
-    // }
 
     //AFTERrendering we set again the m_is_dirty so that the next scene.show actually uplaod the data again to the gpu
     mesh_core->m_is_dirty=true;

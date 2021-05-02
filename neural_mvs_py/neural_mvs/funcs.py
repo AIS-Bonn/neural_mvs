@@ -26,7 +26,7 @@ TIME_END = lambda name: profiler_end(name)
 
 
 # print("creating neural mbs")
-# neural_mvs=NeuralMVS.create()
+neural_mvs=NeuralMVS.create()
 # print("created neural mvs")
 
 #inits from SRN paper  https://github.com/vsitzmann/scene-representation-networks/blob/8165b500816bb1699f5a34782455f2c4b6d4f35a/custom_layers.py
