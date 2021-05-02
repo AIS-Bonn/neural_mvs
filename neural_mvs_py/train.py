@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="43fuck"
+    experiment_name="s4LinearBor"
 
 
     use_ray_compression=False

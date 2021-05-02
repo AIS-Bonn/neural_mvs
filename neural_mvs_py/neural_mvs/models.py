@@ -3542,8 +3542,8 @@ class RGB_predictor_simple(MetaModule):
 
         # self.first_conv=BlockSiren(activ=torch.sin, in_channels=3, out_channels=128,  bias=True, is_first_layer=True).cuda()
 
-        cur_nr_channels+=64 #for point features
-        # cur_nr_channels+=32*3 #for point features
+        # cur_nr_channels+=64 #for point features
+        cur_nr_channels+=32*3 #for point features
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=3+ 3*4*2 #for the dirs of the neighbourin
         # cur_nr_channels+=32 #concating also the signed distnace
@@ -5758,7 +5758,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
         # slice with grid_sample
         uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
         sliced_feat_batched_img=sliced_feat_batched
         feat_dim=sliced_feat_batched.shape[1]
         sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
@@ -5799,8 +5799,16 @@ class Net3_SRN(torch.nn.Module):
         Gui.show(tensor2mat(mask_2), "mask_2")
 
         # print("mask min max is ", mask.min(), " ", mask.max())
-        img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights, mask, use_mask=False, novel=False)
-        std= img_features_aggregated[:, -16]
+        # img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights, mask, use_mask=False, novel=False)
+        # std= img_features_aggregated[:, -16]
+        #make it linear 
+        sliced_feat_batched_img=sliced_feat_batched.view(3,frame.height, frame.width, -1 ).permute(0,3,1,2) #nr_frames_close, C, H,W,
+        sliced_feat_batched_img=sliced_feat_batched_img*weights.view(-1,1,1,1)
+        img_features_aggregated = sliced_feat_batched_img.view(1, -1, frame.height, frame.width)
+        f=img_features_aggregated.shape[1]
+        img_features_aggregated = img_features_aggregated.permute(0,2,3,1).view(-1,f) #get them back to linear of NxC
+            
+
         std=None
 
 
@@ -5906,6 +5914,11 @@ class Net3_SRN(torch.nn.Module):
                 # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_hr ],1)
                 # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr ],1)
                 #make the slcied HR RGB features into 1, 3x3 , H,W 
+                # weight=weights.view(-1,1,1,1)
+                # mean = torch.sum(sliced_feat_HR*weight, dim=0, keepdim=True)
+                # var = torch.sum(weight * (sliced_feat_HR - mean)**2, dim=0, keepdim=True)
+                # sliced_feat_HR = torch.cat([mean,var],1)
+
                 sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
                 input_superres=torch.cat([input_superres,sliced_feat_HR],1)
                 # input_superres= sliced_feat_HR
