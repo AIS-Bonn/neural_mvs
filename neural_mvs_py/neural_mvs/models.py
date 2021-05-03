@@ -5803,6 +5803,7 @@ class Net3_SRN(torch.nn.Module):
         # std= img_features_aggregated[:, -16]
         #make it linear 
         sliced_feat_batched_img=sliced_feat_batched.view(3,frame.height, frame.width, -1 ).permute(0,3,1,2) #nr_frames_close, C, H,W,
+        sliced_feat_batched_img_nonweighed = sliced_feat_batched_img
         sliced_feat_batched_img=sliced_feat_batched_img*weights.view(-1,1,1,1)
         img_features_aggregated = sliced_feat_batched_img.view(1, -1, frame.height, frame.width)
         f=img_features_aggregated.shape[1]
@@ -5894,10 +5895,10 @@ class Net3_SRN(torch.nn.Module):
                 # input_superres=input_superres*mask_pred
                 # input_superres=torch.cat([input_superres,mask_pred],1)
 
-                input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+                # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
                 full_res_height=rgb_close_fullres_batch.shape[2]
                 full_res_width=rgb_close_fullres_batch.shape[3]
-                input_superres = torch.nn.functional.interpolate(input_superres,size=(full_res_height, full_res_width ), mode='bilinear')
+                input_superres = torch.nn.functional.interpolate(sliced_feat_batched_img_nonweighed,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
                 #slice also from the high res images and concat that too 
                 uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
                 uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
@@ -5909,7 +5910,7 @@ class Net3_SRN(torch.nn.Module):
                 mask_img=mask.view(3,1,frame.height,frame.width)
                 mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
                 # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)*mask_hr
-                sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
+                # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
                 # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr, mask_hr ],1)
                 # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_hr ],1)
                 # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr ],1)
@@ -5919,10 +5920,17 @@ class Net3_SRN(torch.nn.Module):
                 # var = torch.sum(weight * (sliced_feat_HR - mean)**2, dim=0, keepdim=True)
                 # sliced_feat_HR = torch.cat([mean,var],1)
 
-                sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-                input_superres=torch.cat([input_superres,sliced_feat_HR],1)
+                # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+                # input_superres=torch.cat([input_superres,sliced_feat_HR],1)
                 # input_superres= sliced_feat_HR
                 # print("input_superres",input_superres.shape)
+                input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
+                std= input_superres.std(dim=0, keepdim=True)
+                input_superres = input_superres*weights.view(-1,1,1,1)
+                input_superres = torch.cat([ input_superres, mask_hr ],1)
+                input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
+                input_superres = torch.cat([ input_superres, std ],1)
+
                 rgb_refined=self.super_res(input_superres )
 
 
