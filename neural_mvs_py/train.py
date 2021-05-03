@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s9linMaskSTD"
+    experiment_name="s_"
 
 
     use_ray_compression=False

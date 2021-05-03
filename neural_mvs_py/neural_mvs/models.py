@@ -5927,7 +5927,7 @@ class Net3_SRN(torch.nn.Module):
                 input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
                 std= input_superres.std(dim=0, keepdim=True)
                 input_superres = input_superres*weights.view(-1,1,1,1)
-                input_superres = torch.cat([ input_superres, mask_hr ],1)
+                # input_superres = torch.cat([ input_superres, mask_hr ],1)
                 input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
                 input_superres = torch.cat([ input_superres, std ],1)
 
