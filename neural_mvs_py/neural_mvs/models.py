@@ -5533,6 +5533,10 @@ class Net3_SRN(torch.nn.Module):
         self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
         dirs_channels=3+ 3*num_encoding_directions*2
 
+        # num_encoding_directions=2
+        # self.learned_pe_dirs=LearnedPE(in_channels=4, num_encoding_functions=num_encoding_directions, logsampling=True)
+        # dirs_channels=3+ 3*num_encoding_directions*2
+
         # self.fuse_with_dirs=MetaSequential( 
         #     # BlockNerf(activ=torch.nn.GELU(), in_channels=32 + dirs_channels, out_channels=64,  bias=True ).cuda(),
         #     BlockNerf(activ=torch.nn.GELU(), in_channels=32 , out_channels=64,  bias=True ).cuda(),
@@ -5930,6 +5934,50 @@ class Net3_SRN(torch.nn.Module):
                 # input_superres = torch.cat([ input_superres, mask_hr ],1)
                 input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
                 input_superres = torch.cat([ input_superres, std ],1)
+
+
+                #raydirs 
+                # original_shape = xyz.shape[:2]
+                # xyz = xyz.reshape(-1, 3)
+                # train_poses = train_cameras[:, -16:].reshape(-1, 4, 4)  # [n_views, 4, 4]
+                # num_views = len(train_poses)
+                # query_pose = query_camera[-16:].reshape(-1, 4, 4).repeat(num_views, 1, 1)  # [n_views, 4, 4]
+                # ray2tar_pose = (query_pose[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
+                # ray2tar_pose /= (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
+                # ray2train_pose = (train_poses[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
+                # ray2train_pose /= (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
+                # ray_diff = ray2tar_pose - ray2train_pose
+                # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
+                # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
+                # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
+                # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1)
+                # ray_diff = ray_diff.reshape((num_views, ) + original_shape + (4, ))
+
+
+                #raydirs 
+                # query_pose = frame.camera_center.view(1,3)
+                # ray2tar_pose = query_pose - point3d
+                # ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
+                # nearby_centers_list = []
+                # for i in range(nr_nearby_frames):
+                #     nearby_centers_list.append( frames_close[i].camera_center.view(1,1,3) ) 
+                # nearby_centers = torch.cat(nearby_centers_list,0) #Nr_nearby frames, 1,3
+                # ray2train_pose=  nearby_centers -point3d.view(1,-1,3).repeat(nr_nearby_frames,1,1)
+                # ray2train_pose = ray2train_pose / (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
+                # ray_diff = ray2tar_pose - ray2train_pose
+                # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
+                # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
+                # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
+                # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1) # nr_frames, Nr_pixels, 4
+                # # print("raydiff",ray_diff.shape) 
+                # ray_diff_img = ray_diff.view(nr_nearby_frames, frame.height, frame.width, -1).permute(0,3,1,2)
+                # ray_diff_hr= torch.nn.functional.interpolate(ray_diff_img,size=(full_res_height, full_res_width ), mode='bilinear')
+                # ray_diff_hr_lin = ray_diff_hr.view(1,-1,full_res_height,full_res_width)
+                # input_superres = torch.cat([ input_superres, ray_diff_hr_lin ],1)
+
+                
+
+
 
                 rgb_refined=self.super_res(input_superres )
 
