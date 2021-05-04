@@ -40,6 +40,7 @@ class StateCallback(Callback):
                 # out_info_path=os.path.join(checkpoint_path, info_txt_name)
                 torch.save(model.state_dict(), out_model_path)
                 # phase.scores.write_iou_to_csv(out_info_path)
+
         
 
         phase.epoch_nr+=1

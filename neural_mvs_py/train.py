@@ -290,7 +290,7 @@ def run():
                         ##PREPARE data 
                         with torch.set_grad_enabled(False):
 
-                            print("frame rgb path is ", frame.frame.rgb_path)
+                            # print("frame rgb path is ", frame.frame.rgb_path)
 
                             frame.load_images()
                             #get a subsampled frame if necessary
@@ -761,7 +761,7 @@ def run():
                         # if False:
                     if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                         TIME_START("justload")
-                        print("load next scene")
+                        # print("load next scene")
                         # phases[0].loader.start_reading_next_scene()
                         # phases[1].loader.start_reading_next_scene()
                         phase.loader.start_reading_next_scene()
