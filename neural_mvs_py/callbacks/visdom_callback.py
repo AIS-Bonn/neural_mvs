@@ -34,6 +34,6 @@ class VisdomCallback(Callback):
         # mean_iou=phase.scores.avg_class_iou(print_per_class_iou=False)
         # self.vis.log(phase.epoch_nr, mean_iou, "iou_"+phase.name, "iou_"+phase.name, smooth=False)
 
-        if phase.show_visdom:
+        if phase.show_visdom and phase.samples_processed_this_epoch!=0:
             loss_avg_per_eppch = phase.loss_acum_per_epoch/ phase.samples_processed_this_epoch
             self.vis.log(phase.epoch_nr, loss_avg_per_eppch, "loss_"+phase.name, self.experiment_name, smooth=False, show_every=1)

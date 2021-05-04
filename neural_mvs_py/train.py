@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s8lin"
+    experiment_name="s2_"
 
 
     use_ray_compression=False
@@ -230,6 +230,7 @@ def run():
     factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=2
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
+    eval_every_x_epoch=30
 
     new_frame=None
 
@@ -251,6 +252,8 @@ def run():
             if phase.loader.has_data(): # the nerf will always return true because it preloads all data, the shapenetimg dataset will return true when the scene it actually loaded
             # if True: #for nerf
 
+                    
+
                 # if phase.loader.has_data() and loader_test.has_data():
                 # if phase.loader.has_data(): #for nerf
                 # if True: #Shapenet IMg always had ata at this point 
@@ -271,6 +274,12 @@ def run():
                     else: 
                         nr_frames=phase.loader.nr_samples()
                 # for i in range(phase.loader.nr_samples()):
+
+                #if we are evalauting, we evaluate every once in a while so most of the time we just skip this
+                if not is_training and phase.epoch_nr%eval_every_x_epoch!=0:
+                    nr_scenes=0
+
+
                 for scene_idx in range(nr_scenes):
                     for i in range( nr_frames ):
                         if phase.grad:
