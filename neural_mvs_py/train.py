@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s3dirs"
+    experiment_name="s8lin"
 
 
     use_ray_compression=False
@@ -293,7 +293,7 @@ def run():
                             frames_to_consider_for_neighbourhood=phase.frames
                         do_close_computation_with_delaunay=True
                         if not do_close_computation_with_delaunay:
-                            frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 5, discard_same_idx) #the neighbour are only from the training set
+                            frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 3, discard_same_idx) #the neighbour are only from the training set
                             weights= frame_weights_computer(frame, frames_close)
                         else:
                             frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius)

@@ -5772,7 +5772,7 @@ class Net3_SRN(torch.nn.Module):
         mesh=Mesh()
         mesh.V= point3d.detach().double().reshape((-1, 3)).cpu().numpy()
         mask_depth_list=[]
-        for i in range(3):
+        for i in range(nr_nearby_frames):
             depth_test_eigen = neural_mvs.depth_test(mesh, frames_close[i].tf_cam_world.to_double(), frames_close[i].K.astype(np.double)  )
             depth_test=torch.from_numpy(depth_test_eigen).float() 
             mask_depth_list.append(depth_test.unsqueeze(0).cuda())
@@ -5806,7 +5806,7 @@ class Net3_SRN(torch.nn.Module):
         # img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights, mask, use_mask=False, novel=False)
         # std= img_features_aggregated[:, -16]
         #make it linear 
-        sliced_feat_batched_img=sliced_feat_batched.view(3,frame.height, frame.width, -1 ).permute(0,3,1,2) #nr_frames_close, C, H,W,
+        sliced_feat_batched_img=sliced_feat_batched.view(nr_nearby_frames,frame.height, frame.width, -1 ).permute(0,3,1,2) #nr_frames_close, C, H,W,
         sliced_feat_batched_img_nonweighed = sliced_feat_batched_img
         sliced_feat_batched_img=sliced_feat_batched_img*weights.view(-1,1,1,1)
         img_features_aggregated = sliced_feat_batched_img.view(1, -1, frame.height, frame.width)
@@ -5934,6 +5934,11 @@ class Net3_SRN(torch.nn.Module):
                 # input_superres = torch.cat([ input_superres, mask_hr ],1)
                 input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
                 input_superres = torch.cat([ input_superres, std ],1)
+
+                #just do aggregate here
+                # mean = torch.sum(input_superres*weights.view(-1,1,1,1), dim=0, keepdim=True)
+                # var = torch.sum(weights.view(-1,1,1,1) * (input_superres - mean)**2, dim=0, keepdim=True)
+                # input_superres = torch.cat([mean,var],1)
 
 
                 #raydirs 
