@@ -949,6 +949,50 @@ easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::
     
 }
 
+
+
+easy_pbr::MeshSharedPtr SFM::compute_triangulation_plane( const Eigen::MatrixXd& points ){
+    //we assume the frames are laid in plane similar to our xy axis so right and up.
+   
+   
+    //triangulate 
+    Eigen::MatrixXd points_intesection_2d(points.rows(),2); //get the intersection points from the xz plane to just xy so we can run delaunay triangulation
+    for (int i=0; i<points.rows(); i++){
+        Eigen::Vector2d point;
+        point.x()= points.row(i).x();
+        point.y()= points.row(i).y();
+        points_intesection_2d.row(i)=point;
+    }
+    auto triangulated_mesh = easy_pbr::Mesh::create();
+    // std::string params="Q"; //DO NOT add "v" for verbose output, for some reason it breaks now and it segment faults somewhere inside. Maybe due to pybind I dunno
+    //Flag Q is for quiet and c is for adding edges along the convex hull of the points otherwise we end up with no triangles in our triangulation
+    std::string params="Qc"; //DO NOT add "v" for verbose output, for some reason it breaks now and it segment faults somewhere inside. Maybe due to pybind I dunno
+    Eigen::MatrixXi E_empty;
+    Eigen::MatrixXd H_empty;
+    Eigen::MatrixXi F_out;
+    Eigen::MatrixXd V_out;
+    igl::triangle::triangulate(points_intesection_2d, E_empty ,H_empty ,params, triangulated_mesh->V, triangulated_mesh->F); 
+
+    // VLOG(1) <<triangulated_mesh->V.rows();
+    // VLOG(1) <<points.rows();
+    // VLOG(1) << "nr of faces generated" << triangulated_mesh->F.rows();
+    triangulated_mesh->V=points;
+    triangulated_mesh->m_vis.m_show_mesh=false;
+    triangulated_mesh->m_vis.m_show_wireframe=true;
+    easy_pbr::Scene::show(triangulated_mesh, "triangulated_mesh"); 
+
+
+    
+
+
+    // VLOG(1) << "sphere center_final " << sphere_center; 
+    // VLOG(1) << "sphere radius_final " << sphere_radius; 
+
+    return triangulated_mesh;
+
+    
+}
+
 //compute_closest_triangle of a triangulated surface using stegraphic projection
 std::tuple<Eigen::Vector3i, Eigen::Vector3d> SFM::compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d){
 

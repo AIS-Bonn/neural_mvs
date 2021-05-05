@@ -36,7 +36,8 @@ public:
     // static std::vector<float> compute_frame_weights( const easy_pbr::Frame& frame, std::vector<easy_pbr::Frame>& close_frames);
     static std::tuple<Eigen::Vector3d, double> fit_sphere( const Eigen::MatrixXd& points);
     // static std::tuple<easy_pbr::MeshSharedPtr, Eigen::Vector3d, double> compute_triangulation(std::vector<easy_pbr::Frame>& frames);  //return triangulation, sphere center and sphere radius
-    static easy_pbr::MeshSharedPtr compute_triangulation_stegreographic( const Eigen::MatrixXd& points,  const Eigen::Vector3d& sphere_center, double sphere_radius  );  //return triangulation, sphere center and sphere radius
+    static easy_pbr::MeshSharedPtr compute_triangulation_stegreographic( const Eigen::MatrixXd& points,  const Eigen::Vector3d& sphere_center, double sphere_radius  );  //return triangulation 
+    static easy_pbr::MeshSharedPtr compute_triangulation_plane( const Eigen::MatrixXd& points );  //return triangulation
     static std::tuple<Eigen::Vector3i, Eigen::Vector3d> compute_closest_triangle(  const Eigen::Vector3d& point, const easy_pbr::MeshSharedPtr& triangulated_mesh3d); //returns the closest face and the barycentric coords of the point projected onto that closest triangle
     static Eigen::Vector3d compute_barycentric_weights_from_triangle_points( const Eigen::Vector3d& point,  const Eigen::Matrix3d& vertices_for_face );
     static Eigen::Vector3d compute_barycentric_weights_from_face_and_mesh_points( const Eigen::Vector3d& point,  const Eigen::Vector3i& face, const Eigen::Matrix3d& points_mesh ); //convenience func

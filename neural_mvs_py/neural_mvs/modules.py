@@ -41,14 +41,19 @@ def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, disc
     return frames_selected
 
 
-def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx, sphere_center, sphere_radius):
+def get_close_frames_barycentric(frame_py, all_frames_py_list, discard_same_idx, sphere_center, sphere_radius, triangulation_type):
 
     if discard_same_idx:
         frame_centers, frame_idxs = frames_to_points(all_frames_py_list, discard_frame_with_idx=frame_py.frame_idx)
     else:
         frame_centers, frame_idxs = frames_to_points(all_frames_py_list )
 
-    triangulated_mesh=SFM.compute_triangulation_stegreographic( frame_centers, sphere_center, sphere_radius )
+    if triangulation_type=="sphere":
+        triangulated_mesh=SFM.compute_triangulation_stegreographic( frame_centers, sphere_center, sphere_radius )
+    elif triangulation_type=="plane":
+        triangulated_mesh=SFM.compute_triangulation_plane( frame_centers )
+    else:
+        print("triangulation type ", triangulation_type, " is not a valid type"  )
 
     face, weights= SFM.compute_closest_triangle( frame_py.frame.pos_in_world(), triangulated_mesh )
 
@@ -149,6 +154,13 @@ def create_loader(dataset_name, config_path):
         while True:
             if( loader_train.finished_reading_scene() and  loader_test.finished_reading_scene() ): 
                 break
+    elif(dataset_name=="llff"):
+        loader_train=DataLoaderLLFF(config_path)
+        loader_test=DataLoaderLLFF(config_path)
+        loader_train.set_mode_train()
+        loader_test.set_mode_test()
+        loader_train.start()
+        loader_test.start()
     else:
         err="Datset name not recognized. It is " + dataset_name
         sys.exit(err)

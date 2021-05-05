@@ -209,6 +209,7 @@ PYBIND11_MODULE(neuralmvs, m) {
     // .def_static("compute_frame_weights", &SFM::compute_frame_weights)
     .def_static("fit_sphere", &SFM::fit_sphere)
     .def_static("compute_triangulation_stegreographic", &SFM::compute_triangulation_stegreographic)
+    .def_static("compute_triangulation_plane", &SFM::compute_triangulation_plane)
     .def_static("compute_closest_triangle", &SFM::compute_closest_triangle)
     ;
 

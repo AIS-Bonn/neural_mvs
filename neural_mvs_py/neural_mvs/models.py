@@ -51,7 +51,7 @@ from super_res.edsr import common
 
 
 # from pytorch_memlab import LineProfiler
-from pytorch_memlab import LineProfiler, profile, profile_every, set_target_gpu, clear_global_line_profiler
+# from pytorch_memlab import LineProfiler, profile, profile_every, set_target_gpu, clear_global_line_profiler
 
 #latticenet 
 # from latticenet_py.lattice.lattice_wrapper import LatticeWrapper
