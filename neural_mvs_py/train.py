@@ -646,7 +646,7 @@ def run():
                             # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
                             #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
-                            clip_percentile=5
+                            clip_percentile=10
                             obs_grad_norm = get_grad_norm(model)
                             # print("grad norm", obs_grad_norm)
                             grad_history.append(obs_grad_norm)
