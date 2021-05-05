@@ -230,7 +230,10 @@ def run():
                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 5, discard_same_idx) #the neighbour are only from the training set
                 weights= frame_weights_computer(frame, frames_close)
             else:
-                frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius)
+                triangulation_type="sphere"
+                if  isinstance(loader_train, DataLoaderLLFF):
+                    triangulation_type="plane"
+                frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius, triangulation_type)
                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
             #load frames
@@ -291,7 +294,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu_sub2_sr_v11_nopos_HR/model_e_3200.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_RGB_S400_D_S200_withpos/model_e_150.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/DTU_RGB_S400_D100_posconv/model_e_2350.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_drums_RGB_S400_D_S200_withpos/model_e_900.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_drums_RGB_S400_D_S200_withpos/model_e_900.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8/model_e_450.pt" ))
 
 
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")

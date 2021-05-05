@@ -318,7 +318,10 @@ def run():
                                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 3, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
-                                frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius)
+                                triangulation_type="sphere"
+                                if  isinstance(loader_train, DataLoaderLLFF):
+                                    triangulation_type="plane"
+                                frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius, triangulation_type)
                                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
                             #load the image data for this frames that we selected
