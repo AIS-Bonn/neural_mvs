@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s2_"
+    experiment_name="s6iter20"
 
 
     use_ray_compression=False
@@ -212,6 +212,8 @@ def run():
     if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderDTU):
         sphere_center= np.array([0,0,0])
         sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
+    if isinstance(loader_train, DataLoaderLLFF):
+        sphere_center= np.array([0,0,-0.1])
     print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
     frame_weights_computer= FrameWeightComputer()
 
@@ -448,23 +450,25 @@ def run():
                             loss=0
                             # rgb_loss=(( rgb_gt_selected-rgb_pred_with_confidence_blending)**2).mean()
                             # rgb_loss_l1=(( rgb_gt_selected-rgb_pred_with_confidence_blending).abs()).mean()
-                            # rgb_loss_l1_no_confidence_blend=(( rgb_gt_selected-rgb_pred).abs()).mean()
+                            rgb_loss_l1_no_confidence_blend=(( rgb_gt_selected-rgb_pred).abs()).mean()
                             # rgb_loss_ssim_l1 = ssim_l1_criterion(rgb_gt, rgb_pred_with_confidence_blending)
                             # psnr_index = piq.psnr(rgb_gt_selected, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                             # psnr_index = piq.psnr(rgb_gt_selected, rgb_pred, data_range=1.0 )
                             # loss+=rgb_loss_ssim_l1
                             # loss+=rgb_loss
-                            # loss+=rgb_loss_l1_no_confidence_blend
+                            loss+=rgb_loss_l1_no_confidence_blend
                             #loss on the rgb_refiend
                             if do_superres:
-                                # loss=loss*0.5
+                                loss=loss*0.5
                                 rgb_refined_loss_l1= ((rgb_gt_fullres- rgb_refined_with_confidence_blending).abs()).mean()
+                                # rgb_refined_loss_l2=(( rgb_gt_fullres-rgb_refined_with_confidence_blending)**2).mean()
                                 # rgb_refined_loss_l1_no_confidence_blend= ((rgb_gt_fullres- rgb_refined).abs()).mean()
                                 # rgb_refined_loss_ssim_l1 = ssim_l1_criterion(rgb_gt_fullres, rgb_refined) #THIS LOSS is slow as heck and makes the backward pass almost twice as slow than the l1 loss
                                 psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_refined,0.0,1.0), data_range=1.0 )
                                 # loss+=rgb_refined_loss_ssim_l1*0.5
                                 # loss+=rgb_refined_loss_ssim_l1
                                 loss+=rgb_refined_loss_l1
+                                # loss+=rgb_refined_loss_l2
 
                             if not is_training and psnr_index.item()>max_test_psnr:
                                 max_test_psnr=psnr_index.detach().item()

@@ -200,7 +200,7 @@ def run():
     while True:
         with torch.set_grad_enabled(False):
 
-            # view.m_camera=cam_for_pred
+            view.m_camera=cam_for_pred
             # cam_for_pred=view.m_default_camera
         
             #get the model matrix of the view and set it to the frame
@@ -295,7 +295,9 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_lego_RGB_S400_D_S200_withpos/model_e_150.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/DTU_RGB_S400_D100_posconv/model_e_2350.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_drums_RGB_S400_D_S200_withpos/model_e_900.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8/model_e_450.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8/model_e_450.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8_also1x1/model_e_300.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s8_also1x1/model_e_200.pt" ))
 
 
             camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
@@ -349,14 +351,14 @@ def run():
 
         # view.update()
         # view.m_camera=view.m_default_camera
-        if neural_mvs_gui.m_control_secondary_cam: 
-            #if we control the secondary cam we set the secondary cam in the viewer and then do an update which will do a glfwpoolevents so that moves the camera
-            view.m_camera=cam_for_pred
-            view.m_swap_buffers=False #we don't need to swap buffers as we only needed to do the update because we updated the movement of this camera
-            view.update()
-        #render the real 3D scene
-        view.m_camera=view.m_default_camera
-        view.m_swap_buffers=True
+        # if neural_mvs_gui.m_control_secondary_cam: 
+        #     #if we control the secondary cam we set the secondary cam in the viewer and then do an update which will do a glfwpoolevents so that moves the camera
+        #     view.m_camera=cam_for_pred
+        #     view.m_swap_buffers=False #we don't need to swap buffers as we only needed to do the update because we updated the movement of this camera
+        #     view.update()
+        # #render the real 3D scene
+        # view.m_camera=view.m_default_camera
+        # view.m_swap_buffers=True
         view.update()
         
 

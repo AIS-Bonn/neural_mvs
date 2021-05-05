@@ -4083,7 +4083,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
 
         #params 
-        self.nr_iters=10
+        self.nr_iters=20
 
         #starting depth per pixels 
         self.depth_per_pixel_train=None
