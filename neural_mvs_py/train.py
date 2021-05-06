@@ -76,7 +76,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s6iter20"
+    experiment_name="s2leavescorr_"
 
 
     use_ray_compression=False
@@ -213,7 +213,7 @@ def run():
         sphere_center= np.array([0,0,0])
         sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
     if isinstance(loader_train, DataLoaderLLFF):
-        sphere_center= np.array([0,0,-0.1])
+        sphere_center= np.array([0,0,-0.3])
     print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
     frame_weights_computer= FrameWeightComputer()
 
