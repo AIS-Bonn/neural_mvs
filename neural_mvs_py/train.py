@@ -42,6 +42,7 @@ from neural_mvs.smooth_loss import *
 from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
 import neural_mvs.warmup_scheduler as warmup  #https://github.com/Tony-Y/pytorch_warmup
 from torchsummary.torchsummary import *
+import torchvision.transforms.functional as TF
 
 #debug 
 from easypbr import Gui
@@ -57,7 +58,6 @@ config_file="train.cfg"
 
 torch.manual_seed(0)
 random.seed(0)
-# torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = True
 # torch.autograd.set_detect_anomaly(True)
 torch.set_printoptions(edgeitems=3)
@@ -390,6 +390,28 @@ def run():
                                 rgb_gt_selected=rgb_gt
                         else:
                             rgb_gt_selected=rgb_gt
+
+
+
+                        #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
+                        # TIME_START("crop")
+                        # if rand_true(0.5) and is_training:
+                        # # if False:
+                        #     max_size= min(frame.height, frame.width )
+                        #     max_size=random.randint(max_size//4, max_size)
+                        #     crop_indices = torchvision.transforms.RandomCrop.get_params( uv_tensor, output_size=(max_size, max_size))
+                        #     i, j, h, w = crop_indices
+                        #     # uv_tensor = TF.crop(uv_tensor, i, j, h, w)
+                        #     rgb_gt_selected= TF.crop(rgb_gt_selected, i, j, h, w)
+                        #     ray_dirs=ray_dirs.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        #     ray_dirs= TF.crop(ray_dirs, i, j, h, w)
+                        #     #in order to make the unet access pixels that are further apart or closer apart, we upscale the cropped image to the full size
+                        #     uv_tensor = torch.nn.functional.interpolate(uv_tensor,size=(frame.height, frame.width), mode='nearest')
+                        #     rgb_gt_selected = torch.nn.functional.interpolate(rgb_gt_selected,size=(frame.height, frame.width), mode='bilinear')
+                        #     ray_dirs = torch.nn.functional.interpolate(ray_dirs,size=(frame.height, frame.width), mode='bilinear')
+                        #     #back to Nx3 rays
+                        #     ray_dirs=ray_dirs.permute(0,2,3,1).reshape(-1,3) #from NCHW to NHWC
+                        # TIME_END("crop")
 
 
 
