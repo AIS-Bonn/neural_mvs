@@ -16,6 +16,7 @@ from dataloaders import *
 from neuralmvs import *
 from neural_mvs.models import *
 from neural_mvs.modules import *
+from neural_mvs.utils import *
 from neural_mvs.MS_SSIM_L1_loss import *
 
 from callbacks.callback import *
@@ -95,18 +96,10 @@ def run():
     cb = CallbacksGroup(cb_list)
 
     #create loaders
-    # loader_train=DataLoaderNerf(config_path)
-    # loader_test=DataLoaderNerf(config_path)
-    # loader_train=DataLoaderColmap(config_path)
-    # loader_test=DataLoaderColmap(config_path)
-    # loader_train=DataLoaderShapeNetImg(config_path)
-    # loader_test=DataLoaderShapeNetImg(config_path)
-    # loader_train.set_mode_train()
-    # loader_test.set_mode_test()
-    # loader_train.start()
-    # loader_test.start()
     loader_train, loader_test=create_loader(train_params.dataset_name(), config_path)
-
+    frames_train = get_frames(loader_train)
+    frames_test = get_frames(loader_test)
+    dataset_params = compute_dataset_params(loader_train, frames_train)
    
 
     #create phases
@@ -120,89 +113,19 @@ def run():
     model.train()
 
     scheduler=None
-    concat_coord=ConcatCoord() 
     smooth = InverseDepthSmoothnessLoss()
     ssim_l1_criterion = MS_SSIM_L1_LOSS(compensation=1.0)
+    frame_weights_computer= FrameWeightComputer()
 
     show_every=1
 
 
-
     #get all the frames train in am array, becuase it's faster to have everything already on the gpu
-    frames_train=[]
-    frames_test=[]
-    for i in range(loader_train.nr_samples()):
-        frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame, create_subsamples=True))
-    for i in range(loader_test.nr_samples()):
-        frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame, create_subsamples=True))
     phases[0].frames=frames_train 
     phases[1].frames=frames_test
     #Show only the visdom for the testin
     phases[0].show_visdom=False
     phases[1].show_visdom=True
-
-    #show all the train and test frames 
-    # for i in range(loader_train.nr_samples()):
-    #     frame=loader_train.get_frame_at_idx(i)
-    #     frustum_mesh=frame.create_frustum_mesh(0.02)
-    #     frustum_mesh.m_vis.m_line_width=1
-    #     Scene.show(frustum_mesh, "frustum_train_"+str(frame.frame_idx) )
-    # for i in range(loader_test.nr_samples()):
-    #     frame=loader_test.get_frame_at_idx(i)
-    #     frustum_mesh=frame.create_frustum_mesh(0.02)
-    #     frustum_mesh.m_vis.m_line_width=1
-    #     frustum_mesh.m_vis.m_line_color=[0.0, 0.0, 1.0] #blue
-    #     Scene.show(frustum_mesh, "frustum_test_"+str(frame.frame_idx) )
-
- 
-    
-    # #compute 3D 
-    # sfm=SFM.create()
-    # selected_frame_idx=np.arange(30) #For colmap
-    # # selected_frame_idx=[10]
-    # frames_query_selected=[]
-    # frames_target_selected=[]
-    # frames_all_selected=[]
-    # meshes_for_query_frames=[]
-    # for i in range(loader_train.nr_samples()):
-    # # for i in range(1 ):
-    #     # frame_0=loader_train.get_frame_at_idx(i+3) 
-    #     if i in selected_frame_idx:
-    #         frame_query=loader_train.get_frame_at_idx(i) 
-    #         # frame_target=loader_train.get_closest_frame(frame_query)
-    #         frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
-    #         frames_query_selected.append(frame_query)
-    #         frames_target_selected.append(frame_target)
-    #         frames_all_selected.append(frame_query)
-    #         frames_all_selected.append(frame_target)
-    #         mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-    #         meshes_for_query_frames.append(mesh_sparse)
-         
-
-
-    # #fuse all the meshes into one
-    # mesh_full=Mesh()
-    # for mesh in meshes_for_query_frames:
-    #     mesh_full.add(mesh)
-    # mesh_full.m_vis.m_show_points=True
-    # mesh_full.m_vis.set_color_pervertcolor()
-    # Scene.show(mesh_full, "mesh_full" )
-    # print("scene scale is ", Scene.get_scale())
-
-
-    # #get for each frame_query the distances of the keypoints
-    # frame_idx2keypoint_data={}
-    # for i in range(loader_train.nr_samples()):
-    #     frame_query=loader_train.get_frame_at_idx(i) 
-    #     frame_target=loader_train.get_closest_frame(frame_query)
-    #     mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-    #     keypoints_distances=torch.from_numpy(keypoints_distances_eigen.copy()).to("cuda")
-    #     keypoints_indices=torch.from_numpy(keypoints_indices_eigen.copy()).to("cuda")
-    #     keypoints_3d =torch.from_numpy(mesh_sparse.V.copy()).float().to("cuda")
-    #     keypoint_data=[keypoints_distances, keypoints_indices, keypoints_3d]
-    #     frame_idx2keypoint_data[frame_query.frame_idx] = keypoint_data
 
 
     #get the triangulation of the frames 
@@ -215,7 +138,6 @@ def run():
     if isinstance(loader_train, DataLoaderLLFF):
         sphere_center= np.array([0,0,-0.3])
     print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
-    frame_weights_computer= FrameWeightComputer()
 
     # triangulated_mesh, sphere_center, sphere_radius=SFM.compute_triangulation(loader_train.get_all_frames())
 

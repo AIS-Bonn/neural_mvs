@@ -21,6 +21,7 @@ from functools import reduce
 from torch.nn.modules.module import _addindent
 
 from neural_mvs.nerf_utils import *
+from neural_mvs.utils import *
 
 #resize funcs 
 import resize_right.resize_right as resize_right
