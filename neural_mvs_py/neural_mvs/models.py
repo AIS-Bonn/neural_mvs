@@ -4094,14 +4094,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
     def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel=False):
 
 
-        # if novel:
-        #     depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        #     depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
-        # else:
-        #     depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+        if novel:
+            depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+            depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
+        else:
+            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
 
-        depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
+        # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+        # depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
 
         #Select only certain pixels fro the image
         if pixels_indices is not None:

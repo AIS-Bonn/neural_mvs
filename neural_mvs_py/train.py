@@ -77,10 +77,10 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s2leavescorr_"
+    experiment_name="s3depthjitter_"
 
 
-    use_ray_compression=False
+    # use_ray_compression=False
     do_superres=True
     predict_occlusion_map=False
 
@@ -148,7 +148,7 @@ def run():
     depth_min=3.5
     depth_max=11.5
     #depth min max for home photos after scaling the scenne
-    depth_min=0.15
+    depth_min=0.1
     depth_max=1.0
     #usa_subsampled_frames
     factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
@@ -161,8 +161,8 @@ def run():
     grad_history = []
     max_test_psnr=0.0
 
-    torch.cuda.empty_cache()
-    print( torch.cuda.memory_summary() )
+    # torch.cuda.empty_cache()
+    # print( torch.cuda.memory_summary() )
 
     while True:
 

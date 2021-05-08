@@ -23,7 +23,7 @@ from latticenet_py.lattice.lattice_modules import *
 from dataloaders import *
 
 
-DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min')
+DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter')
 
 
 #get all the frames from a loader and puts them into frame_py
@@ -51,11 +51,13 @@ def compute_dataset_params(loader, frames):
 
     estimated_scene_depth = sphere_center
     raymarch_depth_min = 0.15
+    raymarch_depth_jitter =  2e-2
 
     params= DatasetParams(sphere_radius=sphere_radius, 
                         sphere_center=sphere_center, 
                         estimated_scene_center=estimated_scene_center, 
-                        raymarch_depth_min=raymarch_depth_min )
+                        raymarch_depth_min=raymarch_depth_min,
+                        raymarch_depth_jitter = raymarch_depth_jitter )
 
     return params
 
