@@ -4091,7 +4091,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.depth_per_pixel_test=None
 
       
-    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, weights, pixels_indices, novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, weights,  novel=False):
 
 
         if novel:
@@ -4104,8 +4104,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
 
         #Select only certain pixels fro the image
-        if pixels_indices is not None:
-            depth_per_pixel = torch.index_select(depth_per_pixel, 0, pixels_indices)
+        # if pixels_indices is not None:
+            # depth_per_pixel = torch.index_select(depth_per_pixel, 0, pixels_indices)
 
         # #create the tensor if it's necesary #BUG FOR SOME REASON this makes the loss converge slower or not at all. so something is bugged here 
         # if self.depth_per_pixel_train is None and not novel:
@@ -5520,7 +5520,7 @@ class Net2(torch.nn.Module):
 
 #Instead of doing ray marching like in NERF we use a LSTM to update the ray step similar to Scene representation network
 class Net3_SRN(torch.nn.Module):
-    def __init__(self, model_params, do_superres):
+    def __init__(self, model_params):
         super(Net3_SRN, self).__init__()
 
         self.first_time=True
@@ -5562,36 +5562,36 @@ class Net3_SRN(torch.nn.Module):
         # self.unet= FSSNet(classes=16) #error
         # self.unet= FPENet(classes=32)
 
-        self.do_superres=do_superres
-        if do_superres:
-            edsr_args=EDSR_args()
-            # edsr_args.n_in_channels=67
-            # edsr_args.n_in_channels=32*3
-            # edsr_args.n_in_channels=70
-            # edsr_args.n_in_channels=134
-            edsr_args.n_in_channels=64
-            edsr_args.n_out_channels=8
-            edsr_args.n_resblocks=4
-            edsr_args.n_feats=32
-            edsr_args.scale=4
-            # self.super_res=EDSR(edsr_args)
-            # self.super_res=SuperRes(edsr_args)
-            self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
-            # self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNGatedConvRelu)
-            # self.super_res=MetaSequential( 
-            #     WNReluConv( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
-            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
-            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
-            #     WNReluConv( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
-            # )
-            # self.super_res=MetaSequential( 
-            #     WNGatedConvRelu( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
-            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
-            #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
-            #     WNGatedConvRelu( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
-            # )
+        # self.do_superres=do_superres
+        # if do_superres:
+        edsr_args=EDSR_args()
+        # edsr_args.n_in_channels=67
+        # edsr_args.n_in_channels=32*3
+        # edsr_args.n_in_channels=70
+        # edsr_args.n_in_channels=134
+        edsr_args.n_in_channels=64
+        edsr_args.n_out_channels=8
+        edsr_args.n_resblocks=4
+        edsr_args.n_feats=32
+        edsr_args.scale=4
+        # self.super_res=EDSR(edsr_args)
+        # self.super_res=SuperRes(edsr_args)
+        self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
+        # self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNGatedConvRelu)
+        # self.super_res=MetaSequential( 
+        #     WNReluConv( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
+        #     WNReluConv( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
+        # )
+        # self.super_res=MetaSequential( 
+        #     WNGatedConvRelu( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
+        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
+        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
+        #     WNGatedConvRelu( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
+        # )
 
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
 
@@ -5601,7 +5601,7 @@ class Net3_SRN(torch.nn.Module):
         # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
         # self.embedd_sd=BlockNerf(activ=None, init="sigmoid", in_channels=1, out_channels=32,  bias=True ).cuda()    
-        self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=False)
+        # self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=False)
         # self.rgb_refiner=UNet( nr_channels_start=64, nr_channels_output=3, nr_stages=3)
         # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
         # with torch.set_grad_enabled(False):
@@ -5628,7 +5628,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, pixels_indices, novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5661,11 +5661,11 @@ class Net3_SRN(torch.nn.Module):
         TIME_END("unet_everything")
 
         #select only the ray dirst for the selected pixels 
-        if pixels_indices is not None:
-            ray_dirs= torch.index_select(ray_dirs, 0, pixels_indices)
+        # if pixels_indices is not None:
+            # ray_dirs= torch.index_select(ray_dirs, 0, pixels_indices)
 
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl, raymarcher_loss = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, weights, pixels_indices, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl, raymarcher_loss = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, weights, novel)
         TIME_END("ray_march")
 
         # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
@@ -5867,127 +5867,124 @@ class Net3_SRN(torch.nn.Module):
 
 
         TIME_START("rgb_predict")
-        radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(frame, point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
+        # radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(frame, point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
         TIME_END("rgb_predict")
 
-        if pixels_indices==None:
-            rgb_pred=radiance_field_flattened[:, 0:3]
-            rgb_pred=rgb_pred.view(frame.height, frame.width,3)
-            rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
-            # rgb_pred=torch.tanh(rgb_pred) #similar to the differentiable neural rendering
+        # if pixels_indices==None:
+            # rgb_pred=radiance_field_flattened[:, 0:3]
+            # rgb_pred=rgb_pred.view(frame.height, frame.width,3)
+            # rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
+            # # rgb_pred=torch.tanh(rgb_pred) #similar to the differentiable neural rendering
 
-            mask_pred=mask_pred.view(frame.height, frame.width,1)
-            mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
+            # mask_pred=mask_pred.view(frame.height, frame.width,1)
+            # mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
 
             # #refine the prediction with some Unet so we have also some spatial context
-            if self.do_superres:
-                TIME_START("superres")
-                # last_features=last_features.view(frame.height, frame.width,-1)
-                # last_features=last_features.permute(2,0,1).unsqueeze(0)
-                # rgb_low_res=torch.cat([rgb_pred,last_features],1)
-                # print("rgb_low_res", rgb_low_res.shape)
+        TIME_START("superres")
+        # last_features=last_features.view(frame.height, frame.width,-1)
+        # last_features=last_features.permute(2,0,1).unsqueeze(0)
+        # rgb_low_res=torch.cat([rgb_pred,last_features],1)
+        # print("rgb_low_res", rgb_low_res.shape)
 
 
-                # #get the sliced_feat_batched_img which are N,C,H,W into 1, c*N, h,W
-                # #this is similar to the approach of andre
-                # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-                # input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
-                # # input_superres=torch.cat([input_superres, last_features, mask_pred],1)
-                # input_superres=torch.cat([input_superres, last_features],1)
-                # # mask_pred_thresh=mask_pred<0.3
-                # # input_superres.masked_fill_(mask_pred_thresh, 0.0)
-                # #multiply causes the gradients to explode for some reason
-                # input_superres=input_superres*mask_pred
-                # input_superres=torch.cat([input_superres,mask_pred],1)
+        # #get the sliced_feat_batched_img which are N,C,H,W into 1, c*N, h,W
+        # #this is similar to the approach of andre
+        # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
+        # input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
+        # # input_superres=torch.cat([input_superres, last_features, mask_pred],1)
+        # input_superres=torch.cat([input_superres, last_features],1)
+        # # mask_pred_thresh=mask_pred<0.3
+        # # input_superres.masked_fill_(mask_pred_thresh, 0.0)
+        # #multiply causes the gradients to explode for some reason
+        # input_superres=input_superres*mask_pred
+        # input_superres=torch.cat([input_superres,mask_pred],1)
 
-                # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-                full_res_height=rgb_close_fullres_batch.shape[2]
-                full_res_width=rgb_close_fullres_batch.shape[3]
-                input_superres = torch.nn.functional.interpolate(sliced_feat_batched_img_nonweighed,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
-                #slice also from the high res images and concat that too 
-                uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
-                uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-                uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-                uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-                sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-                mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
-                mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
-                mask_img=mask.view(3,1,frame.height,frame.width)
-                mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
-                # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)*mask_hr
-                # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
-                # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr, mask_hr ],1)
-                # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_hr ],1)
-                # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr ],1)
-                #make the slcied HR RGB features into 1, 3x3 , H,W 
-                # weight=weights.view(-1,1,1,1)
-                # mean = torch.sum(sliced_feat_HR*weight, dim=0, keepdim=True)
-                # var = torch.sum(weight * (sliced_feat_HR - mean)**2, dim=0, keepdim=True)
-                # sliced_feat_HR = torch.cat([mean,var],1)
+        # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+        full_res_height=rgb_close_fullres_batch.shape[2]
+        full_res_width=rgb_close_fullres_batch.shape[3]
+        input_superres = torch.nn.functional.interpolate(sliced_feat_batched_img_nonweighed,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        #slice also from the high res images and concat that too 
+        uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
+        mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
+        mask_img=mask.view(3,1,frame.height,frame.width)
+        mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
+        # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)*mask_hr
+        # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
+        # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr, mask_hr ],1)
+        # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_hr ],1)
+        # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr ],1)
+        #make the slcied HR RGB features into 1, 3x3 , H,W 
+        # weight=weights.view(-1,1,1,1)
+        # mean = torch.sum(sliced_feat_HR*weight, dim=0, keepdim=True)
+        # var = torch.sum(weight * (sliced_feat_HR - mean)**2, dim=0, keepdim=True)
+        # sliced_feat_HR = torch.cat([mean,var],1)
 
-                # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-                # input_superres=torch.cat([input_superres,sliced_feat_HR],1)
-                # input_superres= sliced_feat_HR
-                # print("input_superres",input_superres.shape)
-                input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
-                std= input_superres.std(dim=0, keepdim=True)
-                input_superres = input_superres*weights.view(-1,1,1,1)
-                # input_superres = torch.cat([ input_superres, mask_hr ],1)
-                input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
-                input_superres = torch.cat([ input_superres, std ],1)
+        # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+        # input_superres=torch.cat([input_superres,sliced_feat_HR],1)
+        # input_superres= sliced_feat_HR
+        # print("input_superres",input_superres.shape)
+        input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
+        std= input_superres.std(dim=0, keepdim=True)
+        input_superres = input_superres*weights.view(-1,1,1,1)
+        # input_superres = torch.cat([ input_superres, mask_hr ],1)
+        input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
+        input_superres = torch.cat([ input_superres, std ],1)
 
-                #just do aggregate here
-                # mean = torch.sum(input_superres*weights.view(-1,1,1,1), dim=0, keepdim=True)
-                # var = torch.sum(weights.view(-1,1,1,1) * (input_superres - mean)**2, dim=0, keepdim=True)
-                # input_superres = torch.cat([mean,var],1)
-
-
-                #raydirs 
-                # original_shape = xyz.shape[:2]
-                # xyz = xyz.reshape(-1, 3)
-                # train_poses = train_cameras[:, -16:].reshape(-1, 4, 4)  # [n_views, 4, 4]
-                # num_views = len(train_poses)
-                # query_pose = query_camera[-16:].reshape(-1, 4, 4).repeat(num_views, 1, 1)  # [n_views, 4, 4]
-                # ray2tar_pose = (query_pose[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
-                # ray2tar_pose /= (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
-                # ray2train_pose = (train_poses[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
-                # ray2train_pose /= (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
-                # ray_diff = ray2tar_pose - ray2train_pose
-                # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
-                # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
-                # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
-                # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1)
-                # ray_diff = ray_diff.reshape((num_views, ) + original_shape + (4, ))
+        #just do aggregate here
+        # mean = torch.sum(input_superres*weights.view(-1,1,1,1), dim=0, keepdim=True)
+        # var = torch.sum(weights.view(-1,1,1,1) * (input_superres - mean)**2, dim=0, keepdim=True)
+        # input_superres = torch.cat([mean,var],1)
 
 
-                #raydirs 
-                # query_pose = frame.camera_center.view(1,3)
-                # ray2tar_pose = query_pose - point3d
-                # ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
-                # nearby_centers_list = []
-                # for i in range(nr_nearby_frames):
-                #     nearby_centers_list.append( frames_close[i].camera_center.view(1,1,3) ) 
-                # nearby_centers = torch.cat(nearby_centers_list,0) #Nr_nearby frames, 1,3
-                # ray2train_pose=  nearby_centers -point3d.view(1,-1,3).repeat(nr_nearby_frames,1,1)
-                # ray2train_pose = ray2train_pose / (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
-                # ray_diff = ray2tar_pose - ray2train_pose
-                # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
-                # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
-                # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
-                # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1) # nr_frames, Nr_pixels, 4
-                # # print("raydiff",ray_diff.shape) 
-                # ray_diff_img = ray_diff.view(nr_nearby_frames, frame.height, frame.width, -1).permute(0,3,1,2)
-                # ray_diff_hr= torch.nn.functional.interpolate(ray_diff_img,size=(full_res_height, full_res_width ), mode='bilinear')
-                # ray_diff_hr_lin = ray_diff_hr.view(1,-1,full_res_height,full_res_width)
-                # input_superres = torch.cat([ input_superres, ray_diff_hr_lin ],1)
-
-                
+        #raydirs 
+        # original_shape = xyz.shape[:2]
+        # xyz = xyz.reshape(-1, 3)
+        # train_poses = train_cameras[:, -16:].reshape(-1, 4, 4)  # [n_views, 4, 4]
+        # num_views = len(train_poses)
+        # query_pose = query_camera[-16:].reshape(-1, 4, 4).repeat(num_views, 1, 1)  # [n_views, 4, 4]
+        # ray2tar_pose = (query_pose[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
+        # ray2tar_pose /= (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
+        # ray2train_pose = (train_poses[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
+        # ray2train_pose /= (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
+        # ray_diff = ray2tar_pose - ray2train_pose
+        # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
+        # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
+        # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
+        # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1)
+        # ray_diff = ray_diff.reshape((num_views, ) + original_shape + (4, ))
 
 
+        #raydirs 
+        # query_pose = frame.camera_center.view(1,3)
+        # ray2tar_pose = query_pose - point3d
+        # ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
+        # nearby_centers_list = []
+        # for i in range(nr_nearby_frames):
+        #     nearby_centers_list.append( frames_close[i].camera_center.view(1,1,3) ) 
+        # nearby_centers = torch.cat(nearby_centers_list,0) #Nr_nearby frames, 1,3
+        # ray2train_pose=  nearby_centers -point3d.view(1,-1,3).repeat(nr_nearby_frames,1,1)
+        # ray2train_pose = ray2train_pose / (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
+        # ray_diff = ray2tar_pose - ray2train_pose
+        # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
+        # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
+        # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
+        # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1) # nr_frames, Nr_pixels, 4
+        # # print("raydiff",ray_diff.shape) 
+        # ray_diff_img = ray_diff.view(nr_nearby_frames, frame.height, frame.width, -1).permute(0,3,1,2)
+        # ray_diff_hr= torch.nn.functional.interpolate(ray_diff_img,size=(full_res_height, full_res_width ), mode='bilinear')
+        # ray_diff_hr_lin = ray_diff_hr.view(1,-1,full_res_height,full_res_width)
+        # input_superres = torch.cat([ input_superres, ray_diff_hr_lin ],1)
 
-                rgb_refined=self.super_res(input_superres )
+        
 
 
+
+        rgb_pred=self.super_res(input_superres )
 
 
 
@@ -5996,81 +5993,81 @@ class Net3_SRN(torch.nn.Module):
 
 
 
-         
+
+
+    
 
 
 
 
-                # #like ibrnet, 
-                # mean_var=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-                # full_res_height=rgb_close_fullres_batch.shape[2]
-                # full_res_width=rgb_close_fullres_batch.shape[3]
-                # mean_var_upsampled = torch.nn.functional.interpolate(mean_var,size=(full_res_height, full_res_width ), mode='bilinear')
-                # mean_var_upsampled_batch=mean_var_upsampled.repeat(3,1,1,1)
-                # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
-                # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-                # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-                # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-                # sliced_feat_HR=torch.nn.functional.grid_sample( frames_features, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
-                # feat_mean_var= torch.cat([sliced_feat_HR, mean_var_upsampled_batch],1) # N,C,H,W
-                # #TODO concat also with the directions diff 
-                # mask=mask.view(3,1,frame.height,frame.width)
-                # mask_hr= torch.nn.functional.interpolate(mask,size=(full_res_height, full_res_width ), mode='bilinear')
-                # # print("mask_hr",mask_hr.shape)
-                # # print("feat_mean_var",feat_mean_var.shape)
-                # feat_mean_var = torch.cat([feat_mean_var,mask_hr ],1)
-                # weights_imgs= self.compute_blending_weights(feat_mean_var) # N,1,H,W
-                # weights_imgs = torch.sigmoid(weights_imgs)
-                # weights_imgs  = F.softmax(weights_imgs,dim=0)
-                # #weight the 
-                # sliced_RGB=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) 
-                # sliced_RGB_weighted=  sliced_RGB*weights_imgs
-                # rgb_refined= sliced_RGB_weighted.sum(dim=0, keepdim=True) #sum over the 3 images with the weights provided
+        # #like ibrnet, 
+        # mean_var=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # mean_var_upsampled = torch.nn.functional.interpolate(mean_var,size=(full_res_height, full_res_width ), mode='bilinear')
+        # mean_var_upsampled_batch=mean_var_upsampled.repeat(3,1,1,1)
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_feat_HR=torch.nn.functional.grid_sample( frames_features, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+        # feat_mean_var= torch.cat([sliced_feat_HR, mean_var_upsampled_batch],1) # N,C,H,W
+        # #TODO concat also with the directions diff 
+        # mask=mask.view(3,1,frame.height,frame.width)
+        # mask_hr= torch.nn.functional.interpolate(mask,size=(full_res_height, full_res_width ), mode='bilinear')
+        # # print("mask_hr",mask_hr.shape)
+        # # print("feat_mean_var",feat_mean_var.shape)
+        # feat_mean_var = torch.cat([feat_mean_var,mask_hr ],1)
+        # weights_imgs= self.compute_blending_weights(feat_mean_var) # N,1,H,W
+        # weights_imgs = torch.sigmoid(weights_imgs)
+        # weights_imgs  = F.softmax(weights_imgs,dim=0)
+        # #weight the 
+        # sliced_RGB=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) 
+        # sliced_RGB_weighted=  sliced_RGB*weights_imgs
+        # rgb_refined= sliced_RGB_weighted.sum(dim=0, keepdim=True) #sum over the 3 images with the weights provided
 
 
 
 
 
 
-                # #superrest the features and then concat with the HIghREs and then do like a line leayer
-                # full_res_height=rgb_close_fullres_batch.shape[2]
-                # full_res_width=rgb_close_fullres_batch.shape[3]
-                # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-                # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-                # rgb_refined=self.super_res(input_superres )
-                # #get the HR and slice from them 
-                # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
-                # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-                # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-                # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-                # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-                # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
-                # #make the slcied HR RGB features into 1, 3x3 , H,W 
-                # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-                # # print("rgb_refined", rgb_refined.shape)
-                # # print("sliced_feat_HR", sliced_feat_HR.shape)
-                # rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(full_res_height, full_res_width ), mode='bilinear')
-                # input_to_refine=torch.cat([rgb_refined, sliced_feat_HR],1)
-                # rgb_refined=self.refiner(input_to_refine )
+        # #superrest the features and then concat with the HIghREs and then do like a line leayer
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+        # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
+        # rgb_refined=self.super_res(input_superres )
+        # #get the HR and slice from them 
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
+        # #make the slcied HR RGB features into 1, 3x3 , H,W 
+        # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+        # # print("rgb_refined", rgb_refined.shape)
+        # # print("sliced_feat_HR", sliced_feat_HR.shape)
+        # rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(full_res_height, full_res_width ), mode='bilinear')
+        # input_to_refine=torch.cat([rgb_refined, sliced_feat_HR],1)
+        # rgb_refined=self.refiner(input_to_refine )
 
 
-                # rgb_refined=self.super_res(rgb_low_res )
+        # rgb_refined=self.super_res(rgb_low_res )
 
-                # print("rgb_refined",rgb_refined.shape)
-                # # rgb_refined=self.rgb_refiner(rgb_pred)
-                TIME_END("superres")
-            else:
-                rgb_refined=None
+        # print("rgb_refined",rgb_refined.shape)
+        # # rgb_refined=self.rgb_refiner(rgb_pred)
+        TIME_END("superres")
 
 
-            depth=depth.view(frame.height, frame.width,1)
-            depth=depth.permute(2,0,1).unsqueeze(0)
-        else:
-            rgb_pred=radiance_field_flattened[:, 0:3]
-            rgb_pred=rgb_pred.permute(1,0) #3 x nr_pixels
-            mask_pred=None
-            rgb_refined=None
-            depth=None
+        depth=depth.view(frame.height, frame.width,1)
+        depth=depth.permute(2,0,1).unsqueeze(0)
+        # else:
+        #     rgb_pred=radiance_field_flattened[:, 0:3]
+        #     rgb_pred=rgb_pred.permute(1,0) #3 x nr_pixels
+        #     mask_pred=None
+        #     rgb_refined=None
+        #     depth=None
 
 
 
@@ -6088,7 +6085,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, rgb_refined, depth, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d
+        return rgb_pred, depth, point3d
 
 
     #https://github.com/pytorch/pytorch/issues/2001
