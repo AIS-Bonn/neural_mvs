@@ -292,6 +292,9 @@ class FramePY():
         # rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
         # rgb_tensor=rgb_tensor*mask_tensor
 
+        #Ray direction in world coordinates
+        ray_dirs_mesh=self.frame.pixels2dirs_mesh()
+        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
  
         if not frame.is_shell:
             self.load_image_tensors()
@@ -340,12 +343,19 @@ class FramePY():
         #make a list of subsampled frames
         if create_subsamples and not frame.is_shell:
             self.subsampled_frames=[]
-            for i in range(3):
+            for i in range(5):
                 if i==0:
                     frame_subsampled=frame.subsample(2)
                 else:
                     frame_subsampled=frame_subsampled.subsample(2)
                 self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
+            #every subsampled frame should have also as subsampled frames the ones that don't include it
+            i=1
+            for frame_subsampled in self.subsampled_frames:
+                frame_subsampled.subsampled_frames = self.subsampled_frames[i:] #get the list without the n first elements
+                i+=1
+
+
 
     def create_frustum_mesh(self, scale):
         frame=Frame()
@@ -383,12 +393,17 @@ class FramePY():
 
         if self.create_subsamples and not self.frame.is_shell:
             self.subsampled_frames=[]
-            for i in range(2):
+            for i in range(5):
                 if i==0:
                     frame_subsampled=self.frame.subsample(2)
                 else:
                     frame_subsampled=frame_subsampled.subsample(2)
                 self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
+            #every subsampled frame should have also as subsampled frames the ones that don't include it
+            i=1
+            for frame_subsampled in self.subsampled_frames:
+                frame_subsampled.subsampled_frames = self.subsampled_frames[i:] #get the list without the n first elements
+                i+=1
 
     def load_image_tensors(self):
         if self.frame.mask.empty():
@@ -402,10 +417,6 @@ class FramePY():
         #CHECK that the frame width and hegiht has the same values as the rgb 
         if self.frame.height!=self.frame.rgb_32f.rows or  self.frame.width!=self.frame.rgb_32f.cols:
             print("frame dimensions and rgb32 doesnt match. frame.height", self.frame.height, " frame.rgb_32f.rows", self.frame.rgb_32f.rows, " frame.width ", self.frame.width, " frame.rgb_32f.cols ", self.frame.rgb_32f.cols)
-        #Ray direction in world coordinates
-        ray_dirs_mesh=self.frame.pixels2dirs_mesh()
-        # self.ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
-        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
         
         
 

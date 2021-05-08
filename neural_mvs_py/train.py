@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s8init"
+    experiment_name="s9hier"
 
 
     # use_ray_compression=False
