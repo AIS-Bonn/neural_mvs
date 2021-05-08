@@ -66,7 +66,29 @@ def compute_dataset_params(loader, frames):
 
     return params
 
-   
+
+def prepare_data(frame_full_res, frame, frames_close):
+    rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
+    rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
+    # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
+    ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+    rgb_close_batch_list=[]
+    for frame_close in frames_close:
+        rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+        rgb_close_batch_list.append(rgb_close_frame)
+    rgb_close_batch=torch.cat(rgb_close_batch_list,0)
+    #make also a batch fo directions
+    raydirs_close_batch_list=[]
+    for frame_close in frames_close:
+        ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
+        ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
+        ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        raydirs_close_batch_list.append(ray_dirs_close)
+    ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
+
+    return rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch
+
+
 
 def get_close_frames(loader, frame_py, all_frames_py_list, nr_frames_close, discard_same_idx):
     frames_close=loader.get_close_frames(frame_py.frame, nr_frames_close, discard_same_idx)

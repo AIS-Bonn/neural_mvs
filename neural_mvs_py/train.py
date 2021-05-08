@@ -232,23 +232,7 @@ def run():
 
 
                             #prepare rgb data and rest of things
-                            rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
-                            rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
-                            # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
-                            ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
-                            rgb_close_batch_list=[]
-                            for frame_close in frames_close:
-                                rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
-                                rgb_close_batch_list.append(rgb_close_frame)
-                            rgb_close_batch=torch.cat(rgb_close_batch_list,0)
-                            #make also a batch fo directions
-                            raydirs_close_batch_list=[]
-                            for frame_close in frames_close:
-                                ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
-                                ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
-                                ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                                raydirs_close_batch_list.append(ray_dirs_close)
-                            ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
+                            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch = prepare_data(frame_full_res, frame, frames_close)
 
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
                         # TIME_START("crop")
@@ -382,7 +366,7 @@ def run():
                                     #view gt
                                     Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
                               
-                                    Gui.show(tensor2mat(rgb_close_batch_list[0]),"rgbclose" )
+                                    Gui.show(tensor2mat(rgb_close_batch[0:1, :,:,:] ),"rgbclose" )
 
                                 
                                 #VIEW 3d points   at the end of the ray march
