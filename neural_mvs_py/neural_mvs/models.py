@@ -4026,57 +4026,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
         num_encodings=8
         self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
         # self.learned_pe=TorchScriptTraceWrapper( LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True) )
-        # cur_nr_channels = in_channels + 3*num_encodings*2
 
         #model 
         self.lstm_hidden_size = 16
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
-        # self.out_layer = torch.nn.Linear(self.lstm_hidden_size, 1)
         self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
-        # self.feature_computer= VolumetricFeature(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
-        # self.feature_computer= VolumetricFeatureSiren(in_channels=3, out_channels=64, nr_layers=2, hidden_size=64, use_dirs=False) 
-        # self.frame_weights_computer= FrameWeightComputer()
-        self.feature_aggregator=  FeatureAgregator() 
-        # self.feature_aggregator=  FeatureAgregatorLinear() 
-        # self.feature_aggregator=  FeatureAgregatorInvariant()  #loss is lower than FeatureAgregatorLinear but the normal map looks worse and more noisy
-        # self.feature_aggregator=  FeatureAgregatorIBRNet() 
-        self.feature_aggregator_traced=None
-        self.slice_texture= SliceTextureModule()
-        self.splat_texture= SplatTextureModule()
-  
-        self.feature_fuser = torch.nn.Sequential(
-            BlockNerf(activ=torch.nn.GELU(), in_channels=3+3*num_encodings*2 + 32, out_channels=32,  bias=True ).cuda(),
-            # BlockNerf(activ=torch.nn.GELU(), in_channels=64, out_channels=64,  bias=True ).cuda(),
-            # BlockNerf(activ=None, in_channels=64, out_channels=64,  bias=True ).cuda(),
-        )
-
-        # ////////////
-        # self.feature_fuser_reducer=WNReluConv(in_channels=3+3*num_encodings*2  +64 +6, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
-        # self.feature_fuser = torch.nn.Sequential(
-        #     WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
-        #     WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
-        # )
-
-        # # withpac
-        # self.feature_fuser_reducer=BlockPAC(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
-        # self.feature_fuser = BlockPAC(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
-
-        # #with gated conv 
-        # self.feature_fuser_reducer=WNGatedConvRelu(in_channels=3+3*num_encodings*2  +64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
-        # self.feature_fuser = torch.nn.Sequential(
-        #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False ),
-        #     WNGatedConvRelu(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
-        # )
-
-        #just some pacs 
-        # self.pac1 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False )
-        # self.pac2 = BlockPAC(in_channels=64 +6, out_channels=64 +6, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=torch.nn.GELU(), is_first_layer=False )
-
+        
         self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
-
-
-        self.concat_coord=ConcatCoord()
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -4103,24 +4060,6 @@ class DifferentiableRayMarcher(torch.nn.Module):
         # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
         # depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
 
-        #Select only certain pixels fro the image
-        # if pixels_indices is not None:
-            # depth_per_pixel = torch.index_select(depth_per_pixel, 0, pixels_indices)
-
-        # #create the tensor if it's necesary #BUG FOR SOME REASON this makes the loss converge slower or not at all. so something is bugged here 
-        # if self.depth_per_pixel_train is None and not novel:
-        #     self.depth_per_pixel_train = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
-        # if self.depth_per_pixel_test is None and novel:
-        #     self.depth_per_pixel_test= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        #     self.depth_per_pixel_test.fill_(depth_min/2.0)   #randomize the deptha  bith
-        # #set the depth per pixel to whichever tensor we need 
-        # if novel:
-        #     depth_per_pixel=self.depth_per_pixel_test.detach()
-        # else:
-        #     depth_per_pixel=self.depth_per_pixel_train.detach().normal_(mean=depth_min, std=2e-2)
-
-
-        # depth_per_pixel.fill_(0.5)   #randomize the deptha  bith
 
         nr_nearby_frames=len(frames_close)
         R_list=[]
@@ -4139,10 +4078,6 @@ class DifferentiableRayMarcher(torch.nn.Module):
         width=frames_close[0].width
 
 
-        #Ray direction in world coordinates
-        # ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
-
-
         #attempt 2 unproject to 3D 
         camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3,1,1)
@@ -4156,10 +4091,6 @@ class DifferentiableRayMarcher(torch.nn.Module):
         signed_distances_for_marchlvl=[]
         states = [None]
 
-        # weights=self.frame_weights_computer(frame, frames_close)
-
-        #new loss that makes the std for the last iter and the other iter to be high
-        new_loss=0.0
 
         # print("")
         for iter_nr in range(self.nr_iters):
@@ -4167,11 +4098,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
             TIME_START("raymarch_iter")
         
             #compute the features at this position 
-            # feat=self.feature_computer(points3D, ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
-            # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             TIME_START("raymarch_pe")
             #using positional encoding is beneficial weather you are generalizing or overfitting. In the case of overfitting it makes the geoemtry sharper because we have more frequency to work with and in the case of generaliation it manages to get structures in the dataseet like the fact that the floor in DTU is always eithr white or brown and it doesnt need to infer this from just RGB features which can be noisy or can have problems when we have occlusion
-            # print("world_coords[-1]", world_coords[-1].shape)
             pos_encoded_linear=self.learned_pe(  nchw2lin(world_coords[-1]) ) 
             pos_encoded=lin2nchw(pos_encoded_linear, frame.height, frame.width).contiguous()
             TIME_END("raymarch_pe")
@@ -4183,140 +4111,23 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
 
             # slice with grid_sample
-            # TIME_START("raymarch_slice")
-            # uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear", padding_mode="zeros" ) #sliced features is N,C,H,W
-            # print("sliced_feat_batched", sliced_feat_batched.shape)
-            # sliced_feat_batched_img=sliced_feat_batched
-            # feat_dim=sliced_feat_batched.shape[1]
-            # sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
-            # sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it nr_frames x nr_pixels x FEATDIM
-            # TIME_END("raymarch_slice")
-           
+         
             
             #attempt 2 
-            # TIME_START("raymarch_aggr")
-            # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images. ACTUALLY, weigthing or not weighting doesnt make much of a difference and therefore we leave the weighting because it allows for way smoother interpolation to novel views
             # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
             mean=sliced_feat_batched.mean(dim=0, keepdim=True)
             std=sliced_feat_batched.std(dim=0,keepdim=True)
             img_features_aggregated=torch.cat([mean,std],1)
-            # print("img_features_aggregated", img_features_aggregated.shape)
-            #IBRNET
-            # mask = mask / (torch.sum(mask, dim=0, keepdim=True) + 1e-8)
-            # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))
-            # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, mask, use_mask=False, novel=novel) 
-            # TIME_END("raymarch_aggr")
             TIME_END("rm_get_and_aggr")
-
-            # #get std for each lvl 
-            # std=sliced_feat_batched.std(dim=0).mean()
-            # # print("std for lvl ", iter_nr, " std is ", std.item())
-            # # new loss that makes the std for the last iter and the other iter to be high
-            # if iter_nr == self.nr_iters-1: #last iter
-            #     new_loss+=std
-            # if iter_nr == self.nr_iters-2:
-            #     new_loss-=torch.clamp(std, 0.0, 1.0)
-
-
-                      
-            # TIME_START("raymarch_fuse")
-            # # with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            # feat=torch.cat([feat,img_features_aggregated],1)
-            # feat=self.feature_fuser(feat)
-            # # print(prof)
-            # TIME_END("raymarch_fuse")
-
-            # #just the img features with not positinal encogin
-            # TIME_START("raymarch_fuse")
-            # feat= img_features_aggregated
-            # feat=self.feature_fuser(feat)
-            # TIME_END("raymarch_fuse")
-            
-            
-            
-
-            
-            # TIME_START("raymarch_fuse")
-            # # with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            # feat=torch.cat([feat,img_features_aggregated],1)
-            # #make the featues into an image
-            # feat_nr=feat.shape[1]
-            # feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # feat=self.feature_fuser(feat)
-            # feat_nr=feat.shape[1]
-            # #make it agian into linear
-            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # # print(prof)
-            # TIME_END("raymarch_fuse")
-
-
-            # #attempt 2 to fuse 
-            # TIME_START("raymarch_fuse")
-            # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-            # feat_imgs= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
-            # feat_nr=feat.shape[1]
-            # feat=feat.view(1,frame.height, frame.width, feat_nr).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # feat=torch.cat([feat,feat_imgs],1)
-            # feat=self.feature_fuser_reducer(feat)
-            # # identity=feat
-            # feat=self.feature_fuser(feat)
-            # # feat+=identity # this is not a good idea because the activations keep increasing and since this parts is an rnn the gradient keep exploding
-            # feat_nr=feat.shape[1]
-            # #make it agian into linear
-            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # TIME_END("raymarch_fuse")
-
-            # fuse not by concating but jsut with mean and std and position works better than concating the fatures directly, this happens both for the marcher and the rgb
-            # attempt 2 to fuse ----------------------------------------------------------------------
-            # TIME_START("raymarch_fuse")
-            # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-            # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # mean=mean.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # std=std.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # feat=torch.cat([feat,img_features_aggregated],1)
-            # feat=self.feature_fuser_reducer(feat)
-            # # identity=feat
-            # feat=self.feature_fuser(feat)
-            # # feat+=identity # this is not a good idea because the activations keep increasing and since this parts is an rnn the gradient keep exploding
-            # feat_nr=feat.shape[1]
-            # #make it agian into linear
-            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # TIME_END("raymarch_fuse")
-
-
-            # #pac conv the img featues and than concat with position and then some 1x1 convs 
-            # TIME_START("raymarch_fuse")
-            # # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-            # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # img_features_aggregated=self.pac1(img_features_aggregated,img_features_aggregated)
-            # img_features_aggregated=self.pac2(img_features_aggregated,img_features_aggregated)
-            # feat=torch.cat([feat,img_features_aggregated],1)
-            # #make it agian into linear
-            # feat_nr=feat.shape[1]
-            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # feat=self.feature_fuser(feat)
-            # TIME_END("raymarch_fuse")
-
 
             #conv the img featues and than concat with position and then some 1x1 convs 
             TIME_START("raymarch_fuse")
-            # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-            # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            # pos_encoded_img= pos_encoded.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
             img_features_aggregated=torch.cat([pos_encoded,img_features_aggregated],1)
             img_features_aggregated=self.conv1(img_features_aggregated)
             img_features_aggregated=self.conv2(img_features_aggregated)
             img_features_aggregated=torch.relu(img_features_aggregated)
             feat=img_features_aggregated
-            #make it agian into linear
-            # feat_nr=feat.shape[1]
-            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
-            # feat=torch.cat([feat,pos_encoded],1)
-            # feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
             
             
@@ -4346,12 +4157,6 @@ class DifferentiableRayMarcher(torch.nn.Module):
             signed_distance = lin2nchw(signed_distance, frame.height, frame.width)
             # signed_distance= self.out_layer(state)
             TIME_END("raymarch_lstm")
-            # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
-            # signed_distance=torch.abs(signed_distance) #the distance only increases
-            #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
-            # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
-            # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
-            # print("sined dist min for iter i", iter_nr, " ", signed_distance.min().item(), " max ", signed_distance.max().item() )
             depth_scaling=1.0/(1.0*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
             signed_distance=signed_distance*depth_scaling
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
@@ -4362,17 +4167,15 @@ class DifferentiableRayMarcher(torch.nn.Module):
             world_coords.append(new_world_coords)
             signed_distances_for_marchlvl.append(signed_distance)
 
-            # if iter_nr==self.nr_iters-1:
-                # show_3D_points(new_world_coords, "points_3d_"+str(iter_nr))
             TIME_END("raymarch_iter")
 
         #get the depth at this final 3d position
         depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
         #return also the world coords at every march
-        world_coords.pop(0)
+        # world_coords.pop(0)
 
-        return new_world_coords, depth, world_coords, signed_distances_for_marchlvl, new_loss
+        return new_world_coords, depth 
 
 
 class DifferentiableRayMarcherHierarchical(torch.nn.Module):
@@ -5600,18 +5403,6 @@ class Net3_SRN(torch.nn.Module):
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
 
         self.ray_marcher=DifferentiableRayMarcher()
-        # self.ray_marcher=DifferentiableRayMarcherHierarchical()
-        # self.ray_marcher=DifferentiableRayMarcherMasked()
-        # self.rgb_predictor = NERF_original(in_channels=3, out_channels=4, use_ray_dirs=True)
-        # self.rgb_predictor = SIREN_original(in_channels=3, out_channels=4, use_ray_dirs=True)
-        # self.embedd_sd=BlockNerf(activ=None, init="sigmoid", in_channels=1, out_channels=32,  bias=True ).cuda()    
-        # self.rgb_predictor = RGB_predictor_simple(in_channels=3, out_channels=4, use_ray_dirs=False)
-        # self.rgb_refiner=UNet( nr_channels_start=64, nr_channels_output=3, nr_stages=3)
-        # self.s_weight = torch.nn.Parameter(torch.randn(1))  #from equaiton 3 here https://arxiv.org/pdf/2010.08888.pdf
-        # with torch.set_grad_enabled(False):
-            # self.s_weight.fill_(0.5)
-            # self.s_weight.fill_(10.0)
-        # self.frame_weights_computer= FrameWeightComputer()
         self.feature_aggregator= FeatureAgregator()
         # self.feature_aggregator= FeatureAgregatorLinear()
         # self.feature_aggregator= FeatureAgregatorIBRNet()
@@ -5634,116 +5425,24 @@ class Net3_SRN(torch.nn.Module):
       
     def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=False):
 
-        TIME_START("unet_everything")
-        # frames_features=[]
-        # for frame_close in frames_close:
-        #     rgb_gt=frame_close.rgb_tensor
-        #     frame_features=self.unet(rgb_gt)
-        #     frames_features.append(frame_features)
-
-        # rgb_batch_list=[]
-        # for frame_close in frames_close:
-        #     rgb_gt=mat2tensor(frame_close.rgb_32f, False).to("cuda")
-        #     rgb_batch_list.append(rgb_gt)
-        # rgb_batch=torch.cat(rgb_batch_list,0)
+       
         #pass through unet 
         TIME_START("unet")
-        # with  torch.autograd.profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True, with_stack=True,) as prof:
-        # exit(1)
-        # unet_input=torch.cat([rgb_close_batch, ray_dirs_close_batch],1)
-        # frames_features=self.unet( unet_input )
         frames_features=self.unet( rgb_close_batch )
         frames_features=torch.cat([frames_features,rgb_close_batch],1)
-        # exit(1)
-        # print(prof.table(sort_by="cuda_memory_usage", row_limit=20) )
-        # print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=20))
+        
 
         TIME_END("unet")
-        frames_features_list=[]
-        for i in range(len(frames_close)):
-            frames_features_list.append(frames_features[i:i+1, :,:,:])
-        TIME_END("unet_everything")
-
-        #select only the ray dirst for the selected pixels 
-        # if pixels_indices is not None:
-            # ray_dirs= torch.index_select(ray_dirs, 0, pixels_indices)
-
+       
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl, raymarcher_loss = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, weights, novel)
+        point3d, depth  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, weights, novel)
         TIME_END("ray_march")
 
-        # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))
-        # print("len signed_distances_for_marchlvl", len(signed_distances_for_marchlvl))
-
-
-        # ray_dirs_mesh=frame.pixels2dirs_mesh()
-        # ray_dirs=torch.from_numpy(ray_dirs_mesh.V.copy()).to("cuda").float() #Nx3
-        # ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
-
-
-        # ###predict RGB for every march lvl of the lstm 
-        # rgb_pred_for_marchlvl=[]
-        # TIME_START("rgb_pred_allmarch")
-        # for i in range(len(points3d_for_marchlvl)):
-        #     points3d_for_lvl= points3d_for_marchlvl[i]
-        #     #concat also the features from images 
-        #     feat_sliced_per_frame=[]
-        #     for i in range(len(frames_close)):
-        #         frame_close=frames_close[i].frame
-        #         frame_features=frames_features[i]
-        #         uv=compute_uv(frame_close, points3d_for_lvl )
-        #         frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
-        #         dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-        #         feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
-            
-        #     ##attempt 4 
-        #     weights=self.frame_weights_computer(frame, frames_close)
-        #     img_features_aggregated= self.feature_aggregator(frame, frames_close, feat_sliced_per_frame, weights)
-            
-        #     rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
-        #     rgb_pred_for_marchlvl.append(rgb_pred) 
-        # TIME_END("rgb_pred_allmarch")
-
-
-
-
-
-
-
-
-
-        #concat also the features from images 
-        # feat_sliced_per_frame=[]
-        # for i in range(len(frames_close)):
-        #     frame_close=frames_close[i]
-        #     frame_features=frames_features_list[i]
-        #     uv=compute_uv(frame_close, point3d )
-        #     frame_features_for_slicing= frame_features.permute(0,2,3,1).squeeze().contiguous() # from N,C,H,W to H,W,C
-        #     dummy, dummy, sliced_local_features= self.slice_texture(frame_features_for_slicing, uv)
-        #     feat_sliced_per_frame.append(sliced_local_features.unsqueeze(0)) #make it 1 x N x FEATDIM
-        # feat_sliced_per_frame=torch.cat(feat_sliced_per_frame,0)
+      
 
         #rgb gets other features than the ray marcher 
-        # frames_features_rgb=self.unet_rgb(rgb_close_batch)
         frames_features_rgb=frames_features
-        # unet fuse with normal dirs
-        # frames_features_rgb=torch.cat([frames_features,ray_dirs_close_batch],1)
-        # frames_features_rgb=self.unet_rgb(frames_features_rgb)
-
-        # # 1x1 fuse with position encoded dirs
-        # ray_dirs_close_batch=ray_dirs_close_batch.permute(0,2,3,1).view(-1,3)
-        # ray_dirs_close_batch_encoded=self.learned_pe_dirs(ray_dirs_close_batch)
-        # # ray_dirs_close_batch_encoded=ray_dirs_close_batch_encoded.view(3,frame.height,frame.width,-1).permute(0,3,1,2)
-        # #linearize also the frame_features
-        # f=frames_features.shape[1]
-        # frames_features=frames_features.permute(0,2,3,1).contiguous().view(-1,f)
-        # # frames_features_rgb=torch.cat([frames_features,ray_dirs_close_batch_encoded],1)
-        # frames_features_rgb=frames_features
-        # frames_features_rgb=self.fuse_with_dirs(frames_features_rgb)
-        # #to img
-        # frames_features_rgb = frames_features_rgb.view(3,frame.height,frame.width,-1).permute(0,3,1,2)
-        # frames_features_rgb=torch.cat([frames_features_rgb, rgb_close_batch],1)
-
+   
 
 
         nr_nearby_frames=len(frames_close)
@@ -5765,79 +5464,53 @@ class Net3_SRN(torch.nn.Module):
 
         # uv_tensor=compute_uv_batched_original(frames_close, point3d )
         uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
-        # slice with grid_sample
-        uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1,  2) #nrnearby_frames x nr_pixels x 1 x 2
         sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        sliced_feat_batched_img=sliced_feat_batched
-        feat_dim=sliced_feat_batched.shape[1]
-        sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
-        sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it 1 x N x FEATDIM
           
 
-        mesh=Mesh()
-        mesh.V= point3d.detach().double().reshape((-1, 3)).cpu().numpy()
-        mask_depth_list=[]
-        for i in range(nr_nearby_frames):
-            depth_test_eigen = neural_mvs.depth_test(mesh, frames_close[i].tf_cam_world.to_double(), frames_close[i].K.astype(np.double)  )
-            depth_test=torch.from_numpy(depth_test_eigen).float() 
-            mask_depth_list.append(depth_test.unsqueeze(0).cuda())
-            depth_test_img=depth_test.view(1,frame.height, frame.width, 1).permute(0,3,1,2)
-        Gui.show(tensor2mat(depth_test_img), "depth_test_tensor")
-        mask_depth=torch.cat(mask_depth_list,0) #nr_Frames, nr points,1
-        # print("mask_depth",mask_depth.shape)
-        # print("mask",mask.shape)
-        mask= mask*mask_depth
-        mask_without_normalization=mask
+        ##########################compute masks
+        # mesh=Mesh()
+        # mesh.V= point3d.detach().double().reshape((-1, 3)).cpu().numpy()
+        # mask_depth_list=[]
+        # for i in range(nr_nearby_frames):
+        #     depth_test_eigen = neural_mvs.depth_test(mesh, frames_close[i].tf_cam_world.to_double(), frames_close[i].K.astype(np.double)  )
+        #     depth_test=torch.from_numpy(depth_test_eigen).float() 
+        #     mask_depth_list.append(depth_test.unsqueeze(0).cuda())
+        #     depth_test_img=depth_test.view(1,frame.height, frame.width, 1).permute(0,3,1,2)
+        # Gui.show(tensor2mat(depth_test_img), "depth_test_tensor")
+        # mask_depth=torch.cat(mask_depth_list,0) #nr_Frames, nr points,1
+        # # print("mask_depth",mask_depth.shape)
+        # # print("mask",mask.shape)
+        # mask= mask*mask_depth
+        # mask_without_normalization=mask
+        # ##attempt 4 
+        # # weights=self.frame_weights_computer(frame, frames_close)
+        # # img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
+        # #debug mask
+        # mask_sum =  torch.sum(mask, dim=0, keepdim=True)
+        # # print("mask sum ", mask_sum.shape)
+        # mask = mask / ( mask_sum + 1e-8) #shape is nr_close_frames, nr_pixels, 3
+        # # mask[mask_sum.repeat(3,1,1)==0] = 1.0/nr_nearby_frames
+        # mask_0=mask[0:1,:]
+        # mask_0=mask_0.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
+        # Gui.show(tensor2mat(mask_0), "mask_0")
+        # mask_1=mask[1:2,:]
+        # mask_1=mask_1.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
+        # Gui.show(tensor2mat(mask_1), "mask_1")
+        # mask_2=mask[2:3,:]
+        # mask_2=mask_2.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
+        # Gui.show(tensor2mat(mask_2), "mask_2")
 
-        ##attempt 4 
-        # weights=self.frame_weights_computer(frame, frames_close)
-        # img_features_aggregated= self.feature_aggregator(frame, frames_close, sliced_feat_batched, weights)
-        #debug mask
-        mask_sum =  torch.sum(mask, dim=0, keepdim=True)
-        # print("mask sum ", mask_sum.shape)
-        mask = mask / ( mask_sum + 1e-8) #shape is nr_close_frames, nr_pixels, 3
-        # mask[mask_sum.repeat(3,1,1)==0] = 1.0/nr_nearby_frames
-        mask_0=mask[0:1,:]
-        mask_0=mask_0.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
-        Gui.show(tensor2mat(mask_0), "mask_0")
-        mask_1=mask[1:2,:]
-        mask_1=mask_1.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
-        Gui.show(tensor2mat(mask_1), "mask_1")
-        mask_2=mask[2:3,:]
-        mask_2=mask_2.view(1,1,frame.height,frame.width).repeat(1,3,1,1).contiguous().float()
-        Gui.show(tensor2mat(mask_2), "mask_2")
 
-        # print("mask min max is ", mask.min(), " ", mask.max())
-        # img_features_aggregated= self.feature_aggregator( sliced_feat_batched, weights, mask, use_mask=False, novel=False)
-        # std= img_features_aggregated[:, -16]
-        #make it linear 
-        sliced_feat_batched_img=sliced_feat_batched.view(nr_nearby_frames,frame.height, frame.width, -1 ).permute(0,3,1,2) #nr_frames_close, C, H,W,
+
+
+
+        sliced_feat_batched_img = sliced_feat_batched
         sliced_feat_batched_img_nonweighed = sliced_feat_batched_img
-        sliced_feat_batched_img=sliced_feat_batched_img*weights.view(-1,1,1,1)
-        img_features_aggregated = sliced_feat_batched_img.view(1, -1, frame.height, frame.width)
-        f=img_features_aggregated.shape[1]
-        img_features_aggregated = img_features_aggregated.permute(0,2,3,1).view(-1,f) #get them back to linear of NxC
             
 
         std=None
 
 
-        #show the PCAd features that we aggregated
-        # img_features=img_features_aggregated.view(1, frame.height, frame.width, -1).permute(0,3,1,2)
-        # height=img_features.shape[2]
-        # width=img_features.shape[3]
-        # img_features_for_pca=img_features.squeeze(0).permute(1,2,0).contiguous()
-        # img_features_for_pca=img_features_for_pca.view(height*width, -1)
-        # pca=PCA.apply(img_features_for_pca)
-        # pca=pca.view(height, width, 3)
-        # pca=pca.permute(2,0,1).unsqueeze(0)
-        # pca_mat=tensor2mat(pca)
-        # Gui.show(pca_mat, "pca_mat")
-
-        # show the frames and with a line weight depending on the weight
-        # if novel:
-            # print("weights is ", weights)
-        # if novel:
         for i in range(len(frames_close)):
             frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
             frustum_mesh.m_vis.m_line_width= (weights[i])*15
@@ -5846,64 +5519,9 @@ class Net3_SRN(torch.nn.Module):
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
         
 
-        #concat also the signed distnace at the last iteration of the lstm 
-        #BAD IDEA, concatting the signed distance allows the network to predict weird wobbly depth that still gets mapped to a correct color. The distance left should not be a feature that hte network can use since this is a feature that actually comes from the lstm which is kinda like an aggregation of all the features along the ray. However the RGB predictor should only be allowed to use the feature at the current position because this forces the position to be correct so that the sliced features from the images are as good as possible for predicting color
-        # signed_dist=signed_distances_for_marchlvl[ -1 ]
-        # signed_dist_embedded=self.embedd_sd(signed_dist)
-        # img_features_aggregated=torch.cat([img_features_aggregated, signed_dist_embedded],1)
-
-        # #concat also the nromals  THEY ACTUALLY hur the perfomance because the normals are way to noisy, espetially at the beggining
-        # points3D_img=point3d.view(1, frame.height, frame.width, 3)
-        # points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-        # normal_img=compute_normal(points3D_img)
-        # normal=normal_img.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
-        # normal=normal.view(-1,3)
-        # img_features_aggregated=torch.cat([img_features_aggregated, normal],1)
-
-
-        #try to just concat the features from the images instead of aggregating them but it gives worse results
-        # img_features_aggregated=sliced_feat_batched_img*weights.view(3,1,1,1)
-        # img_features_aggregated= img_features_aggregated.view(1,-1, frame.height, frame.width)
-        # feat_nr=img_features_aggregated.shape[1]
-        # img_features_aggregated=img_features_aggregated.permute(0,2,3,1).view(-1,feat_nr)
-
-
-
-
-        TIME_START("rgb_predict")
-        # radiance_field_flattened, last_features, mask_pred = self.rgb_predictor(frame, point3d, ray_dirs, point_features=img_features_aggregated, nr_points_per_ray=1, params=None  ) #radiance field has shape height,width, nr_samples,4
-        TIME_END("rgb_predict")
-
-        # if pixels_indices==None:
-            # rgb_pred=radiance_field_flattened[:, 0:3]
-            # rgb_pred=rgb_pred.view(frame.height, frame.width,3)
-            # rgb_pred=rgb_pred.permute(2,0,1).unsqueeze(0)
-            # # rgb_pred=torch.tanh(rgb_pred) #similar to the differentiable neural rendering
-
-            # mask_pred=mask_pred.view(frame.height, frame.width,1)
-            # mask_pred=mask_pred.permute(2,0,1).unsqueeze(0)
-
-            # #refine the prediction with some Unet so we have also some spatial context
+   
         TIME_START("superres")
-        # last_features=last_features.view(frame.height, frame.width,-1)
-        # last_features=last_features.permute(2,0,1).unsqueeze(0)
-        # rgb_low_res=torch.cat([rgb_pred,last_features],1)
-        # print("rgb_low_res", rgb_low_res.shape)
 
-
-        # #get the sliced_feat_batched_img which are N,C,H,W into 1, c*N, h,W
-        # #this is similar to the approach of andre
-        # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
-        # input_superres= sliced_feat_batched_img.view(1,-1, frame.height, frame.width)
-        # # input_superres=torch.cat([input_superres, last_features, mask_pred],1)
-        # input_superres=torch.cat([input_superres, last_features],1)
-        # # mask_pred_thresh=mask_pred<0.3
-        # # input_superres.masked_fill_(mask_pred_thresh, 0.0)
-        # #multiply causes the gradients to explode for some reason
-        # input_superres=input_superres*mask_pred
-        # input_superres=torch.cat([input_superres,mask_pred],1)
-
-        # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
         full_res_height=rgb_close_fullres_batch.shape[2]
         full_res_width=rgb_close_fullres_batch.shape[3]
         input_superres = torch.nn.functional.interpolate(sliced_feat_batched_img_nonweighed,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
@@ -5913,25 +5531,12 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
         uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
         sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
-        mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
-        mask_img=mask.view(3,1,frame.height,frame.width)
-        mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
-        # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)*mask_hr
-        # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
-        # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr, mask_hr ],1)
-        # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_hr ],1)
-        # sliced_feat_HR=torch.cat([sliced_feat_HR, mask_without_norm_hr ],1)
-        #make the slcied HR RGB features into 1, 3x3 , H,W 
-        # weight=weights.view(-1,1,1,1)
-        # mean = torch.sum(sliced_feat_HR*weight, dim=0, keepdim=True)
-        # var = torch.sum(weight * (sliced_feat_HR - mean)**2, dim=0, keepdim=True)
-        # sliced_feat_HR = torch.cat([mean,var],1)
-
-        # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-        # input_superres=torch.cat([input_superres,sliced_feat_HR],1)
-        # input_superres= sliced_feat_HR
-        # print("input_superres",input_superres.shape)
+        # mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
+        # mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
+        # mask_img=mask.view(3,1,frame.height,frame.width)
+        # mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
+       
+     
         input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
         std= input_superres.std(dim=0, keepdim=True)
         input_superres = input_superres*weights.view(-1,1,1,1)
@@ -5939,140 +5544,14 @@ class Net3_SRN(torch.nn.Module):
         input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
         input_superres = torch.cat([ input_superres, std ],1)
 
-        #just do aggregate here
-        # mean = torch.sum(input_superres*weights.view(-1,1,1,1), dim=0, keepdim=True)
-        # var = torch.sum(weights.view(-1,1,1,1) * (input_superres - mean)**2, dim=0, keepdim=True)
-        # input_superres = torch.cat([mean,var],1)
-
-
-        #raydirs 
-        # original_shape = xyz.shape[:2]
-        # xyz = xyz.reshape(-1, 3)
-        # train_poses = train_cameras[:, -16:].reshape(-1, 4, 4)  # [n_views, 4, 4]
-        # num_views = len(train_poses)
-        # query_pose = query_camera[-16:].reshape(-1, 4, 4).repeat(num_views, 1, 1)  # [n_views, 4, 4]
-        # ray2tar_pose = (query_pose[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
-        # ray2tar_pose /= (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
-        # ray2train_pose = (train_poses[:, :3, 3].unsqueeze(1) - xyz.unsqueeze(0))
-        # ray2train_pose /= (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
-        # ray_diff = ray2tar_pose - ray2train_pose
-        # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
-        # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
-        # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
-        # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1)
-        # ray_diff = ray_diff.reshape((num_views, ) + original_shape + (4, ))
-
-
-        #raydirs 
-        # query_pose = frame.camera_center.view(1,3)
-        # ray2tar_pose = query_pose - point3d
-        # ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
-        # nearby_centers_list = []
-        # for i in range(nr_nearby_frames):
-        #     nearby_centers_list.append( frames_close[i].camera_center.view(1,1,3) ) 
-        # nearby_centers = torch.cat(nearby_centers_list,0) #Nr_nearby frames, 1,3
-        # ray2train_pose=  nearby_centers -point3d.view(1,-1,3).repeat(nr_nearby_frames,1,1)
-        # ray2train_pose = ray2train_pose / (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
-        # ray_diff = ray2tar_pose - ray2train_pose
-        # ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
-        # ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
-        # ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
-        # ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1) # nr_frames, Nr_pixels, 4
-        # # print("raydiff",ray_diff.shape) 
-        # ray_diff_img = ray_diff.view(nr_nearby_frames, frame.height, frame.width, -1).permute(0,3,1,2)
-        # ray_diff_hr= torch.nn.functional.interpolate(ray_diff_img,size=(full_res_height, full_res_width ), mode='bilinear')
-        # ray_diff_hr_lin = ray_diff_hr.view(1,-1,full_res_height,full_res_width)
-        # input_superres = torch.cat([ input_superres, ray_diff_hr_lin ],1)
-
-        
-
-
-
         rgb_pred=self.super_res(input_superres )
 
 
-
-
-
-
-
-
-
-
-    
-
-
-
-
-        # #like ibrnet, 
-        # mean_var=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-        # full_res_height=rgb_close_fullres_batch.shape[2]
-        # full_res_width=rgb_close_fullres_batch.shape[3]
-        # mean_var_upsampled = torch.nn.functional.interpolate(mean_var,size=(full_res_height, full_res_width ), mode='bilinear')
-        # mean_var_upsampled_batch=mean_var_upsampled.repeat(3,1,1,1)
-        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
-        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        # sliced_feat_HR=torch.nn.functional.grid_sample( frames_features, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
-        # feat_mean_var= torch.cat([sliced_feat_HR, mean_var_upsampled_batch],1) # N,C,H,W
-        # #TODO concat also with the directions diff 
-        # mask=mask.view(3,1,frame.height,frame.width)
-        # mask_hr= torch.nn.functional.interpolate(mask,size=(full_res_height, full_res_width ), mode='bilinear')
-        # # print("mask_hr",mask_hr.shape)
-        # # print("feat_mean_var",feat_mean_var.shape)
-        # feat_mean_var = torch.cat([feat_mean_var,mask_hr ],1)
-        # weights_imgs= self.compute_blending_weights(feat_mean_var) # N,1,H,W
-        # weights_imgs = torch.sigmoid(weights_imgs)
-        # weights_imgs  = F.softmax(weights_imgs,dim=0)
-        # #weight the 
-        # sliced_RGB=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) 
-        # sliced_RGB_weighted=  sliced_RGB*weights_imgs
-        # rgb_refined= sliced_RGB_weighted.sum(dim=0, keepdim=True) #sum over the 3 images with the weights provided
-
-
-
-
-
-
-        # #superrest the features and then concat with the HIghREs and then do like a line leayer
-        # full_res_height=rgb_close_fullres_batch.shape[2]
-        # full_res_width=rgb_close_fullres_batch.shape[3]
-        # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-        # input_superres=img_features_aggregated.view(1,frame.height, frame.width, -1 ).permute(0,3,1,2)
-        # rgb_refined=self.super_res(input_superres )
-        # #get the HR and slice from them 
-        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
-        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        # sliced_feat_HR=sliced_feat_HR*weights.view(-1,1,1,1)
-        # #make the slcied HR RGB features into 1, 3x3 , H,W 
-        # sliced_feat_HR = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-        # # print("rgb_refined", rgb_refined.shape)
-        # # print("sliced_feat_HR", sliced_feat_HR.shape)
-        # rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(full_res_height, full_res_width ), mode='bilinear')
-        # input_to_refine=torch.cat([rgb_refined, sliced_feat_HR],1)
-        # rgb_refined=self.refiner(input_to_refine )
-
-
-        # rgb_refined=self.super_res(rgb_low_res )
-
-        # print("rgb_refined",rgb_refined.shape)
-        # # rgb_refined=self.rgb_refiner(rgb_pred)
         TIME_END("superres")
 
 
         depth=depth.view(frame.height, frame.width,1)
         depth=depth.permute(2,0,1).unsqueeze(0)
-        # else:
-        #     rgb_pred=radiance_field_flattened[:, 0:3]
-        #     rgb_pred=rgb_pred.permute(1,0) #3 x nr_pixels
-        #     mask_pred=None
-        #     rgb_refined=None
-        #     depth=None
-
 
 
         # # #DEBUG 
