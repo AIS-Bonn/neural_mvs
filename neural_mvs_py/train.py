@@ -205,9 +205,6 @@ def run():
                                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 3, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
-                                # triangulation_type="sphere"
-                                # if  isinstance(loader_train, DataLoaderLLFF):
-                                    # triangulation_type="plane"
                                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
                                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
@@ -237,7 +234,7 @@ def run():
                             #prepare rgb data and rest of things
                             rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
                             rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
-                            mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
+                            # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
                             ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                             rgb_close_batch_list=[]
                             for frame_close in frames_close:
@@ -252,31 +249,6 @@ def run():
                                 ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                                 raydirs_close_batch_list.append(ray_dirs_close)
                             ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
-                        # print("frame is height widht", frame.height, " ", frame.width) #colmap has 189x252
-                        # print("frame has shape ", rgb_gt.shape)
-                        # print("rgb close frame ", rgb_close_frame.shape)
-
-                        # print( torch.cuda.memory_summary() )
-
-                        #select certian pixels 
-                        # pixels_indices=None
-                        # use_pixel_indices=False
-                        # if use_pixel_indices:
-                        #     if is_training:
-                        #         chunck_size= min(100*100, frame.height*frame.width)
-                        #         pixel_weights = torch.ones([frame.height*frame.width], dtype=torch.float32, device=torch.device("cuda"))  #equal probability to choose each pixel
-                        #         pixels_indices=torch.multinomial(pixel_weights, chunck_size, replacement=False)
-                        #         pixels_indices=pixels_indices.long()
-
-                        #         #select those pixels from the gt
-                        #         rgb_gt_lin=rgb_gt.view(3,-1)
-                        #         rgb_gt_selected=torch.index_select(rgb_gt_lin, 1, pixels_indices)
-                        #     else:
-                        #         rgb_gt_selected=rgb_gt
-                        # else:
-                        #     rgb_gt_selected=rgb_gt
-
-
 
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
                         # TIME_START("crop")
@@ -301,21 +273,12 @@ def run():
 
 
                         #VIEW gt 
-                        # if phase.iter_nr%show_every==0:
-                            # rgb_mat=tensor2mat(rgb_gt)
-                            # Gui.show(rgb_mat,"rgb_gt")
-
+                      
                         #view current active frame
                         frustum_mesh=frame.frame.create_frustum_mesh(0.02)
                         frustum_mesh.m_vis.m_line_width=3
                         frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
                         Scene.show(frustum_mesh, "frustum_activ" )
-
-
-                        #DEBUG run only one iter of the training 
-                        # if is_training:
-                            # break
-
 
 
 
@@ -325,52 +288,26 @@ def run():
 
 
                             TIME_START("forward")
-                            # print( torch.cuda.memory_summary() )
-                            # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
                             rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=not phase.grad)
                             TIME_END("forward")
-                            # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
-
-                            # print("rgb_close_batch",rgb_close_batch.shape)
-                            # summary(model, [ (1, 1), (100*100,3), (3, 3, 100, 100), (1,1), (1,1),(1,1), weights.shape, (1,1)   ]  )
-                            # model.summary()
-                            # exit(1)
-
+                          
                             #sometimes the refined one doesnt upsample nicely to the full res 
                             # if rgb_refined.shape!=rgb_gt_fullres:
                             ###TODO do not upsample here but rather upsample the feature maps in the unet of rgb_refiner
                                 # rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(rgb_gt_fullres.shape[2], rgb_gt_fullres.shape[3]), mode='bilinear')
                             rgb_lowres=torch.nn.functional.interpolate(rgb_pred,size=(frame.height, frame.width), mode='bilinear')
 
-
-                            #mask the prediction so we copy the values from the rgb_gt into the parts of rgb_pred so that the loss for those pixels is zero
-                            #since the copy cannot be done with a mask because that is just 0 and 1 which mean it cannot propagate gradient, we do it with a blend
-                            # rgb_pred_before_confidence_blending=rgb_pred
-                            # rgb_pred_with_confidence_blending=rgb_pred
-                            # rgb_refined_with_confidence_blending=rgb_refined
-                            # if predict_occlusion_map:
-                            #     # rgb_pred=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt_selected
-                            #     rgb_pred_with_confidence_blending=mask_pred*rgb_pred + (1-mask_pred)*rgb_gt_selected
-                            #     if do_superres:
-                            #         mask_pred_superres= torch.nn.functional.interpolate(mask_pred,size=(rgb_refined.shape[2], rgb_refined.shape[3]), mode='bilinear')
-                            #         rgb_refined_with_confidence_blending=mask_pred_superres*rgb_refined + (1-mask_pred_superres)*rgb_gt_fullres
+                         
                         
                             #loss
                             loss=0
-                           
                             rgb_loss_l1= ((rgb_gt_fullres- rgb_pred).abs()).mean()
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                             loss+=rgb_loss_l1
-
                             if not is_training and psnr_index.item()>max_test_psnr:
                                 max_test_psnr=psnr_index.detach().item()
                                 
-
-                            # #make the mask to be mostly white
-                            # if predict_occlusion_map:
-                            #     # loss_mask=((1.0-mask_pred).abs()).mean()
-                            #     loss_mask=((1.0-mask_pred)**2).mean()
-                            #     loss+=loss_mask*0.1
+                          
                             #at the beggining we just optimize so that the lstm predicts the center of the sphere 
                             weight=map_range( torch.tensor(phase.iter_nr), 0, 1000, 0.0, 1.0)
                             loss*=weight
@@ -386,25 +323,8 @@ def run():
                             #if its the first time we do a forward on the model we need to create here the optimizer because only now are all the tensors in the model instantiated
                             if first_time:
                                 first_time=False
-                                # optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                # optimizer=GC_RAdam.RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                # optimizer=Apollo( model.parameters(), lr=train_params.lr(), init_lr=0.0001, warmup=500, rebound="constant" )
-                                # optimizer=RangerLars( model.parameters(), lr=train_params.lr() )
-                                # optimizer=Ranger( model.parameters(), lr=train_params.lr() )
-                                # optimizer=GC_Ranger.Ranger( model.parameters(), lr=train_params.lr() )
-                                # optimizer=Adahessian( model.parameters(), lr=train_params.lr() ) #DO NOT USE, it requires loss.backward(create_graph=True) to compute second derivatives but that doesnt work because the grid sampler doenst have second deiv
-                                # optimizer=Novograd( model.parameters(), lr=train_params.lr() )
-                                # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                              
                                 optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                # optimizer=torch.optim.SGD( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay(), momentum=0.9, nesterov=True )
-                                # optimizer=Lookahead(optimizer, alpha=0.5, k=6)
-                                # optimizer=torch.optim.AdamW( 
-                                #     [
-                                #         {'params': model.ray_marcher.parameters()},
-                                #         {'params': model.rgb_predictor.parameters(), 'lr': train_params.lr()*0.1 }
-                                #     ], lr=train_params.lr(), weight_decay=train_params.weight_decay()
-
-                                #  )
                                 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=10000) 
@@ -412,12 +332,6 @@ def run():
                                 optimizer.zero_grad()
 
                             cb.after_forward_pass(loss=psnr_index.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                            # cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                            # cb.after_forward_pass(loss=rgb_loss_l1_no_confidence_blend.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                            # cb.after_forward_pass(loss=rgb_refined_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
-                            # cb.after_forward_pass(loss=0, phase=phase, lr=0) #visualizes the predictio
-
-
 
 
                         #backward
@@ -432,9 +346,7 @@ def run():
                             # loss.backward(create_graph=True) #IS NEEDED BY ADAHESIAN but it doesnt work becasue grid sampler doesnt have a second derrivative
                             TIME_END("backward")
                             cb.after_backward_pass()
-                            # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.0001)
-                            # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
-                            # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+                          
 
                             #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
                             clip_percentile=10
@@ -450,13 +362,9 @@ def run():
 
                             optimizer.step()
 
-                        # if is_training and phase.iter_nr%2==0: #we reduce the learning rate when the test iou plateus
-                        #     optimizer.step() # DO it only once after getting gradients for all images
-                        #     optimizer.zero_grad()
-
+                     
                         if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                             scheduler.step(max_test_psnr)
-                            # print("scheduler step with ", max_test_psnr)
 
                         TIME_END("all")
 
@@ -465,41 +373,15 @@ def run():
                         if True: 
                             with torch.set_grad_enabled(False):
                                 #VIEW pred
-                                #make masks 
-                                # mask_pred_thresh=mask_pred<0.3
-                                rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                                rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                                rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                                rgb_pred_ones_mask= rgb_pred_zeros>0.95
-                                # rgb_pred_zeros_mask=torch.logical_or(rgb_pred_zeros_mask,rgb_pred_ones_mask)
-                                rgb_pred_zeros_mask_img= rgb_pred_zeros_mask.view(1,1,frame_full_res.height,frame_full_res.width)
-                                rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
                                 if phase.iter_nr%show_every==0:
                                     #view diff 
                                     diff=( rgb_gt_fullres-rgb_pred)**2*10
                                     Gui.show(tensor2mat(diff),"diff_"+phase.name)
-                                    #mask
-                                    # if predict_occlusion_map:
-                                        # rgb_pred.masked_fill_(mask_pred_thresh, 0.0)
-                                    rgb_pred_mat=tensor2mat(rgb_pred)
-                                    Gui.show(rgb_pred_mat,"rgb_pred_"+phase.name)
-                                    # if do_superres:
-                                        # rgb_refined_mat=tensor2mat(rgb_refined)
-                                        # Gui.show(rgb_refined_mat,"rgb_refined_"+phase.name)
+                                    Gui.show( tensor2mat(rgb_pred) ,"rgb_pred_"+phase.name)
+                                 
                                     #view gt
                                     Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
-                                    # Gui.show(tensor2mat(mask_pred),"mask_pred_"+phase.name)
-                                    # Gui.show(tensor2mat(mask_pred_thresh*1.0),"mask_pred_t_"+phase.name)
-                                    # print("depth_pred min max ", depth_pred.min(), depth_pred.max())
-                                    depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                                    # depth_vis=map_range(depth_vis, 0.35, 0.6, 0.0, 1.0) #for the lego shape
-                                    # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
-                                    # depth_vis=map_range(depth_vis, 0.9, 1.5, 0.0, 1.0) #for the shapenetimgs
-                                    depth_vis=map_range(depth_vis, 0.7, 1.0, 0.0, 1.0) #for the volref socrates
-                                    depth_vis=depth_vis.repeat(1,3,1,1)
-                                    # depth_vis.masked_fill_(rgb_pred_zeros_mask_img, 0.0)
-                                    Gui.show(tensor2mat(depth_vis),"depth_"+phase.name)
-                                    #show rgb for frame close 
+                              
                                     Gui.show(tensor2mat(rgb_close_batch_list[0]),"rgbclose" )
 
                                 
@@ -507,45 +389,23 @@ def run():
                                 camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
                                 camera_center=camera_center.view(1,3)
                                 points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
-                                #get the point that have a color of black (correspond to background) and put them to zero
-                                # rgb_pred_channels_last=rgb_pred.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                                # rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-                                # rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-                                # rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-                                # points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-                                # points3D.masked_fill_(mask_pred_thresh.view(-1,1), 0.0) # mask point occlueded
-                                #mask also the points that still have a signed distance 
-                                # signed_dist=signed_distances_for_marchlvl[ -1 ]
-                                # signed_dist_mask= signed_dist.abs()>0.03
-                                # signed_dist_mask=signed_dist_mask.repeat(1,3) #repeat 3 times for rgb
-                                # points3D[signed_dist_mask]=0.0
-
+                                
                                 #view normal
                                 points3D_img=points3D.view(1, frame.height, frame.width, 3)
                                 points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                                 normal_img=compute_normal(points3D_img)
                                 normal_vis=(normal_img+1.0)*0.5
-                                # normal_vis=normal_img
-                                # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1, frame.height, frame.width, 3)
-                                # signed_dist_mask_img=signed_dist_mask.view(1, frame.height, frame.width, 3)
-                                # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                                # signed_dist_mask_img=signed_dist_mask_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                                # normal_vis[rgb_pred_zeros_mask_img]=0.0
-                                # normal_vis[signed_dist_mask_img]=0.0
-                                normal_mat=tensor2mat(normal_vis)
-                                Gui.show(normal_mat, "normal")
+                                Gui.show(tensor2mat(normal_vis), "normal")
 
                                 #mask based on grazing angle between normal and view angle
                                 normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
                                 normal=normal.view(-1,3)
-                                dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
-                                dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
-                                dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
+                                # dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
+                                # dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
+                                # dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
                                 # points3D[dot_view_normal_mask]=0.0
 
                                 #show things
-                                # if is_training:
-                                    # show_3D_points(points3D, "points_3d_"+str(frame.frame_idx), color=rgb_pred)
                                 points3d_mesh=show_3D_points(points3D, color=rgb_lowres)
                                 points3d_mesh.NV= normal.detach().cpu().numpy()
                                 Scene.show(points3d_mesh, "points3d_mesh")
@@ -557,30 +417,20 @@ def run():
 
                         #load the next scene 
                     TIME_START("load")
-                        # if phase.iter_nr%1==0 and is_training:
-                        # if False:
                     if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                         TIME_START("justload")
-                        # print("load next scene")
-                        # phases[0].loader.start_reading_next_scene()
-                        # phases[1].loader.start_reading_next_scene()
+                       
                         phase.loader.start_reading_next_scene()
                         #wait until they are read
                         while True:
-                            # if( phases[0].loader.finished_reading_scene() and  phases[1].loader.finished_reading_scene() ): 
                             if( phase.loader.finished_reading_scene() ): 
                                 break
                         TIME_END("justload")
                         frames_list=[]
-                        # frames_test=[]
                         for i in range(phase.loader.nr_samples()):
                             frame_cur=phase.loader.get_frame_at_idx(i)
                             frames_list.append(FramePY(frame_cur, create_subsamples=True))
-                        # for i in range(phases[1].loader.nr_samples()):
-                            # frame_cur=phases[1].loader.get_frame_at_idx(i)
-                            # frames_test.append(FramePY(frame_cur, create_subsamples=True))
                         phase.frames=frames_list
-                        # phases[1].frames=frames_test
                     TIME_END("load")
 
 
@@ -598,15 +448,7 @@ def run():
 
             # finished all the images 
             # pbar.close()
-            # if phase.loader.is_finished(): #we reduce the learning rate when the test iou plateus
             if True: #if we reached this point we already read all the images so there is no need to check if the loader is finished 
-                # if is_training and phase.iter_nr%10==0: #we reduce the learning rate when the test iou plateus
-                #     optimizer.step() # DO it only once after getting gradients for all images
-                #     optimizer.zero_grad()
-                    # print("what")
-                # if is_training:
-                    # if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                        # scheduler.step(phase.loss_acum_per_epoch) #for ReduceLROnPlateau
                 print("epoch finished", phase.epoch_nr, " phase rag is", phase.grad)
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
                 cb.phase_ended(phase=phase) 
