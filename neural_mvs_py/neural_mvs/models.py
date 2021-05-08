@@ -4091,14 +4091,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.depth_per_pixel_test=None
 
       
-    def forward(self, frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, weights, pixels_indices, novel=False):
 
 
         if novel:
             depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-            depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
+            depth_per_pixel.fill_(dataset_params.raymarch_depth_min/2.0)   #randomize the deptha  bith
         else:
-            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=depth_min, std=2e-2)
+            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
 
         # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
         # depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
@@ -5628,7 +5628,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, pixels_indices, novel=False):
 
         TIME_START("unet_everything")
         # frames_features=[]
@@ -5665,7 +5665,7 @@ class Net3_SRN(torch.nn.Module):
             ray_dirs= torch.index_select(ray_dirs, 0, pixels_indices)
 
         TIME_START("ray_march")
-        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl, raymarcher_loss = self.ray_marcher(frame, ray_dirs, depth_min, frames_close, frames_features, weights, pixels_indices, novel)
+        point3d, depth, points3d_for_marchlvl, signed_distances_for_marchlvl, raymarcher_loss = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, weights, pixels_indices, novel)
         TIME_END("ray_march")
 
         # print("len points3d_for_marchlvl", len(points3d_for_marchlvl))

@@ -77,13 +77,12 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s3depthjitter_"
+    experiment_name="s_"
 
 
     # use_ray_compression=False
     do_superres=True
     predict_occlusion_map=False
-
 
 
 
@@ -129,34 +128,34 @@ def run():
 
 
     #get the triangulation of the frames 
-    frame_centers, frame_idxs = frames_to_points(frames_train)
-    sphere_center, sphere_radius=SFM.fit_sphere(frame_centers)
-    #if ithe shapentimg we put the center to zero because we know where it is
-    if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderDTU):
-        sphere_center= np.array([0,0,0])
-        sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
-    if isinstance(loader_train, DataLoaderLLFF):
-        sphere_center= np.array([0,0,-0.3])
-    print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
+    # frame_centers, frame_idxs = frames_to_points(frames_train)
+    # sphere_center, sphere_radius=SFM.fit_sphere(frame_centers)
+    # #if ithe shapentimg we put the center to zero because we know where it is
+    # if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderDTU):
+    #     sphere_center= np.array([0,0,0])
+    #     sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
+    # if isinstance(loader_train, DataLoaderLLFF):
+    #     sphere_center= np.array([0,0,-0.3])
+    # print("sphere center and raidys ", sphere_center, " radius ", sphere_radius)
 
     # triangulated_mesh, sphere_center, sphere_radius=SFM.compute_triangulation(loader_train.get_all_frames())
 
     #depth min max for nerf 
-    depth_min=2
-    depth_max=5
-    #depth min max for home photos
-    depth_min=3.5
-    depth_max=11.5
-    #depth min max for home photos after scaling the scenne
-    depth_min=0.1
-    depth_max=1.0
+    # depth_min=2
+    # depth_max=5
+    # #depth min max for home photos
+    # depth_min=3.5
+    # depth_max=11.5
+    # #depth min max for home photos after scaling the scenne
+    # depth_min=0.1
+    # depth_max=1.0
     #usa_subsampled_frames
     factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=2
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
     eval_every_x_epoch=30
 
-    new_frame=None
+    # new_frame=None
 
     grad_history = []
     max_test_psnr=0.0
@@ -242,10 +241,10 @@ def run():
                                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 3, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
-                                triangulation_type="sphere"
-                                if  isinstance(loader_train, DataLoaderLLFF):
-                                    triangulation_type="plane"
-                                frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius, triangulation_type)
+                                # triangulation_type="sphere"
+                                # if  isinstance(loader_train, DataLoaderLLFF):
+                                    # triangulation_type="plane"
+                                frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
                                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
                             #load the image data for this frames that we selected
@@ -364,7 +363,7 @@ def run():
                             TIME_START("forward")
                             # print( torch.cuda.memory_summary() )
                             # with profiler.profile(profile_memory=True, record_shapes=True, use_cuda=True) as prof:
-                            rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=not phase.grad)
+                            rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, pixels_indices, novel=not phase.grad)
                             TIME_END("forward")
                             # print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=10))
 
@@ -477,7 +476,7 @@ def run():
 
                             #loss that pushes the points to be in the middle of the space 
                             if phase.iter_nr<1000:
-                                loss+=( ( torch.from_numpy(sphere_center).view(1,3).cuda()-point3d).norm(dim=1)).mean()*0.2
+                                loss+=( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,3).cuda()-point3d).norm(dim=1)).mean()*0.2
 
 
 

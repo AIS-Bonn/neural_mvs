@@ -23,7 +23,7 @@ from latticenet_py.lattice.lattice_modules import *
 from dataloaders import *
 
 
-DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter')
+DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type')
 
 
 #get all the frames from a loader and puts them into frame_py
@@ -49,7 +49,11 @@ def compute_dataset_params(loader, frames):
         estimated_scene_center= np.array([0,0,-0.3])
     print("sphere center and raidus ", sphere_center, " radius ", sphere_radius)
 
-    estimated_scene_depth = sphere_center
+    #triangulation type is sphere for all datasets except llff
+    triangulation_type="sphere"
+    if isinstance(loader, DataLoaderLLFF):
+        triangulation_type = "plane"
+
     raymarch_depth_min = 0.15
     raymarch_depth_jitter =  2e-2
 
@@ -57,7 +61,8 @@ def compute_dataset_params(loader, frames):
                         sphere_center=sphere_center, 
                         estimated_scene_center=estimated_scene_center, 
                         raymarch_depth_min=raymarch_depth_min,
-                        raymarch_depth_jitter = raymarch_depth_jitter )
+                        raymarch_depth_jitter = raymarch_depth_jitter,
+                        triangulation_type= triangulation_type )
 
     return params
 
