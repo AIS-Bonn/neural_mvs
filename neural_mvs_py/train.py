@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s7"
+    experiment_name="s8init"
 
 
     # use_ray_compression=False
@@ -120,7 +120,8 @@ def run():
     factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=2
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
-    eval_every_x_epoch=30
+    # eval_every_x_epoch=30
+    eval_every_x_epoch=1
 
 
     #get all the frames train in am array, becuase it's faster to have everything already on the gpu

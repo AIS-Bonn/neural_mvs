@@ -4053,12 +4053,12 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         if novel:
             depth_per_pixel= torch.ones([1, 1, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
-            depth_per_pixel.fill_(dataset_params.raymarch_depth_min/2.0)   #randomize the deptha  bith
+            depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
         else:
             depth_per_pixel = torch.zeros((1, 1, frame.height, frame.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
 
         # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
-        # depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
+        # depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
 
 
         nr_nearby_frames=len(frames_close)
@@ -4083,6 +4083,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         camera_center=camera_center.view(1,3,1,1)
         points3D = camera_center + depth_per_pixel*ray_dirs #N,3,H,W
         # show_3D_points(points3D, "points_3d_init")
+        points3d_mesh=show_3D_points( nchw2lin(points3D))
+        Scene.show(points3d_mesh, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
