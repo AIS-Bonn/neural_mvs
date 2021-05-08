@@ -4095,10 +4095,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
 
         if novel:
-            depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
+            depth_per_pixel= torch.ones([1, 1, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
             depth_per_pixel.fill_(dataset_params.raymarch_depth_min/2.0)   #randomize the deptha  bith
         else:
-            depth_per_pixel = torch.zeros((frame.height*frame.width, 1), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
+            depth_per_pixel = torch.zeros((1, 1, frame.height, frame.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
 
         # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
         # depth_per_pixel.fill_(depth_min/2.0)   #randomize the deptha  bith
@@ -4145,8 +4145,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         #attempt 2 unproject to 3D 
         camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
-        camera_center=camera_center.view(1,3)
-        points3D = camera_center + depth_per_pixel*ray_dirs
+        camera_center=camera_center.view(1,3,1,1)
+        points3D = camera_center + depth_per_pixel*ray_dirs #N,3,H,W
         # show_3D_points(points3D, "points_3d_init")
 
         init_world_coords=points3D
@@ -4171,8 +4171,9 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # feat=self.feature_computer(world_coords[-1], ray_dirs) #a tensor of N x feat_size which contains for each position in 3D a feature representation around that point. Similar to phi from SRN
             TIME_START("raymarch_pe")
             #using positional encoding is beneficial weather you are generalizing or overfitting. In the case of overfitting it makes the geoemtry sharper because we have more frequency to work with and in the case of generaliation it manages to get structures in the dataseet like the fact that the floor in DTU is always eithr white or brown and it doesnt need to infer this from just RGB features which can be noisy or can have problems when we have occlusion
-            feat=self.learned_pe(world_coords[-1]) 
-            pos_encoded=feat
+            # print("world_coords[-1]", world_coords[-1].shape)
+            pos_encoded_linear=self.learned_pe(  nchw2lin(world_coords[-1]) ) 
+            pos_encoded=lin2nchw(pos_encoded_linear, frame.height, frame.width).contiguous()
             TIME_END("raymarch_pe")
 
             # TIME_START("raymarch_uv")
@@ -4183,12 +4184,13 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             # slice with grid_sample
             # TIME_START("raymarch_slice")
-            uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
+            # uv_tensor=uv_tensor.view(nr_nearby_frames, -1, 1, 2) #Nr_framex x nr_pixels_cur_frame x 1 x 2
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear", padding_mode="zeros" ) #sliced features is N,C,H,W
-            sliced_feat_batched_img=sliced_feat_batched
-            feat_dim=sliced_feat_batched.shape[1]
-            sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
-            sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it nr_frames x nr_pixels x FEATDIM
+            # print("sliced_feat_batched", sliced_feat_batched.shape)
+            # sliced_feat_batched_img=sliced_feat_batched
+            # feat_dim=sliced_feat_batched.shape[1]
+            # sliced_feat_batched=sliced_feat_batched.permute(0,2,3,1) # from N,C,H,W to N,H,W,C
+            # sliced_feat_batched=sliced_feat_batched.view(len(frames_close), -1, feat_dim) #make it nr_frames x nr_pixels x FEATDIM
             # TIME_END("raymarch_slice")
            
             
@@ -4196,9 +4198,10 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # TIME_START("raymarch_aggr")
             # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))  #the features shount not be weighted here because we want to match completely between the 3 images. ACTUALLY, weigthing or not weighting doesnt make much of a difference and therefore we leave the weighting because it allows for way smoother interpolation to novel views
             # img_features_aggregated= self.feature_aggregator(sliced_feat_batched, weights, novel) 
-            mean=sliced_feat_batched.mean(dim=0)
-            std=sliced_feat_batched.std(dim=0)
+            mean=sliced_feat_batched.mean(dim=0, keepdim=True)
+            std=sliced_feat_batched.std(dim=0,keepdim=True)
             img_features_aggregated=torch.cat([mean,std],1)
+            # print("img_features_aggregated", img_features_aggregated.shape)
             #IBRNET
             # mask = mask / (torch.sum(mask, dim=0, keepdim=True) + 1e-8)
             # weights_one= torch.ones([3,1], dtype=torch.float32, device=torch.device("cuda"))
@@ -4302,16 +4305,16 @@ class DifferentiableRayMarcher(torch.nn.Module):
             TIME_START("raymarch_fuse")
             # sliced_feat_batched_img=sliced_feat_batched_img*weights.view(3,1,1,1)
             # feat=feat.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            pos_encoded_img= pos_encoded.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-            img_features_aggregated=torch.cat([pos_encoded_img,img_features_aggregated],1)
+            # img_features_aggregated= img_features_aggregated.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            # pos_encoded_img= pos_encoded.view(1,frame.height, frame.width, -1).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            img_features_aggregated=torch.cat([pos_encoded,img_features_aggregated],1)
             img_features_aggregated=self.conv1(img_features_aggregated)
             img_features_aggregated=self.conv2(img_features_aggregated)
             img_features_aggregated=torch.relu(img_features_aggregated)
             feat=img_features_aggregated
             #make it agian into linear
-            feat_nr=feat.shape[1]
-            feat=feat.permute(0,2,3,1).view(-1,feat_nr)
+            # feat_nr=feat.shape[1]
+            # feat=feat.permute(0,2,3,1).view(-1,feat_nr)
             # feat=torch.cat([feat,pos_encoded],1)
             # feat=self.feature_fuser(feat)
             TIME_END("raymarch_fuse")
@@ -4332,7 +4335,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 # )
 
             #run through the lstm
-            state = self.lstm(feat, states[-1])
+            state = self.lstm( nchw2lin(feat), states[-1])
             # state = self.lstm(feat)
             if state[0].requires_grad:
                 state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
@@ -4340,6 +4343,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 # state.register_hook(lambda x: x.clamp(min=-10, max=10))
 
             signed_distance= self.out_layer(state[0])
+            signed_distance = lin2nchw(signed_distance, frame.height, frame.width)
             # signed_distance= self.out_layer(state)
             TIME_END("raymarch_lstm")
             # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())

@@ -1936,7 +1936,7 @@ class LearnedPE(MetaModule):
         # print("learned pe is ", self.conv.weight)
         # print("after conv", x.shape)
         # x=90*x
-        return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1)
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], 1).contiguous()
 
 
 #the lerned gaussian pe as in the work of Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains

@@ -26,6 +26,42 @@ from dataloaders import *
 DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type')
 
 
+def nchw2nhwc(x):
+    x=x.permute(0,2,3,1)
+    return x
+
+def nhwc2nchw(x):
+    x=x.permute(0,3,1,2)
+    return x
+
+#make from N,C,H,W to N,Nrpixels,C
+def nchw2nXc(x):
+    nr_feat=x.shape[1]
+    nr_batches=x.shape[0]
+    x=x.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+    x=x.view(nr_batches, -1, nr_feat)
+    return x
+
+# make from N,C,H,W to Nrpixels,C ONLY works when N is 1
+def nchw2lin(x):
+    if x.shape[0]!=1:
+        print("nchw2lin supposes that the N is 1 however x has shape ", x.shape )
+        exit(1)
+    nr_feat=x.shape[1]
+    nr_batches=x.shape[0]
+    x=x.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+    x=x.view(-1, nr_feat)
+    return x
+
+#go from nr_pixels, C to 1,C,H,W
+def lin2nchw(x, h, w):
+    nr_feat=x.shape[1]
+    x=x.view(1, h, w, nr_feat)
+    x=nhwc2nchw(x)
+    return x
+
+
+
 #get all the frames from a loader and puts them into frame_py
 def get_frames(loader):
     frames=[]
@@ -71,7 +107,7 @@ def prepare_data(frame_full_res, frame, frames_close):
     rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
     rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
     # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
-    ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+    ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
     rgb_close_batch_list=[]
     for frame_close in frames_close:
         rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
@@ -80,9 +116,9 @@ def prepare_data(frame_full_res, frame, frames_close):
     #make also a batch fo directions
     raydirs_close_batch_list=[]
     for frame_close in frames_close:
-        ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
-        ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
-        ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+        ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
+        # ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
+        # ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
         raydirs_close_batch_list.append(ray_dirs_close)
     ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
 
@@ -439,6 +475,13 @@ def compute_uv(frame, points_3D_world):
 
 # def compute_uv_batched(frames_list, points_3D_world):
 def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D_world):
+    
+    #get the points from N,3,H,W to nr_points,3
+    h = points_3D_world.shape[2]
+    w = points_3D_world.shape[3]
+    nr_frames =  R_batched.shape[0]
+    points_3D_world = nchw2lin(points_3D_world)
+
     if points_3D_world.shape[1] != 3:
         print("expecting the points3d to be Nx3 but it is ", points_3D_world.shape)
         exit(1)
@@ -498,6 +541,10 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
 
     # print(prof)
     # TIME_END("proj")
+
+    uv_tensor=uv_tensor.view(nr_frames, h, w, 2)
+
+    # print("uv_tensor has shape ", uv_tensor.shape)
 
 
     return uv_tensor, mask

@@ -299,7 +299,7 @@ def run():
 
                             #loss that pushes the points to be in the middle of the space 
                             if phase.iter_nr<1000:
-                                loss+=( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,3).cuda()-point3d).norm(dim=1)).mean()*0.2
+                                loss+=( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,3,1,1).cuda()-point3d).norm(dim=1)).mean()*0.2
 
 
                         
@@ -372,12 +372,12 @@ def run():
                                 #VIEW 3d points   at the end of the ray march
                                 camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
                                 camera_center=camera_center.view(1,3)
-                                points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
+                                # points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
                                 
                                 #view normal
-                                points3D_img=points3D.view(1, frame.height, frame.width, 3)
-                                points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                                normal_img=compute_normal(points3D_img)
+                                # points3D_img=points3D.view(1, frame.height, frame.width, 3)
+                                # points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                                normal_img=compute_normal(point3d)
                                 normal_vis=(normal_img+1.0)*0.5
                                 Gui.show(tensor2mat(normal_vis), "normal")
 
@@ -390,7 +390,7 @@ def run():
                                 # points3D[dot_view_normal_mask]=0.0
 
                                 #show things
-                                points3d_mesh=show_3D_points(points3D, color=rgb_lowres)
+                                points3d_mesh=show_3D_points( nchw2lin(point3d), color=rgb_lowres)
                                 points3d_mesh.NV= normal.detach().cpu().numpy()
                                 Scene.show(points3d_mesh, "points3d_mesh")
 
