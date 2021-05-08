@@ -69,8 +69,8 @@ model_params=ModelParams.create(config_file)
 
 # d
 
-def rand_true(probability_of_true):
-    return random.random() < probability_of_true
+# def rand_true(probability_of_true):
+#     return random.random() < probability_of_true
 
 
 

@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s5rayimg"
+    experiment_name="s7"
 
 
     # use_ray_compression=False
@@ -240,18 +240,21 @@ def run():
                         # # if False:
                         #     max_size= min(frame.height, frame.width )
                         #     max_size=random.randint(max_size//4, max_size)
-                        #     crop_indices = torchvision.transforms.RandomCrop.get_params( uv_tensor, output_size=(max_size, max_size))
+                        #     crop_indices = torchvision.transforms.RandomCrop.get_params( ray_dirs, output_size=(max_size, max_size))
                         #     i, j, h, w = crop_indices
-                        #     # uv_tensor = TF.crop(uv_tensor, i, j, h, w)
-                        #     rgb_gt_selected= TF.crop(rgb_gt_selected, i, j, h, w)
-                        #     ray_dirs=ray_dirs.view(1,frame.height, frame.width, 3).permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+                        #     #crop all the required tensors
+                        #     rgb_gt= TF.crop(rgb_gt, i, j, h, w)
                         #     ray_dirs= TF.crop(ray_dirs, i, j, h, w)
+                        #     rgb_close_batch= TF.crop(rgb_close_batch, i, j, h, w)
+                        #     ray_dirs_close_batch= TF.crop(ray_dirs_close_batch, i, j, h, w)
+                        #     rgb_gt_fullres= TF.crop(rgb_gt_fullres, i*4, j*4, h*4, w*4)
+
                         #     #in order to make the unet access pixels that are further apart or closer apart, we upscale the cropped image to the full size
-                        #     uv_tensor = torch.nn.functional.interpolate(uv_tensor,size=(frame.height, frame.width), mode='nearest')
-                        #     rgb_gt_selected = torch.nn.functional.interpolate(rgb_gt_selected,size=(frame.height, frame.width), mode='bilinear')
+                        #     rgb_gt = torch.nn.functional.interpolate(rgb_gt,size=(frame.height, frame.width), mode='bilinear')
                         #     ray_dirs = torch.nn.functional.interpolate(ray_dirs,size=(frame.height, frame.width), mode='bilinear')
-                        #     #back to Nx3 rays
-                        #     ray_dirs=ray_dirs.permute(0,2,3,1).reshape(-1,3) #from NCHW to NHWC
+                        #     rgb_close_batch = torch.nn.functional.interpolate(rgb_close_batch,size=(frame.height, frame.width), mode='bilinear')
+                        #     ray_dirs_close_batch = torch.nn.functional.interpolate(ray_dirs_close_batch,size=(frame.height, frame.width), mode='bilinear')
+                        #     rgb_gt_fullres = torch.nn.functional.interpolate(rgb_gt_fullres,size=(frame_full_res.height, frame_full_res.width), mode='bilinear')
                         # TIME_END("crop")
 
 
@@ -365,6 +368,7 @@ def run():
                                  
                                     #view gt
                                     Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
+                                    Gui.show(tensor2mat(rgb_gt_fullres),"rgb_fullres_gt_"+phase.name)
                               
                                     Gui.show(tensor2mat(rgb_close_batch[0:1, :,:,:] ),"rgbclose" )
 

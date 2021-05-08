@@ -5,6 +5,7 @@ from easypbr  import *
 import sys
 import math
 from collections import namedtuple
+import random
 
 from neural_mvs_py.neural_mvs.funcs import *
 
@@ -24,6 +25,11 @@ from dataloaders import *
 
 
 DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type')
+
+
+def rand_true(probability_of_true):
+    return random.random() < probability_of_true
+
 
 
 def nchw2nhwc(x):
