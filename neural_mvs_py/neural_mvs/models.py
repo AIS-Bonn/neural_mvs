@@ -4208,10 +4208,19 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #     WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
         #     ]
         # )
-        self.compress_feat.append(WNReluConv(in_channels=96, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        self.compress_feat.append(WNReluConv(in_channels=112, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        self.compress_feat.append(WNReluConv(in_channels=88, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        self.compress_feat.append(WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+
+
+        self.compress_feat.append(WNReluConv(in_channels=96, out_channels=32-3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        self.compress_feat.append(WNReluConv(in_channels=112, out_channels=32-3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        self.compress_feat.append(WNReluConv(in_channels=88, out_channels=32-3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        self.compress_feat.append(WNReluConv(in_channels=60, out_channels=32-3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+
+
+        # self.compress_feat.append(WNReluConv(in_channels=96*2, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=112*2, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=88*2, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=60*2, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+
 
         # self.down_stages_list = torch.nn.ModuleList([])
         # self.down_stages_list.append( nn.Sequential(
@@ -4225,8 +4234,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
 
         #params 
-        self.nr_iters=8
-        self.nr_resolutions=3
+        self.nr_iters=10
+        self.nr_resolutions=1
 
       
     def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
@@ -4302,6 +4311,19 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             frames_features = multi_res_features[res_iter]
             frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
             frames_features = self.compress_feat[res_iter](frames_features)
+            # print("frames_features", frames_features.shape)
+            if res_iter==0:
+                rgb0=mat2tensor(frames_close[0].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
+                rgb1=mat2tensor(frames_close[1].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
+                rgb2=mat2tensor(frames_close[2].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
+            elif res_iter==1:
+                rgb0=mat2tensor(frames_close[0].frame.rgb_32f, False).to("cuda")
+                rgb1=mat2tensor(frames_close[1].frame.rgb_32f, False).to("cuda")
+                rgb2=mat2tensor(frames_close[2].frame.rgb_32f, False).to("cuda")
+            rgb = torch.cat([rgb0, rgb1, rgb2],0)
+            # print("rgb is ", rgb.shape)
+            frames_features = torch.cat([frames_features, rgb],1)
+            # print("frames_features", frames_features.shape)
             #get the K of this subsampled frame 
             K_list=[]
             for i in range(len(frames_close)):
@@ -4332,6 +4354,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 mean=sliced_feat_batched.mean(dim=0, keepdim=True)
                 std=sliced_feat_batched.std(dim=0,keepdim=True)
                 img_features_aggregated=torch.cat([mean,std],1)
+
+                # img_features_aggregated = self.compress_feat[res_iter](img_features_aggregated)
 
                 #conv the img featues and than concat with position and then some 1x1 convs 
                 TIME_START("raymarch_fuse")
@@ -5445,8 +5469,8 @@ class Net3_SRN(torch.nn.Module):
 
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
 
-        # self.ray_marcher=DifferentiableRayMarcher()
-        self.ray_marcher=DifferentiableRayMarcherHierarchical()
+        self.ray_marcher=DifferentiableRayMarcher()
+        # self.ray_marcher=DifferentiableRayMarcherHierarchical()
         self.feature_aggregator= FeatureAgregator()
         # self.feature_aggregator= FeatureAgregatorLinear()
         # self.feature_aggregator= FeatureAgregatorIBRNet()
