@@ -988,6 +988,7 @@ class UNet(torch.nn.Module):
         # print("after bottlenck ", x.shape)
 
         #up
+        multi_res_features=[]
         for i in range(self.nr_stages):
             # print("before finefy ", i, " x is", x.shape)
             # x=self.finefy_list[i](x)
@@ -1004,6 +1005,7 @@ class UNet(torch.nn.Module):
 
             # print("vefore concating ", i, " x is ", x.shape, " vertical featus is ", vertical_feats.shape)
             x=self.up_stages_list[i](x)
+            multi_res_features.append(x)
 
         # print("x before the final conv has mean ", x.mean(), " and std ", x.std())
         # x=torch.cat([x,initial_x],1) #bad idea to concat the rgb here. It introduces way too much high frequency in the output which makes the ray marker get stuck in not knowing wheere to predict the depth so that the slicing slcies the correct features. IF we dont concat, then the unet features are kinda smooth and they act like a wise basin of converges that tell the lstm, to predict a depth close a certain position so that the features it slices will be better
@@ -1012,8 +1014,9 @@ class UNet(torch.nn.Module):
         x=self.last_conv(x)
 
         # x[:,0:6,:,:]=initial_x
+        # multi_res_features.reverse()
         
-        return x
+        return x, multi_res_features
 
 
 #Sine the unet can be quite big, I experiment here with just passing each level of the image pyramid through a one resnet block adn tehn concating the features from each level.
@@ -4048,7 +4051,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.depth_per_pixel_test=None
 
       
-    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, weights,  novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
 
 
         if novel:
@@ -4196,7 +4199,25 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
       
-       
+
+        self.compress_feat = torch.nn.ModuleList([])
+        # self.compress_feat.append(
+        #     [WNReluConv(in_channels=96, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=112, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=88, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+        #     ]
+        # )
+        self.compress_feat.append(WNReluConv(in_channels=96, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        self.compress_feat.append(WNReluConv(in_channels=112, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        self.compress_feat.append(WNReluConv(in_channels=88, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        self.compress_feat.append(WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+
+        # self.down_stages_list = torch.nn.ModuleList([])
+        # self.down_stages_list.append( nn.Sequential(
+        #     ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+        # ))
+
 
         #activ
         self.relu=torch.nn.ReLU()
@@ -4208,7 +4229,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         self.nr_resolutions=3
 
       
-    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, weights,  novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
 
         
         #make a series of frames subsaqmpled
@@ -4273,6 +4294,19 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             depths = [initial_depth]
             signed_distances_for_marchlvl=[]
             states = [None]
+
+
+
+            #get the frame_featues at this correct level
+            # print("frame subsampled is ", frame_subsampled.height, " ", frame_subsampled.width)
+            frames_features = multi_res_features[res_iter]
+            frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
+            frames_features = self.compress_feat[res_iter](frames_features)
+            #get the K of this subsampled frame 
+            K_list=[]
+            for i in range(len(frames_close)):
+                K_list.append( frame_subsampled.K_tensor.view(1,3,3) )
+            K_batched=torch.cat(K_list,0)
 
 
             # weights=self.frame_weights_computer(frame, frames_close)
@@ -5438,14 +5472,17 @@ class Net3_SRN(torch.nn.Module):
        
         #pass through unet 
         TIME_START("unet")
-        frames_features=self.unet( rgb_close_batch )
+        frames_features, multi_res_features=self.unet( rgb_close_batch )
         frames_features=torch.cat([frames_features,rgb_close_batch],1)
-        
+
+        # print("frame features is ", frames_features.shape) 
+        # for f in multi_res_features:
+            # print("f is ", f.shape)
 
         TIME_END("unet")
        
         TIME_START("ray_march")
-        point3d, depth  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, weights, novel)
+        point3d, depth  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, multi_res_features, weights, novel)
         TIME_END("ray_march")
 
       
@@ -5554,7 +5591,7 @@ class Net3_SRN(torch.nn.Module):
         input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
         input_superres = torch.cat([ input_superres, std ],1)
 
-        rgb_pred=self.super_res(input_superres )
+        rgb_pred, multi_res_features=self.super_res(input_superres )
 
 
         TIME_END("superres")
