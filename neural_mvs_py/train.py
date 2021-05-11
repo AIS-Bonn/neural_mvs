@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s2_"
+    experiment_name="s5mstd_scaled"
 
 
     # use_ray_compression=False
@@ -263,7 +263,7 @@ def run():
                         #VIEW gt 
                       
                         #view current active frame
-                        frustum_mesh=frame.frame.create_frustum_mesh(0.02)
+                        frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
                         frustum_mesh.m_vis.m_line_width=3
                         frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
                         Scene.show(frustum_mesh, "frustum_activ" )
@@ -278,6 +278,8 @@ def run():
                             TIME_START("forward")
                             rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=not phase.grad)
                             TIME_END("forward")
+
+                            # print("rgb_pred", rgb_pred.shape)
                           
                             #sometimes the refined one doesnt upsample nicely to the full res 
                             # if rgb_refined.shape!=rgb_gt_fullres:

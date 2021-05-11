@@ -891,7 +891,8 @@ class UNet(torch.nn.Module):
         self.coarsen_list = torch.nn.ModuleList([])
         self.nr_layers_ending_stage=[]
         for i in range(self.nr_stages):
-            print("cur nr_channels ", cur_nr_channels)
+            # print("cur nr_channels ", cur_nr_channels)
+            print("down adding resnet with ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
@@ -903,11 +904,12 @@ class UNet(torch.nn.Module):
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
             if after_coarsening_nr_channels> max_nr_channels:
                 after_coarsening_nr_channels=max_nr_channels
+            print("down adding coarsen with ", after_coarsening_nr_channels)
             self.coarsen_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
-            print("adding unet stage with output ", cur_nr_channels)
 
 
+        print("adding bottleneck ", cur_nr_channels)
         self.bottleneck=nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
                 ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
@@ -920,10 +922,12 @@ class UNet(torch.nn.Module):
         self.squeeze_list = torch.nn.ModuleList([])
         for i in range(self.nr_stages):
             after_finefy_nr_channels=int(cur_nr_channels/2)
+            print("up adding finefy with ", after_finefy_nr_channels)
             self.squeeze_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
             #we now concat the features from the corresponding stage
             cur_nr_channels=after_finefy_nr_channels
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
+            print("up adding resnet with ", cur_nr_channels)
             self.up_stages_list.append( nn.Sequential(
                 ##last conv should have a bias because it's not followed by a GN
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
@@ -4058,7 +4062,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             depth_per_pixel= torch.ones([1, 1, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
             depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
         else:
-            depth_per_pixel = torch.zeros((1, 1, frame.height, frame.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
+            depth_per_pixel = torch.zeros((1, 1, frame.height, frame.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=dataset_params.raymarch_depth_jitter)
 
         # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
         # depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
@@ -5467,6 +5471,12 @@ class Net3_SRN(torch.nn.Module):
         #     WNGatedConvRelu( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
         # )
 
+        self.upscale=MetaSequential( 
+            WNReluConv( 64, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+            WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
+        )
+
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
 
         self.ray_marcher=DifferentiableRayMarcher()
@@ -5583,42 +5593,132 @@ class Net3_SRN(torch.nn.Module):
 
 
         for i in range(len(frames_close)):
-            frustum_mesh=frames_close[i].frame.create_frustum_mesh(0.02)
+            frustum_mesh=frames_close[i].frame.create_frustum_mesh(dataset_params.frustum_size)
             frustum_mesh.m_vis.m_line_width= (weights[i])*15
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             frustum_mesh.m_force_vis_update=True
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
-        
 
-   
+
+
+
+
+
+
+
+        #using both mean and var of HR and also mean and var of the upscaled
         TIME_START("superres")
+        mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), 0, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
+        mean_var_up = self.upscale(mean_var_lr)
+        # print("mean_var_hr", mean_var_hr.shape)
+        # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
 
         full_res_height=rgb_close_fullres_batch.shape[2]
         full_res_width=rgb_close_fullres_batch.shape[3]
-        input_superres = torch.nn.functional.interpolate(sliced_feat_batched_img_nonweighed,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        mean_var_up = torch.nn.functional.interpolate(mean_var_up,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
         #slice also from the high res images and concat that too 
         uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
         uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
         uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
         uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
         sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        # mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
-        # mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
-        # mask_img=mask.view(3,1,frame.height,frame.width)
-        # mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
+        # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
+        sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+        mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), 0, use_weights=True)
+
+        input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_HR, mean_var_up   ],1) 
+      
+        rgb_pred, multi_res_features=self.super_res(input_superres )
+        TIME_END("superres")
+
+
+
+
+
+
+
+
+        # #dont use any frame_features and just use the high res part
+        # TIME_START("superres")
+
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # #slice also from the high res images and concat that too 
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        # # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
+        # sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+        # mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), 0, use_weights=True)
+
+        # input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_HR   ],1) 
+      
+        # rgb_pred, multi_res_features=self.super_res(input_superres )
+        # TIME_END("superres")
+
+
+
+
+
+        #try to reduce the nr of channels that the superres gets because that is what scales very poorly
+        # TIME_START("superres")
+        # # sliced_feat_batched_img = sliced_feat_batched_img*weights.view(-1,1,1,1)
+        # mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), 0, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
+        # # print("mean_var_lr", mean_var_lr.shape)
+        # # print("sliced_feat_batched_img", sliced_feat_batched_img.shape)
+        # mean_var_hr = self.upscale(mean_var_lr)
+        # # print("mean_var_hr", mean_var_hr.shape)
+        # # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
+
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # mean_var_hr = torch.nn.functional.interpolate(mean_var_hr,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        # #slice also from the high res images and concat that too 
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
+        # sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+
+        # input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_hr   ],1) 
+      
+        # rgb_pred, multi_res_features=self.super_res(input_superres )
+        # TIME_END("superres")
+        
+
+   
+        # TIME_START("superres")
+
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # input_superres = torch.nn.functional.interpolate(sliced_feat_batched_img_nonweighed,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        # #slice also from the high res images and concat that too 
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        # # mask_without_normalization=mask_without_normalization.view(3,1,frame.height,frame.width)
+        # # mask_without_norm_hr= torch.nn.functional.interpolate(mask_without_normalization,size=(full_res_height, full_res_width ), mode='bilinear')
+        # # mask_img=mask.view(3,1,frame.height,frame.width)
+        # # mask_hr= torch.nn.functional.interpolate(mask_img,size=(full_res_height, full_res_width ), mode='bilinear')
        
      
-        input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
-        std= input_superres.std(dim=0, keepdim=True)
-        input_superres = input_superres*weights.view(-1,1,1,1)
-        # input_superres = torch.cat([ input_superres, mask_hr ],1)
-        input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
-        input_superres = torch.cat([ input_superres, std ],1)
+        # input_superres = torch.cat([ input_superres, sliced_feat_HR   ],1) #3,c,h,w
+        # std= input_superres.std(dim=0, keepdim=True)
+        # input_superres = input_superres*weights.view(-1,1,1,1)
+        # # input_superres = torch.cat([ input_superres, mask_hr ],1)
+        # input_superres = input_superres.view(1,-1,full_res_height,full_res_width)
+        # input_superres = torch.cat([ input_superres, std ],1)
 
-        rgb_pred, multi_res_features=self.super_res(input_superres )
+        # rgb_pred, multi_res_features=self.super_res(input_superres )
 
 
-        TIME_END("superres")
+        # TIME_END("superres")
 
 
         depth=depth.view(frame.height, frame.width,1)

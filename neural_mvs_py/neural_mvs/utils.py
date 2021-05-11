@@ -24,7 +24,7 @@ from latticenet_py.lattice.lattice_modules import *
 from dataloaders import *
 
 
-DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type')
+DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type frustum_size')
 
 
 def rand_true(probability_of_true):
@@ -96,15 +96,28 @@ def compute_dataset_params(loader, frames):
     if isinstance(loader, DataLoaderLLFF):
         triangulation_type = "plane"
 
+
+    #min and jitter
     raymarch_depth_min = 0.15
     raymarch_depth_jitter =  2e-2
+    if isinstance(loader, DataLoaderLLFF):
+        raymarch_depth_min=0.005
+        raymarch_depth_jitter =  5e-4
+
+
+    #frustum size 
+    frustum_size=0.02
+    if isinstance(loader, DataLoaderLLFF):
+        frustum_size=0.001
+
 
     params= DatasetParams(sphere_radius=sphere_radius, 
                         sphere_center=sphere_center, 
                         estimated_scene_center=estimated_scene_center, 
                         raymarch_depth_min=raymarch_depth_min,
                         raymarch_depth_jitter = raymarch_depth_jitter,
-                        triangulation_type= triangulation_type )
+                        triangulation_type= triangulation_type,
+                        frustum_size=frustum_size )
 
     return params
 
@@ -675,7 +688,7 @@ def fused_mean_variance(x, weight, dim, use_weights=True):
         mean = torch.sum(x*weight, dim=dim, keepdim=True)
         var = torch.sum(weight * (x - mean)**2, dim=dim, keepdim=True)
     else:
-        mean = torch.sum(x, dim=dim, keepdim=True)
+        mean = torch.mean(x, dim=dim, keepdim=True)
         var = torch.sum( (x - mean)**2, dim=dim, keepdim=True)
-    mean_var=torch.cat([mean,var],-1)
+    mean_var=torch.cat([mean,var], 1 )
     return mean_var
