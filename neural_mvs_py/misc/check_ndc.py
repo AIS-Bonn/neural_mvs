@@ -37,10 +37,11 @@ def show_3D_points(points_3d_tensor, color=None):
     return mesh
 
 
-def ndc_rays (H , W , fx, fy , near , rays_o , rays_d ):
+def ndc_rays (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
     # Shift ray origins to near plane
-    t = -( near + rays_o [... , 2]) / rays_d [... , 2]
-    rays_o = rays_o + t[... , None ] * rays_d
+    if project_to_near:
+        t = -( near + rays_o [... , 2]) / rays_d [... , 2]
+        rays_o = rays_o + t[... , None ] * rays_d
     # Projection
     o0 = -1./(W/( 2.* fx ) ) * rays_o [... , 0] / rays_o [... , 2]
     o1 = -1./(H/( 2.* fy ) ) * rays_o [... , 1] / rays_o [... , 2]
@@ -148,7 +149,7 @@ def test_ndc():
     #make a cube of size 2
     box_ndc = Mesh()
     box_ndc.create_box_ndc()
-    Scene.show(box_ndc, "box_ndc")
+    # Scene.show(box_ndc, "box_ndc")
 
     while True:
         if(loader.has_data() and not first ): 
@@ -309,20 +310,40 @@ def test_ndc():
             print("depth_per_pixel is ", depth_per_pixel)
 
             #show the NDC of the rays 
-            rays_ndc = transform_to_ndc(rays_vis, frame_depth, near, far)
+            # rays_ndc = transform_to_ndc(rays_vis, frame_depth, near, far)
             # rays_ndc.m_vis.m_show_normals=True
-            Scene.show(rays_ndc, "rays_ndc" )
+            # Scene.show(rays_ndc, "rays_ndc" )
 
             #make te origins and direcitons similar to what nerf does in here, at the end is pytorch code ndc_derivation.pdf
             rays_o = torch.from_numpy(rays_vis.V)
             rays_d = torch.from_numpy(rays_vis.NV)
-            ndc_origins, ndc_dirs = ndc_rays (frame_depth.height , frame_depth.width , frame_depth.K[0,0], frame_depth.K[1,1], near, rays_o , rays_d )
+            fx= frame_depth.K[0,0]
+            fy= frame_depth.K[1,1]
+            ndc_origins, ndc_dirs = ndc_rays (frame_depth.height , frame_depth.width , fx, fy, near, rays_o , rays_d , project_to_near=False )
             # ndc_origins, ndc_dirs = ndc_rays (frame_depth.height , frame_depth.width , frame_depth.K[0,0],  near, rays_o , rays_d )
             # print("ndc_dirs", ndc_dirs)
             NDC_rays_vis = show_3D_points(ndc_origins)
             NDC_rays_vis.NV = ndc_dirs.detach().double().reshape((-1, 3)).cpu().numpy()
             NDC_rays_vis.m_vis.m_show_normals=True
-            Scene.show(NDC_rays_vis, "NDC_rays_vis" )
+            # Scene.show(NDC_rays_vis, "NDC_rays_vis" )
+
+
+            #project back from ndc to xyz
+            # print("ndc_origins", ndc_origins.shape)
+            x_ndc = ndc_origins[:, 0:1]
+            y_ndc = ndc_origins[:, 1:2]
+            z_ndc = ndc_origins[:, 2:3]
+            print("z_ndc is ", z_ndc)
+            # z = 2 / (z_ndc - 1)
+            z = 2* near / (z_ndc - 1)
+            # z = 1 / (1-z_ndc )
+            x = -x_ndc * z * frame_depth.width / 2 / fx
+            y = -y_ndc * z * frame_depth.height / 2 / fy
+            points_xyz= torch.cat([x,y,z],1)
+            rounback_xyz_mesh = show_3D_points(points_xyz)
+            rounback_xyz_mesh.m_vis.m_point_size=5.0
+            rounback_xyz_mesh.m_vis.m_point_color=[0.0, 1.0, 0.0]
+            Scene.show(rounback_xyz_mesh, "rounback_xyz_mesh" )
 
 
 
