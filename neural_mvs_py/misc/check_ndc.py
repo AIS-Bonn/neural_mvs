@@ -37,7 +37,7 @@ def show_3D_points(points_3d_tensor, color=None):
     return mesh
 
 
-def ndc_rays (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
+def xyz_and_dirs2ndc (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
     # Shift ray origins to near plane
     if project_to_near:
         t = -( near + rays_o [... , 2]) / rays_d [... , 2]
@@ -59,6 +59,23 @@ def ndc_rays (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
     # print("rays_o", rays_o.shape)
     rays_d = torch.cat([ d0.unsqueeze(1), d1.unsqueeze(1), d2.unsqueeze(1)    ], 1)
     return rays_o , rays_d
+
+
+def ndc2xyz(H , W , fx, fy , near , rays_o):
+
+    x_ndc = rays_o[:, 0:1]
+    y_ndc = rays_o[:, 1:2]
+    z_ndc = rays_o[:, 2:3]
+    # print("z_ndc is ", z_ndc)
+    # z = 2 / (z_ndc - 1)
+    z = 2* near / (z_ndc - 1)
+    # z = 1 / (1-z_ndc )
+    x = -x_ndc * z * W / 2 / fx
+    y = -y_ndc * z * H / 2 / fy
+    points_xyz= torch.cat([x,y,z],1)
+
+    return points_xyz
+
 
 
 # def ndc_rays(H, W, focal, near, rays_o, rays_d):
@@ -91,6 +108,10 @@ def ndc_rays (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
 #     return rays_o, rays_d
 
 def transform_to_ndc(cloud, frame, near, far):
+
+
+
+    
 
     cloud.apply_model_matrix_to_cpu(False)
     cloud.remove_vertices_at_zero()
@@ -319,27 +340,28 @@ def test_ndc():
             rays_d = torch.from_numpy(rays_vis.NV)
             fx= frame_depth.K[0,0]
             fy= frame_depth.K[1,1]
-            ndc_origins, ndc_dirs = ndc_rays (frame_depth.height , frame_depth.width , fx, fy, near, rays_o , rays_d , project_to_near=False )
+            ndc_origins, ndc_dirs = xyz_and_dirs2ndc (frame_depth.height , frame_depth.width , fx, fy, near, rays_o , rays_d , project_to_near=False )
             # ndc_origins, ndc_dirs = ndc_rays (frame_depth.height , frame_depth.width , frame_depth.K[0,0],  near, rays_o , rays_d )
             # print("ndc_dirs", ndc_dirs)
             NDC_rays_vis = show_3D_points(ndc_origins)
             NDC_rays_vis.NV = ndc_dirs.detach().double().reshape((-1, 3)).cpu().numpy()
             NDC_rays_vis.m_vis.m_show_normals=True
-            # Scene.show(NDC_rays_vis, "NDC_rays_vis" )
+            Scene.show(NDC_rays_vis, "NDC_rays_vis" )
 
 
             #project back from ndc to xyz
             # print("ndc_origins", ndc_origins.shape)
-            x_ndc = ndc_origins[:, 0:1]
-            y_ndc = ndc_origins[:, 1:2]
-            z_ndc = ndc_origins[:, 2:3]
-            print("z_ndc is ", z_ndc)
-            # z = 2 / (z_ndc - 1)
-            z = 2* near / (z_ndc - 1)
-            # z = 1 / (1-z_ndc )
-            x = -x_ndc * z * frame_depth.width / 2 / fx
-            y = -y_ndc * z * frame_depth.height / 2 / fy
-            points_xyz= torch.cat([x,y,z],1)
+            points_xyz=ndc2xyz(frame_depth.height , frame_depth.width , fx, fy, near, ndc_origins)
+            # x_ndc = ndc_origins[:, 0:1]
+            # y_ndc = ndc_origins[:, 1:2]
+            # z_ndc = ndc_origins[:, 2:3]
+            # print("z_ndc is ", z_ndc)
+            # # z = 2 / (z_ndc - 1)
+            # z = 2* near / (z_ndc - 1)
+            # # z = 1 / (1-z_ndc )
+            # x = -x_ndc * z * frame_depth.width / 2 / fx
+            # y = -y_ndc * z * frame_depth.height / 2 / fy
+            # points_xyz= torch.cat([x,y,z],1)
             rounback_xyz_mesh = show_3D_points(points_xyz)
             rounback_xyz_mesh.m_vis.m_point_size=5.0
             rounback_xyz_mesh.m_vis.m_point_color=[0.0, 1.0, 0.0]
