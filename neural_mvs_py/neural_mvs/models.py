@@ -5685,7 +5685,7 @@ class Net3_SRN(torch.nn.Module):
             frustum_mesh.m_vis.m_line_width= (weights[i])*15
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             frustum_mesh.m_force_vis_update=True
-            Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
+            # Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
 
 
 

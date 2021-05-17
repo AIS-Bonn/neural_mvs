@@ -871,7 +871,8 @@ def render_path_spiral(c2w, up, rads, focal, zdelta, zrate, rots, N):
 
     for theta in np.linspace(0., 2. * np.pi * rots, int(N + 1) )[:-1]:
         c = np.dot(c2w[:3, :4], np.array([np.cos(theta), -np.sin(theta), -np.sin(theta * zrate), 1.]) * rads)
-        z = normalize(c - np.dot(c2w[:3, :4], np.array([0, 0, -focal, 1.])))
+        z = normalize(c - np.dot(c2w[:3, :4], np.array([0, 0, focal, 1.])))
+        # print("focal points in wolrd", np.dot(c2w[:3, :4], np.array([0, 0, focal, 1.]))  )
         render_poses.append(np.concatenate([viewmatrix(z, up, c), hwf], 1))
     return render_poses
 
@@ -881,9 +882,10 @@ def normalize(x):
 
 
 def viewmatrix(z, up, pos):
-    vec2 = normalize(z)
+    vec2 = - normalize(z)
     vec1_avg = up
     vec0 = normalize(np.cross(vec1_avg, vec2))
     vec1 = normalize(np.cross(vec2, vec0))
+    # print("xdotz", np.dot(normalize(vec2), normalize(vec0) ) )
     m = np.stack([vec0, vec1, vec2, pos], 1)
     return m

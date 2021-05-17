@@ -166,6 +166,7 @@ def run():
 
     frame=FramePY(frames_test[0].frame)
     tf_world_cam=frame.tf_cam_world.inverse()
+    K=frame.frame.K.copy()
     print("initial pos", tf_world_cam.translation() )
     print("initial quat", tf_world_cam.quat() )
 
@@ -204,9 +205,11 @@ def run():
             #get the model matrix of the view and set it to the frame
             # cam_tf_world_cam= view.m_camera.model_matrix_affine()
             if use_spiral:
-                tf_world_cam_hfw = poses_on_spiral[ view.m_nr_drawn_frames% len(poses_on_spiral) ]
-                # print("pose_on spiral ", tf_world_cam_hfw)
-                tf_world_cam = tf_world_cam_hfw[:, 0:4]
+                tf_world_cam_hwf = poses_on_spiral[ view.m_nr_drawn_frames% len(poses_on_spiral) ]
+                # print("pose_on spiral ", tf_world_cam_hwf)
+                tf_world_cam = tf_world_cam_hwf[:, 0:4]
+                hwf=tf_world_cam_hwf[:, 4:5]
+                # print("hwf", hwf)
                 # print("tf_world_cam", tf_world_cam)
                 row = np.array([ 0,0,0,1  ])  #the last row in the matrix
                 row = row.reshape((1, 4))
@@ -214,10 +217,17 @@ def run():
                 # print("tf_world_cam with lasr tow", tf_world_cam)
                 tf_cam_world = np.linalg.inv(tf_world_cam)
                 # print("tf_cam_world with lasr tow", tf_cam_world)
+                # tf_cam_world[:,0:1] = -tf_cam_world[:,0:1]
+
                 tf_cam_world_eigen= Affine3f()
                 tf_cam_world_eigen.from_matrix(tf_cam_world)
-                tf_cam_world_eigen.flip_x()
+                tf_cam_world_eigen.flip_z()
                 frame.frame.tf_cam_world= tf_cam_world_eigen
+                #restrict also the focal a bit
+                # new_K=K.copy()
+                # new_K[0,0]=new_K[0,0]*0.7
+                # new_K[1,1]=new_K[1,1]*0.7
+                # frame.frame.K=new_K
             else:
                 view.m_camera=cam_for_pred
                 cam_tf_world_cam= cam_for_pred.model_matrix_affine()
@@ -230,6 +240,7 @@ def run():
             frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 1.0] #green
             frustum_mesh.m_force_vis_update=True
+            # print("frame.frameK", frame.frame.K)
             Scene.show(frustum_mesh, "frustum_cur" ) 
 
 
@@ -329,7 +340,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8/model_e_450.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8_also1x1/model_e_300.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s8_also1x1/model_e_200.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_250.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_250.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/horns/model_e_200.pt" ))
 
 
             #normal
