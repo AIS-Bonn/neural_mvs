@@ -24,7 +24,7 @@ from latticenet_py.lattice.lattice_modules import *
 from dataloaders import *
 
 
-DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type frustum_size use_ndc')
+DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_dist_from_origin raymarch_depth_min raymarch_depth_jitter triangulation_type frustum_size use_ndc')
 
 
 def rand_true(probability_of_true):
@@ -86,9 +86,19 @@ def compute_dataset_params(loader, frames):
         sphere_radius= np.amax(np.linalg.norm(frame_centers- sphere_center, axis=1))
     #for most of the datasets the scene is around the center of the sphere but for LLFF which has front facing cameras we have to manually set the estimated scene_center
     if not isinstance(loader, DataLoaderLLFF):
-       estimated_scene_center =  sphere_center #for most of the datasets the scene is around the center of the sphere
+    #    estimated_scene_center =  sphere_center #for most of the datasets the scene is around the center of the sphere
+       estimated_scene_dist_from_origin= np.linalg.norm(sphere_center) # #for most of the datasets the scene is around the center of the sphere. Distance from origin of the world to the sphere is the norm
     else: #if we deal with a LLFF datset we need to set our own estimate of the scene center
-        estimated_scene_center= np.array([0,0,-0.3])
+        # estimated_scene_center= np.array([0,0,-0.3])
+        mean = (frames[0].frame.get_extra_field_float("min_near") + frames[0].frame.get_extra_field_float("max_far")) *0.5
+        # mean = (frames[0].frame.get_extra_field_float("min_near")*0.75 + frames[0].frame.get_extra_field_float("max_far")*0.25)*0.5
+        # mean = frames[0].frame.get_extra_field_float("max_far") 
+        # print("mean si ", mean)
+        # print("frames[0].frame.get_extra_field_float(min_near)", frames[0].frame.get_extra_field_float("min_near"))
+        # estimated_scene_center= np.array([0,0, mean ])
+        # estimated_scene_center= np.array([mean ])
+        # estimated_scene_center= np.array([0,0, mean ])
+        estimated_scene_dist_from_origin=mean
         # estimated_scene_center= np.array([0,0, frames])
     print("sphere center and raidus ", sphere_center, " radius ", sphere_radius)
 
@@ -102,8 +112,11 @@ def compute_dataset_params(loader, frames):
     raymarch_depth_min = 0.15
     raymarch_depth_jitter =  2e-2
     if isinstance(loader, DataLoaderLLFF):
-        raymarch_depth_min=0.005
-        raymarch_depth_jitter =  5e-4
+        # raymarch_depth_min=0.005
+        # raymarch_depth_jitter =  5e-4
+        raymarch_depth_min=frames[0].frame.get_extra_field_float("min_near")
+        raymarch_depth_jitter =  0.0
+        # raymarch_depth_jitter =  1.0
 
 
     #frustum size 
@@ -114,13 +127,14 @@ def compute_dataset_params(loader, frames):
     #usage of ndc
     use_ndc=False
     if isinstance(loader, DataLoaderLLFF):
-        # use_ndc=False
-        use_ndc=True
+        use_ndc=False
+        # use_ndc=True
 
 
     params= DatasetParams(sphere_radius=sphere_radius, 
                         sphere_center=sphere_center, 
-                        estimated_scene_center=estimated_scene_center, 
+                        # estimated_scene_center=estimated_scene_center, 
+                        estimated_scene_dist_from_origin= estimated_scene_dist_from_origin,
                         raymarch_depth_min=raymarch_depth_min,
                         raymarch_depth_jitter = raymarch_depth_jitter,
                         triangulation_type= triangulation_type,

@@ -4062,7 +4062,12 @@ class DifferentiableRayMarcher(torch.nn.Module):
             depth_per_pixel= torch.ones([1, 1, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
             depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
         else:
-            depth_per_pixel = torch.zeros((1, 1, frame.height, frame.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=dataset_params.raymarch_depth_jitter)
+            if (dataset_params.raymarch_depth_jitter!=0.0):
+                depth_per_pixel = torch.zeros((1, 1, frame.height, frame.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=dataset_params.raymarch_depth_jitter)
+            else: 
+                depth_per_pixel= torch.ones([1, 1, frame.height, frame.width], dtype=torch.float32, device=torch.device("cuda")) 
+                depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
+
 
         # depth_per_pixel= torch.ones([frame.height*frame.width,1], dtype=torch.float32, device=torch.device("cuda")) 
         # depth_per_pixel.fill_(depth_min)   #randomize the deptha  bith
@@ -4094,6 +4099,11 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
         ray_dirs_original=ray_dirs #make a copy of the ray dirs because in ndc they will be differ
 
+        points3d_mesh=show_3D_points( nchw2lin(points3D))
+        Scene.show(points3d_mesh, "points_3d_init")
+
+
+
         #if we use ndc, we must convert the points and the rays
         if dataset_params.use_ndc:
             near= dataset_params.raymarch_depth_min - dataset_params.raymarch_depth_jitter*3
@@ -4124,8 +4134,6 @@ class DifferentiableRayMarcher(torch.nn.Module):
             # Scene.show(NDC_rounback, "NDC_rounback" )
 
 
-        # points3d_mesh=show_3D_points( nchw2lin(points3D))
-        # Scene.show(points3d_mesh, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -4176,6 +4184,14 @@ class DifferentiableRayMarcher(torch.nn.Module):
                 world_coords[-1] = lin2nchw(points3D_lin, frame.height , frame.width)
                 ray_dirs = lin2nchw(ray_dirs_lin, frame.height , frame.width)
 
+                # # #show the points in ndc
+                layer_mesh = show_3D_points(points3D_lin)
+                layer_mesh.C = np.ones( (layer_mesh.V.shape[0],3) )* iter_nr/self.nr_iters
+                layer_mesh.m_vis.set_color_pervertcolor()
+                layer_mesh.NV = ray_dirs_lin.detach().double().reshape((-1, 3)).cpu().numpy()
+                layer_mesh.m_vis.m_show_normals=True
+                Scene.show(layer_mesh, "ndc_layer_mesh_"+str(iter_nr) )
+
 
             # slice with grid_sample
             sliced_feat_batched=torch.nn.functional.grid_sample( frames_features, uv_tensor, align_corners=False, mode="bilinear", padding_mode="zeros" ) #sliced features is N,C,H,W
@@ -4223,6 +4239,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
             signed_distance= self.out_layer(state[0])
             signed_distance = lin2nchw(signed_distance, frame.height, frame.width)
             # signed_distance= self.out_layer(state)
+            signed_distance= torch.abs(signed_distance)
             TIME_END("raymarch_lstm")
             depth_scaling=1.0/(1.0*self.nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
             signed_distance=signed_distance*depth_scaling

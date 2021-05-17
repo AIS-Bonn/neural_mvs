@@ -37,7 +37,7 @@ def show_3D_points(points_3d_tensor, color=None):
     return mesh
 
 
-def xyz_and_dirs2ndc (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
+def xyz_and_dirs2ndc (H , W , fx, fy , near , far, rays_o , rays_d, project_to_near):
     # Shift ray origins to near plane
     if project_to_near:
         t = -( near + rays_o [... , 2]) / rays_d [... , 2]
@@ -46,6 +46,7 @@ def xyz_and_dirs2ndc (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
     o0 = -1./(W/( 2.* fx ) ) * rays_o [... , 0] / rays_o [... , 2]
     o1 = -1./(H/( 2.* fy ) ) * rays_o [... , 1] / rays_o [... , 2]
     o2 = 1. + 2. * near / rays_o [... , 2]
+    # o2 = o2*far
     d0 = -1./(W/( 2.* fx ) ) * ( rays_d [... , 0]/ rays_d [... , 2] - \
     rays_o [... , 0]/ rays_o [... , 2])
     d1 = -1./(H/( 2.* fy ) ) * ( rays_d [... , 1]/ rays_d [... , 2] - \
@@ -61,7 +62,7 @@ def xyz_and_dirs2ndc (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
     return rays_o , rays_d
 
 
-def ndc2xyz(H , W , fx, fy , near , rays_o):
+def ndc2xyz(H , W , fx, fy , near , far,  rays_o):
 
     x_ndc = rays_o[:, 0:1]
     y_ndc = rays_o[:, 1:2]
@@ -69,6 +70,7 @@ def ndc2xyz(H , W , fx, fy , near , rays_o):
     # print("z_ndc is ", z_ndc)
     # z = 2 / (z_ndc - 1)
     z = 2* near / (z_ndc - 1)
+    # z = z*far
     # z = 1 / (1-z_ndc )
     x = -x_ndc * z * W / 2 / fx
     y = -y_ndc * z * H / 2 / fy
@@ -183,7 +185,7 @@ def test_ndc_volref():
             frame_color=loader.get_color_frame()
             frame_depth=loader.get_depth_frame()
 
-            print("frame_depth has height and width", frame_depth.height, " ", frame_depth.width)
+            # print("frame_depth has height and width", frame_depth.height, " ", frame_depth.width)
 
             #move the frame forwards so that we start with the clouds at z0 and not in the negative part
             tf_cam_world=frame_color.tf_cam_world.clone()
@@ -300,7 +302,7 @@ def test_ndc_volref():
             for i in range(nr_layers):
                 points3D = camera_center + depth_per_pixel*ray_dirs #N,3,H,W
                 if i == 0:
-                    print("for the first layer the min max x and y is")
+                    # print("for the first layer the min max x and y is")
                     min_x = points3D[:,0:1].min()
                     max_x = points3D[:,0:1].max()
                     min_y = points3D[:,1:2].min()
@@ -404,7 +406,7 @@ def test_ndc_llff():
             frame_depth=loader.get_next_frame()
             frame_color=frame_depth
 
-            print("frame_depth has height and width", frame_depth.height, " ", frame_depth.width)
+            # print("frame_depth has height and width", frame_depth.height, " ", frame_depth.width)
 
 
 
@@ -416,6 +418,9 @@ def test_ndc_llff():
             Scene.show(frustum_mesh, frustum_name)
            
             near = frame_depth.get_extra_field_float("min_near")
+            far = frame_depth.get_extra_field_float("max_far")
+
+            # print("near and far is ", near, " ", far)
 
 
             #get rays and show them
@@ -428,11 +433,11 @@ def test_ndc_llff():
             camera_center=torch.from_numpy( frame_depth.pos_in_world() )
             camera_center=camera_center.view(1,3)
             nr_layers=30
-            layer_spacing=0.01
+            layer_spacing=far/nr_layers
             for i in range(nr_layers):
                 points3D = camera_center + depth_per_pixel*ray_dirs #N,3,H,W
                 if i == 0:
-                    print("for the first layer the min max x and y is")
+                    # print("for the first layer the min max x and y is")
                     min_x = points3D[:,0:1].min()
                     max_x = points3D[:,0:1].max()
                     min_y = points3D[:,1:2].min()
@@ -455,8 +460,9 @@ def test_ndc_llff():
             far= (nr_layers+1)*layer_spacing
             all_points= torch.from_numpy(rays_vis.V.copy())
             point_dist = all_points.norm(dim=1)
-            near = point_dist.min()
-            far = point_dist.max()
+            closest_dist = point_dist.min()
+            furthest_dist = point_dist.max()
+            # print("closest_dist ", closest_dist, " ", furthest_dist)
             
 
             #make te origins and direcitons similar to what nerf does in here, at the end is pytorch code ndc_derivation.pdf
@@ -464,16 +470,18 @@ def test_ndc_llff():
             rays_d = torch.from_numpy(rays_vis.NV)
             fx= frame_depth.K[0,0]
             fy= frame_depth.K[1,1]
-            ndc_origins, ndc_dirs = xyz_and_dirs2ndc (frame_depth.height , frame_depth.width , fx, fy, near, rays_o , rays_d , project_to_near=False )
+            ndc_origins, ndc_dirs = xyz_and_dirs2ndc (frame_depth.height , frame_depth.width , fx, fy, near, far, rays_o , rays_d , project_to_near=False )
             NDC_rays_vis = show_3D_points(ndc_origins)
             NDC_rays_vis.NV = ndc_dirs.detach().double().reshape((-1, 3)).cpu().numpy()
             NDC_rays_vis.m_vis.m_show_normals=True
+            NDC_rays_vis.C=  rays_vis.C
+            NDC_rays_vis.m_vis.set_color_pervertcolor()
             Scene.show(NDC_rays_vis, "NDC_rays_vis" )
 
 
             #project back from ndc to xyz
             # print("ndc_origins", ndc_origins.shape)
-            points_xyz=ndc2xyz(frame_depth.height , frame_depth.width , fx, fy, near, ndc_origins)
+            points_xyz=ndc2xyz(frame_depth.height , frame_depth.width , fx, fy, near, far, ndc_origins)
             rounback_xyz_mesh = show_3D_points(points_xyz)
             rounback_xyz_mesh.m_vis.m_point_size=5.0
             rounback_xyz_mesh.m_vis.m_point_color=[0.0, 1.0, 0.0]

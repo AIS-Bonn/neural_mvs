@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s2ndc"
+    experiment_name="s7better3dloss"
 
 
     # use_ray_compression=False
@@ -134,6 +134,34 @@ def run():
 
     grad_history = []
     max_test_psnr=0.0
+
+
+    #get keypoints
+    sfm=SFM.create()
+    selected_frame_idx=np.arange(10) #For colmap
+    # selected_frame_idx=[10]
+    frames_query_selected=[]
+    frames_target_selected=[]
+    frames_all_selected=[]
+    meshes_for_query_frames=[]
+    for i in range(loader_train.nr_samples()):
+    # for i in range(1 ):
+        # frame_0=loader_train.get_frame_at_idx(i+3) 
+        if i in selected_frame_idx:
+            frame_query=frames_train[i].frame
+            # frame_target=loader_train.get_closest_frame(frame_query)
+            frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
+            mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
+            meshes_for_query_frames.append(mesh_sparse)
+
+    #fuse all the meshes into one
+    mesh_full=Mesh()
+    for mesh in meshes_for_query_frames:
+        mesh_full.add(mesh)
+    mesh_full.m_vis.m_show_points=True
+    mesh_full.m_vis.set_color_pervertcolor()
+    Scene.show(mesh_full, "mesh_full" )
+    # print("scene scale is ", Scene.get_scale())
 
 
     while True:
@@ -305,7 +333,17 @@ def run():
 
                             #loss that pushes the points to be in the middle of the space 
                             if phase.iter_nr<1000:
-                                loss+=( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,3,1,1).cuda()-point3d).norm(dim=1)).mean()*0.2
+                                # point3d= point3d
+                                # print("point3d).norm(dim=1) is ", point3d.norm(dim=1,keepdim=True)  )
+                                # print("dataset_params.estimated_scene_center", dataset_params.estimated_scene_center)
+                                # loss+=( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,3,1,1).cuda()-point3d).norm(dim=1)).mean()*0.2
+                                # mean_point_dist_from_world_center= point3d.norm(dim=1,keepdim=True).mean()
+                                # print("mean final dist", mean_final_dist)
+                                # loss+= (( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,1,1,1).cuda()-point3d).norm(dim=1,keepdim=True))**2).mean()*0.2
+                                # loss+= (mean_final_dist- dataset_params.estimated_scene_center)**2 *0.1
+                                # loss+= (torch.abs(point3d -  torch.from_numpy(dataset_params.estimated_scene_center).cuda().view(1,3,1,1) )).mean() *0.2
+                                loss+= (torch.abs( point3d.norm(dim=1,keepdim=True) -  dataset_params.estimated_scene_dist_from_origin )).mean() *0.2
+                                # print("loss is ",loss)
 
 
                         
