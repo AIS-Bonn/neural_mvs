@@ -114,8 +114,8 @@ def compute_dataset_params(loader, frames):
     #usage of ndc
     use_ndc=False
     if isinstance(loader, DataLoaderLLFF):
-        use_ndc=False
-        # use_ndc=True
+        # use_ndc=False
+        use_ndc=True
 
 
     params= DatasetParams(sphere_radius=sphere_radius, 
