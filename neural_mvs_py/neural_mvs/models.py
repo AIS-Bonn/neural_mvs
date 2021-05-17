@@ -4083,15 +4083,49 @@ class DifferentiableRayMarcher(torch.nn.Module):
         #####when we project we assume all the frames have the same size
         height=frames_close[0].height
         width=frames_close[0].width
+        fx= frame.K[0,0]
+        fy= frame.K[1,1]
 
 
         #attempt 2 unproject to 3D 
         camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
         camera_center=camera_center.view(1,3,1,1)
         points3D = camera_center + depth_per_pixel*ray_dirs #N,3,H,W
-        # show_3D_points(points3D, "points_3d_init")
-        points3d_mesh=show_3D_points( nchw2lin(points3D))
-        Scene.show(points3d_mesh, "points_3d_init")
+
+        ray_dirs_original=ray_dirs #make a copy of the ray dirs because in ndc they will be differ
+
+        #if we use ndc, we must convert the points and the rays
+        if dataset_params.use_ndc:
+            near= dataset_params.raymarch_depth_min - dataset_params.raymarch_depth_jitter*3
+            # print("near is ", near)
+            #transform from xyz to ndc
+            # ray_dirs= - ray_dirs_original 
+            points3D_lin = nchw2lin(points3D)
+            ray_dirs_lin = nchw2lin(ray_dirs)
+            points3D_lin, ray_dirs_lin = xyz_and_dirs2ndc (frame.height , frame.width , fx, fy, near, points3D_lin , ray_dirs_lin , project_to_near=False )
+            points3D = lin2nchw(points3D_lin, frame.height , frame.width)
+            ray_dirs = lin2nchw(ray_dirs_lin, frame.height , frame.width)
+
+            # #show the points in ndc
+            # NDC_rays_vis = show_3D_points(points3D_lin)
+            # NDC_rays_vis.NV = ray_dirs_lin.detach().double().reshape((-1, 3)).cpu().numpy()
+            # NDC_rays_vis.m_vis.m_show_normals=True
+            # Scene.show(NDC_rays_vis, "NDC_rays_vis" )
+
+
+            # #transform from ndc to xyz
+            # points3D_lin = nchw2lin(points3D)
+            # points3D_lin = ndc2xyz(frame.height , frame.width , fx, fy, near, points3D_lin)
+            # points3D = lin2nchw(points3D_lin, frame.height , frame.width)
+            # ray_dirs=ray_dirs_original
+
+            # #show the points in xyz
+            # NDC_rounback = show_3D_points(points3D_lin)
+            # Scene.show(NDC_rounback, "NDC_rounback" )
+
+
+        # points3d_mesh=show_3D_points( nchw2lin(points3D))
+        # Scene.show(points3d_mesh, "points_3d_init")
 
         init_world_coords=points3D
         initial_depth=depth_per_pixel
@@ -4115,8 +4149,32 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             # TIME_START("raymarch_uv")
             TIME_START("rm_get_and_aggr")
+
+            if dataset_params.use_ndc:
+                #transform from NDC to xyz
+                world_coords[-1] = nchw2lin(world_coords[-1])
+                points3D_lin = ndc2xyz(frame.height , frame.width , fx, fy, near, world_coords[-1])
+                world_coords[-1] = lin2nchw(points3D_lin, frame.height , frame.width)
+                ray_dirs=ray_dirs_original
+
+                # # #show the points in xyz
+                # layer_mesh = show_3D_points(points3D_lin)
+                # layer_mesh.C = np.ones( (layer_mesh.V.shape[0],3) )* iter_nr/self.nr_iters
+                # layer_mesh.m_vis.set_color_pervertcolor()
+                # Scene.show(layer_mesh, "layer_mesh_"+str(iter_nr) )
+
+
             uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width, world_coords[-1] )
             # TIME_END("raymarch_uv")
+
+
+            if dataset_params.use_ndc:
+                #transform from xyz to ndc
+                points3D_lin = nchw2lin(world_coords[-1])
+                ray_dirs_lin = nchw2lin(ray_dirs)
+                points3D_lin, ray_dirs_lin = xyz_and_dirs2ndc (frame.height , frame.width , fx, fy, near, points3D_lin , ray_dirs_lin , project_to_near=False )
+                world_coords[-1] = lin2nchw(points3D_lin, frame.height , frame.width)
+                ray_dirs = lin2nchw(ray_dirs_lin, frame.height , frame.width)
 
 
             # slice with grid_sample
@@ -4178,11 +4236,22 @@ class DifferentiableRayMarcher(torch.nn.Module):
 
             TIME_END("raymarch_iter")
 
+
+        if dataset_params.use_ndc: 
+            #finally get them to xyz 
+            new_world_coords = nchw2lin(new_world_coords)
+            points3D_lin = ndc2xyz(frame.height , frame.width , fx, fy, near, new_world_coords)
+            new_world_coords = lin2nchw(points3D_lin, frame.height , frame.width)
+            ray_dirs=ray_dirs_original
+
         #get the depth at this final 3d position
         depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
         #return also the world coords at every march
         # world_coords.pop(0)
+
+
+      
 
         return new_world_coords, depth 
 

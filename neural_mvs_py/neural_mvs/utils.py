@@ -24,7 +24,7 @@ from latticenet_py.lattice.lattice_modules import *
 from dataloaders import *
 
 
-DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type frustum_size')
+DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_center raymarch_depth_min raymarch_depth_jitter triangulation_type frustum_size use_ndc')
 
 
 def rand_true(probability_of_true):
@@ -89,6 +89,7 @@ def compute_dataset_params(loader, frames):
        estimated_scene_center =  sphere_center #for most of the datasets the scene is around the center of the sphere
     else: #if we deal with a LLFF datset we need to set our own estimate of the scene center
         estimated_scene_center= np.array([0,0,-0.3])
+        # estimated_scene_center= np.array([0,0, frames])
     print("sphere center and raidus ", sphere_center, " radius ", sphere_radius)
 
     #triangulation type is sphere for all datasets except llff
@@ -110,6 +111,12 @@ def compute_dataset_params(loader, frames):
     if isinstance(loader, DataLoaderLLFF):
         frustum_size=0.001
 
+    #usage of ndc
+    use_ndc=False
+    if isinstance(loader, DataLoaderLLFF):
+        # use_ndc=False
+        use_ndc=True
+
 
     params= DatasetParams(sphere_radius=sphere_radius, 
                         sphere_center=sphere_center, 
@@ -117,7 +124,8 @@ def compute_dataset_params(loader, frames):
                         raymarch_depth_min=raymarch_depth_min,
                         raymarch_depth_jitter = raymarch_depth_jitter,
                         triangulation_type= triangulation_type,
-                        frustum_size=frustum_size )
+                        frustum_size=frustum_size,
+                        use_ndc=use_ndc )
 
     return params
 
@@ -692,3 +700,46 @@ def fused_mean_variance(x, weight, dim, use_weights=True):
         var = torch.sum( (x - mean)**2, dim=dim, keepdim=True)
     mean_var=torch.cat([mean,var], 1 )
     return mean_var
+
+
+
+#NDC to xyz conversions
+#from NERF paper
+def xyz_and_dirs2ndc (H , W , fx, fy , near , rays_o , rays_d, project_to_near):
+    # Shift ray origins to near plane
+    if project_to_near:
+        t = -( near + rays_o [... , 2]) / rays_d [... , 2]
+        rays_o = rays_o + t[... , None ] * rays_d
+    # Projection
+    o0 = -1./(W/( 2.* fx ) ) * rays_o [... , 0] / rays_o [... , 2]
+    o1 = -1./(H/( 2.* fy ) ) * rays_o [... , 1] / rays_o [... , 2]
+    o2 = 1. + 2. * near / rays_o [... , 2]
+    d0 = -1./(W/( 2.* fx ) ) * ( rays_d [... , 0]/ rays_d [... , 2] - \
+    rays_o [... , 0]/ rays_o [... , 2])
+    d1 = -1./(H/( 2.* fy ) ) * ( rays_d [... , 1]/ rays_d [... , 2] - \
+    rays_o [... , 1]/ rays_o [... , 2])
+    d2 = -2. * near / rays_o [... , 2]
+    # print("o0", o0.shape)
+    # print("d0", d0.shape)
+    # rays_o = tf . stack ([o0 ,o1 , o2], -1)
+    # rays_d = tf . stack ([d0 ,d1 , d2], -1)
+    rays_o = torch.cat([ o0.unsqueeze(1), o1.unsqueeze(1), o2.unsqueeze(1)    ], 1)
+    # print("rays_o", rays_o.shape)
+    rays_d = torch.cat([ d0.unsqueeze(1), d1.unsqueeze(1), d2.unsqueeze(1)    ], 1)
+    return rays_o , rays_d
+
+#From  https://github.com/bmild/nerf/issues/35
+def ndc2xyz(H , W , fx, fy , near , rays_o):
+
+    x_ndc = rays_o[:, 0:1]
+    y_ndc = rays_o[:, 1:2]
+    z_ndc = rays_o[:, 2:3]
+    # print("z_ndc is ", z_ndc)
+    # z = 2 / (z_ndc - 1)
+    z = 2* near / (z_ndc - 1)
+    # z = 1 / (1-z_ndc )
+    x = -x_ndc * z * W / 2 / fx
+    y = -y_ndc * z * H / 2 / fy
+    points_xyz= torch.cat([x,y,z],1)
+
+    return points_xyz
