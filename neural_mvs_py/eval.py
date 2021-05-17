@@ -95,11 +95,16 @@ def run():
     # loader_test=DataLoaderNerf(config_path)
     # loader_train=DataLoaderColmap(config_path)
     # loader_test=DataLoaderColmap(config_path)
-    # loader_train.set_mode_all()
-    # loader_test.set_mode_all()
-    # loader_train.start()
-    # loader_test.start()
-    loader_train, loader_test=create_loader(train_params.dataset_name(), config_path)
+    loader_train=DataLoaderLLFF(config_path)
+    loader_test=DataLoaderLLFF(config_path)
+    loader_train.set_mode_all()
+    loader_test.set_mode_all()
+    loader_train.start()
+    loader_test.start()
+    # loader_train, loader_test=create_loader(train_params.dataset_name(), config_path)
+    frames_train = get_frames(loader_train)
+    frames_test = get_frames(loader_test)
+    dataset_params = compute_dataset_params(loader_train, frames_train)
 
     #create phases
     phases= [
@@ -108,7 +113,7 @@ def run():
     ]
     #model 
     model=None
-    model=Net3_SRN(model_params, do_superres).to("cuda")
+    model=Net3_SRN(model_params).to("cuda")
     model.eval()
 
     scheduler=None
@@ -120,17 +125,7 @@ def run():
 
 
 
-    #get all the frames train in am array, becuase it's faster to have everything already on the gpu
-    frames_train=[]
-    frames_test=[]
-    for i in range(loader_train.nr_samples()):
-        frame=loader_train.get_frame_at_idx(i)
-        frames_train.append(FramePY(frame, create_subsamples=True))
-    for i in range(loader_test.nr_samples()):
-        frame=loader_test.get_frame_at_idx(i)
-        frames_test.append(FramePY(frame, create_subsamples=True))
-    phases[0].frames=frames_train 
-    phases[1].frames=frames_test
+    
     #Show only the visdom for the testin
     phases[0].show_visdom=False
     phases[1].show_visdom=True
@@ -197,17 +192,45 @@ def run():
     factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=2
 
+
+    poses_on_spiral= make_list_of_poses_on_spiral(frames_train, path_zflat=False )
+
+    use_spiral=True
+
     while True:
         with torch.set_grad_enabled(False):
 
-            view.m_camera=cam_for_pred
-            # cam_for_pred=view.m_default_camera
         
             #get the model matrix of the view and set it to the frame
             # cam_tf_world_cam= view.m_camera.model_matrix_affine()
-            cam_tf_world_cam= cam_for_pred.model_matrix_affine()
-            frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
+            if use_spiral:
+                tf_world_cam_hfw = poses_on_spiral[ view.m_nr_drawn_frames% len(poses_on_spiral) ]
+                # print("pose_on spiral ", tf_world_cam_hfw)
+                tf_world_cam = tf_world_cam_hfw[:, 0:4]
+                # print("tf_world_cam", tf_world_cam)
+                row = np.array([ 0,0,0,1  ])  #the last row in the matrix
+                row = row.reshape((1, 4))
+                tf_world_cam = np.concatenate([ tf_world_cam, row ], 0)
+                # print("tf_world_cam with lasr tow", tf_world_cam)
+                tf_cam_world = np.linalg.inv(tf_world_cam)
+                # print("tf_cam_world with lasr tow", tf_cam_world)
+                tf_cam_world_eigen= Affine3f()
+                tf_cam_world_eigen.from_matrix(tf_cam_world)
+                tf_cam_world_eigen.flip_x()
+                frame.frame.tf_cam_world= tf_cam_world_eigen
+            else:
+                view.m_camera=cam_for_pred
+                cam_tf_world_cam= cam_for_pred.model_matrix_affine()
+                frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
             frame=FramePY(frame.frame, create_subsamples=True)
+
+
+
+            #show the current frame 
+            frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
+            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 1.0] #green
+            frustum_mesh.m_force_vis_update=True
+            Scene.show(frustum_mesh, "frustum_cur" ) 
 
 
             # discard_same_idx=False
@@ -236,6 +259,10 @@ def run():
                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius, triangulation_type)
                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
 
+
+            #double check why are the tf_matrices weird
+
+
             #load frames
             frame.load_images()
 
@@ -260,28 +287,32 @@ def run():
                     frames_close_subsampled.append(frame_subsampled)
                 frames_close= frames_close_subsampled
 
-            #prepare rgb data and rest of things
-            rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
-            mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
-            ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
-            rgb_close_batch_list=[]
-            for frame_close in frames_close:
-                rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
-                rgb_close_batch_list.append(rgb_close_frame)
-            rgb_close_batch=torch.cat(rgb_close_batch_list,0)
-            #make also a batch fo directions
-            raydirs_close_batch_list=[]
-            for frame_close in frames_close:
-                ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
-                ray_dirs_close=ray_dirs_close.view(1, frame_close.height, frame_close.width, 3)
-                ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-                raydirs_close_batch_list.append(ray_dirs_close)
-            ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
+
+            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch = prepare_data(frame_full_res, frame, frames_close)
+
+            # #prepare rgb data and rest of things
+            # rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
+            # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
+            # ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
+            # rgb_close_batch_list=[]
+            # for frame_close in frames_close:
+            #     rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+            #     rgb_close_batch_list.append(rgb_close_frame)
+            # rgb_close_batch=torch.cat(rgb_close_batch_list,0)
+            # #make also a batch fo directions
+            # raydirs_close_batch_list=[]
+            # for frame_close in frames_close:
+            #     ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float()
+            #     ray_dirs_close=ray_dirs_close.view(1, frame_close.height, frame_close.width, 3)
+            #     ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            #     raydirs_close_batch_list.append(ray_dirs_close)
+            # ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
 
 
             pixels_indices=None
 
-            rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=True)
+            # rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=True)
+            rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=True)
             # print("depth_pred", depth_pred.mean())
 
             if first_time:
@@ -297,25 +328,23 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/nerf_drums_RGB_S400_D_S200_withpos/model_e_900.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8/model_e_450.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8_also1x1/model_e_300.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s8_also1x1/model_e_200.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s8_also1x1/model_e_200.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_250.pt" ))
 
 
-            camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
-            camera_center=camera_center.view(1,3)
-            points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
             #normal
-            points3D_img=points3D.view(1, frame.height, frame.width, 3)
-            points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+            points3D_img=point3d
             normal_img=compute_normal(points3D_img)
-            normal_vis=(normal_img+1.0)*0.
+            # print("normal_img has min max", normal_img.min(), normal_img.max())
+            normal_vis=(normal_img+1.0)*0.5
             #masks
-            rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
-            rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-            rgb_pred_zeros_mask= rgb_pred_zeros<0.01
-            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1,frame.height,frame.width,3)
-            rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2)
+            # rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
+            # rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+            # rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+            # rgb_pred_zeros_mask= rgb_pred_zeros<0.01
+            # rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+            # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1,frame.height,frame.width,3)
+            # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2)
             if neural_mvs_gui.m_show_rgb:
                 pred_mat=tensor2mat(rgb_pred)
             if neural_mvs_gui.m_show_depth:
@@ -323,26 +352,27 @@ def run():
                 # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
                 depth_vis=map_range(depth_vis, neural_mvs_gui.m_min_depth, neural_mvs_gui.m_max_depth, 0.0, 1.0) #for the colamp fine leaves
                 depth_vis=depth_vis.repeat(1,3,1,1)
-                depth_vis[rgb_pred_zeros_mask_img]=1.0 #MASK the point in the background
+                # depth_vis[rgb_pred_zeros_mask_img]=1.0 #MASK the point in the background
                 pred_mat=tensor2mat(depth_vis)
             if neural_mvs_gui.m_show_normal:
+                # print("normal_vis has min max", normal_vis.min(), normal_vis.max())
                 pred_mat=tensor2mat(normal_vis)
             Gui.show(pred_mat,"Depth")
-            Gui.show(tensor2mat(rgb_refined),"RGB")
-            #show 3d points 
-            normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-            normal=normal.view(-1,3)
-            rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
-            rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-            rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
-            rgb_pred_zeros_mask= rgb_pred_zeros<0.05
-            rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
-            points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
-            points3d_mesh=show_3D_points(points3D, color=rgb_refined_downsized)
-            points3d_mesh.NV= normal.detach().cpu().numpy()
-            Scene.show(points3d_mesh, "points3d_mesh")
-            for i in range(len(frames_close)):
-                Gui.show(frames_close[i].frame.rgb_32f,"close_"+str(i) )
+            # Gui.show(tensor2mat(rgb_refined),"RGB")
+            # #show 3d points 
+            # normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+            # normal=normal.view(-1,3)
+            # rgb_refined_downsized= torch.nn.functional.interpolate(rgb_refined, size=(rgb_pred.shape[2], rgb_pred.shape[3]), mode='bilinear')
+            # rgb_pred_channels_last=rgb_refined_downsized.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+            # rgb_pred_zeros=rgb_pred_channels_last.view(-1,3).norm(dim=1, keepdim=True)
+            # rgb_pred_zeros_mask= rgb_pred_zeros<0.05
+            # rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
+            # points3D[rgb_pred_zeros_mask]=0.0 #MASK the point in the background
+            # points3d_mesh=show_3D_points(points3D, color=rgb_refined_downsized)
+            # points3d_mesh.NV= normal.detach().cpu().numpy()
+            # Scene.show(points3d_mesh, "points3d_mesh")
+            # for i in range(len(frames_close)):
+            #     Gui.show(frames_close[i].frame.rgb_32f,"close_"+str(i) )
 
 
 

@@ -16,6 +16,7 @@ from torchmeta.modules import (MetaModule, MetaSequential)
 
 from neural_mvs_py.neural_mvs.pac import *
 from neural_mvs_py.neural_mvs.deform_conv import *
+from neural_mvs_py.neural_mvs.utils import *
 from latticenet_py.lattice.lattice_modules import *
 
 
@@ -764,7 +765,11 @@ class FeatureAgregatorIBRNet(torch.nn.Module):
                                      nn.Sigmoid()
                                      )
 
-    def forward(self, feat_sliced_per_frame, weights, mask, novel=False):
+    def forward(self, feat_sliced_per_frame, weights, novel=False):
+
+        h=feat_sliced_per_frame.shape[2]
+        w=feat_sliced_per_frame.shape[3]
+        feat_sliced_per_frame = nchw2nXc(feat_sliced_per_frame)
 
         weights=weights.view(-1,1,1)
         
@@ -773,7 +778,7 @@ class FeatureAgregatorIBRNet(torch.nn.Module):
         nr_pixeles= feat_sliced_per_frame.shape[1]
         feat_dim= feat_sliced_per_frame.shape[2]
 
-        mean_var=fused_mean_variance(feat_sliced_per_frame,weights, 0, use_weights=False)
+        mean_var=fused_mean_variance(feat_sliced_per_frame,weights, dim_reduce=0, dim_concat=2, use_weights=False)
         mean_var_batched = mean_var.view(1,nr_pixeles, -1).repeat(nr_frames,1,1)
 
         feat_mu_var=torch.cat([feat_sliced_per_frame,mean_var_batched],2)
@@ -788,7 +793,8 @@ class FeatureAgregatorIBRNet(torch.nn.Module):
         # print("mask is ", mask.shape)
 
 
-        x_vis = self.vis_fc(x * mask)
+        # x_vis = self.vis_fc(x * mask)
+        x_vis = self.vis_fc(x)
         x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
         vis = F.sigmoid(vis)
         x = x + x_res
@@ -798,13 +804,15 @@ class FeatureAgregatorIBRNet(torch.nn.Module):
         # print("x", x.shape)
         # print("weight", weight.shape)
 
-        mean_var = fused_mean_variance(x, weight, 0)
+        mean_var = fused_mean_variance(x, weight, dim_reduce=0, dim_concat=2)
         # print("mean_var_before lat", mean_var.shape)
-        globalfeat = torch.cat([mean_var.squeeze(0), weight.mean(dim=0)], dim=-1)  # [n_rays, n_samples, 32*2+1]
+        # print("weight", weight.shape)
+        # globalfeat = torch.cat([mean_var.squeeze(0), weight.mean(dim=0)], dim=-1)  # [n_rays, n_samples, 32*2+1]
+        globalfeat = mean_var.squeeze(0)  # [n_rays, n_samples, 32*2]
 
         # print("global ", globalfeat.shape)
 
-        
+        globalfeat = globalfeat.view(1,h,w,-1).permute(0,3,1,2)
 
         return globalfeat
 

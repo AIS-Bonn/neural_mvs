@@ -48,6 +48,14 @@ def nchw2nXc(x):
     x=x.view(nr_batches, -1, nr_feat)
     return x
 
+#make from N,C,H,W to N,Nrpixels,C
+def nXc2nchw(x):
+    nr_feat=x.shape[1]
+    nr_batches=x.shape[0]
+    x=x.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+    x=x.view(nr_batches, -1, nr_feat)
+    return 
+
 # make from N,C,H,W to Nrpixels,C ONLY works when N is 1
 def nchw2lin(x):
     if x.shape[0]!=1:
@@ -705,14 +713,14 @@ def get_grad_norm(model):
     total_norm = total_norm ** (1. / 2)
     return total_norm 
 
-def fused_mean_variance(x, weight, dim, use_weights=True):
+def fused_mean_variance(x, weight, dim_reduce, dim_concat, use_weights=True):
     if use_weights:
-        mean = torch.sum(x*weight, dim=dim, keepdim=True)
-        var = torch.sum(weight * (x - mean)**2, dim=dim, keepdim=True)
+        mean = torch.sum(x*weight, dim=dim_reduce, keepdim=True)
+        var = torch.sum(weight * (x - mean)**2, dim=dim_reduce, keepdim=True)
     else:
-        mean = torch.mean(x, dim=dim, keepdim=True)
-        var = torch.sum( (x - mean)**2, dim=dim, keepdim=True)
-    mean_var=torch.cat([mean,var], 1 )
+        mean = torch.mean(x, dim=dim_reduce, keepdim=True)
+        var = torch.sum( (x - mean)**2, dim=dim_reduce, keepdim=True)
+    mean_var=torch.cat([mean,var], dim_concat )
     return mean_var
 
 
@@ -757,3 +765,125 @@ def ndc2xyz(H , W , fx, fy , near , rays_o):
     points_xyz= torch.cat([x,y,z],1)
 
     return points_xyz
+
+
+#get the poses from the frames into a vector of Nr_frames, 3x5 where the 3x5 is composed of a 3x4 tf_world_cam matrix which os concatenated with a colum of h,w,focal_length. More about this format is in here: https://github.com/Fyusion/LLFF
+def get_frames_to_poses_llff(frames):
+
+    poses_list=[]
+
+    for i in range(len(frames)):
+        frame=frames[i].frame
+        tf_cam_world=frame.tf_cam_world
+        # tf_cam_world.flip_x()
+        tf_world_cam = tf_cam_world.inverse()
+        tf_world_cam = tf_world_cam.matrix()
+        print("tf_world_cam", tf_world_cam)
+        tf_world_cam = tf_world_cam[0:3, :]
+        # tf_world_cam[:, 2:3] = -tf_world_cam[:, 2:3] 
+        print("tf_world_cam 3x4", tf_world_cam)
+        hwf = np.array([ frame.height, frame.width, (frame.K[0,0]+frame.K[1,1])*0.5   ])
+        print("hwf is ", hwf) 
+        print(" tf_world_cam ", tf_world_cam.shape)
+        hwf = hwf.reshape((3, 1))
+        print(" hwf ", hwf.shape)
+        tf_world_cam_hwf = np.concatenate([ tf_world_cam, hwf ], 1)
+        print("tf_world_cam_hwf", tf_world_cam_hwf)
+        tf_world_cam_hwf= tf_world_cam_hwf.reshape((1,3,5))
+        print("tf_world_cam_hwf", tf_world_cam_hwf)
+        print("tf_world_cam_hwf", tf_world_cam_hwf.shape)
+        poses_list.append(tf_world_cam_hwf)
+
+
+        print("------------------------------")
+
+    poses= np.concatenate(poses_list, 0)
+
+    print("poses", poses.shape)
+
+    return poses
+
+
+
+
+#from the ibr net code  https://github.com/googleinterns/IBRNet/blob/6c43eb3c83e1c8e851ef9b66364cd30647de16e2/ibrnet/data_loaders/llff_data_utils.py#L200
+def make_list_of_poses_on_spiral(frames, path_zflat):
+
+    poses= get_frames_to_poses_llff(frames)
+
+    c2w = poses_avg(poses)
+    # print('recentered', c2w.shape)
+    # print(c2w[:3, :4])
+
+    ## Get spiral
+    # Get average pose
+    up = normalize(poses[:, :3, 1].sum(0))
+
+    # Find a reasonable "focus depth" for this dataset
+    # close_depth, inf_depth = bds.min() * .9, bds.max() * 5.
+    close_depth, inf_depth = frames[0].frame.get_extra_field_float("min_near") * .9, frames[0].frame.get_extra_field_float("max_far") * 5.
+    dt = .75
+    mean_dz = 1. / (((1. - dt) / close_depth + dt / inf_depth))
+    focal = mean_dz
+
+    # Get radii for spiral path
+    shrink_factor = .8
+    zdelta = close_depth * .2
+    # zdelta = 0.0
+    tt = poses[:, :3, 3]  # ptstocam(poses[:3,3,:].T, c2w).T
+    rads = np.percentile(np.abs(tt), 90, 0)
+    c2w_path = c2w
+    N_views = 120
+    N_rots = 2
+    if path_zflat:
+        #             zloc = np.percentile(tt, 10, 0)[2]
+        zloc = -close_depth * .1
+        c2w_path[:3, 3] = c2w_path[:3, 3] + zloc * c2w_path[:3, 2]
+        rads[2] = 0.
+        N_rots = 1
+        N_views /= 2
+
+    render_poses = render_path_spiral(c2w_path, up, rads, focal, zdelta, zrate=.5, rots=N_rots, N=N_views)
+
+    # print("render_poses[0]", render_poses[0].shape)
+
+
+    return render_poses
+
+def poses_avg(poses):
+    hwf = poses[0, :3, -1:]
+
+    center = poses[:, :3, 3].mean(0)
+    # center[2]=0.0
+    # print("center is ", center)
+    vec2 = normalize(poses[:, :3, 2].sum(0))
+    up = poses[:, :3, 1].sum(0)
+    c2w = np.concatenate([viewmatrix(vec2, up, center), hwf], 1)
+
+
+    return c2w
+
+
+def render_path_spiral(c2w, up, rads, focal, zdelta, zrate, rots, N):
+    render_poses = []
+    rads = np.array(list(rads) + [1.])
+    hwf = c2w[:, 4:5]
+
+    for theta in np.linspace(0., 2. * np.pi * rots, int(N + 1) )[:-1]:
+        c = np.dot(c2w[:3, :4], np.array([np.cos(theta), -np.sin(theta), -np.sin(theta * zrate), 1.]) * rads)
+        z = normalize(c - np.dot(c2w[:3, :4], np.array([0, 0, -focal, 1.])))
+        render_poses.append(np.concatenate([viewmatrix(z, up, c), hwf], 1))
+    return render_poses
+
+
+def normalize(x):
+    return x / np.linalg.norm(x)
+
+
+def viewmatrix(z, up, pos):
+    vec2 = normalize(z)
+    vec1_avg = up
+    vec0 = normalize(np.cross(vec1_avg, vec2))
+    vec1 = normalize(np.cross(vec2, vec0))
+    m = np.stack([vec0, vec1, vec2, pos], 1)
+    return m

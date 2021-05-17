@@ -4047,6 +4047,8 @@ class DifferentiableRayMarcher(torch.nn.Module):
         self.sigmoid=torch.nn.Sigmoid()
         self.tanh=torch.nn.Tanh()
 
+        # self.feature_aggregator=  FeatureAgregatorIBRNet() 
+
         #params 
         self.nr_iters=20
 
@@ -5694,7 +5696,7 @@ class Net3_SRN(torch.nn.Module):
 
         #using both mean and var of HR and also mean and var of the upscaled
         TIME_START("superres")
-        mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), 0, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
+        mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
         mean_var_up = self.upscale(mean_var_lr)
         # print("mean_var_hr", mean_var_hr.shape)
         # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
@@ -5710,7 +5712,7 @@ class Net3_SRN(torch.nn.Module):
         sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
         # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
         sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-        mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), 0, use_weights=True)
+        mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
 
         input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_HR, mean_var_up   ],1) 
       
