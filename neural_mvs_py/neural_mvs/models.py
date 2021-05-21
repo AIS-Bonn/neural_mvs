@@ -4373,7 +4373,12 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                     depth_per_pixel= torch.ones([1, 1, frame_subsampled.height, frame_subsampled.width], dtype=torch.float32, device=torch.device("cuda")) 
                     depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
                 else:
-                    depth_per_pixel = torch.zeros((1, 1, frame_subsampled.height, frame_subsampled.width ), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
+                    # depth_per_pixel = torch.zeros((1, 1, frame_subsampled.height, frame_subsampled.width ), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=2e-2)
+                    if (dataset_params.raymarch_depth_jitter!=0.0):
+                        depth_per_pixel = torch.zeros((1, 1, frame_subsampled.height, frame_subsampled.width), device=torch.device("cuda") ).normal_(mean=dataset_params.raymarch_depth_min, std=dataset_params.raymarch_depth_jitter)
+                    else: 
+                        depth_per_pixel= torch.ones([1, 1, frame_subsampled.height, frame_subsampled.width], dtype=torch.float32, device=torch.device("cuda")) 
+                        depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
             else: 
                 ## if any other level above the coarsest one, then we upsample the depth using nerest neighbour
                 depth_per_pixel =depth
@@ -4481,6 +4486,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
                 depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
+                signed_distance= torch.abs(signed_distance)
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
                 
 
