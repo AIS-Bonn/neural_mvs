@@ -225,9 +225,13 @@ def run():
                 frame.frame.tf_cam_world= tf_cam_world_eigen
                 #restrict also the focal a bit
                 # new_K=K.copy()
-                # new_K[0,0]=new_K[0,0]*0.7
-                # new_K[1,1]=new_K[1,1]*0.7
+                # new_K=new_K*0.25
+                # new_K[0,0]=new_K[0,0]*1.2
+                # new_K[1,1]=new_K[1,1]*1.2
+                # new_K[2,2]=1.0
                 # frame.frame.K=new_K
+                # print("normal K is ", frame.frame.K)
+                # print("new K is ", new_K)
             else:
                 view.m_camera=cam_for_pred
                 cam_tf_world_cam= cam_for_pred.model_matrix_affine()
@@ -280,6 +284,8 @@ def run():
             frame_full_res=frame
             if factor_subsample_depth_pred!=0 and first_time:
                 frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
+
+            # print("K after subsample is ", frame.frame.K)
 
             for i in range(len(frames_close)):
                 frames_close[i].load_images()
@@ -341,7 +347,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/orchids_s8_also1x1/model_e_300.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s8_also1x1/model_e_200.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_250.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/horns/model_e_200.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/horns/model_e_200.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/room/model_e_350.pt" ))
 
 
             #normal
