@@ -923,7 +923,13 @@ class UNet(torch.nn.Module):
         for i in range(self.nr_stages):
             after_finefy_nr_channels=int(cur_nr_channels/2)
             print("up adding finefy with ", after_finefy_nr_channels)
-            self.squeeze_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.squeeze_list.append(  
+                torch.nn.Sequential(
+                    torch.nn.PixelShuffle(2), #upscales it but reduced the nr of channels by 4
+                    block_type(in_channels=cur_nr_channels//4, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  
+                )
+                
+                )
             #we now concat the features from the corresponding stage
             cur_nr_channels=after_finefy_nr_channels
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
@@ -999,6 +1005,7 @@ class UNet(torch.nn.Module):
             # print("after finefy ", i, " x is", x.shape)
             vertical_feats= features_ending_stage.pop()
             x=self.squeeze_list[i](x) #upsample resolution and reduced the channels
+            # print("after upscale x is ", x.shape, " and it should be ", vertical_feats.shape)
             if x.shape[2]!=vertical_feats.shape[2] or x.shape[3]!=vertical_feats.shape[3]:
                 # print("x has shape", x.shape, "vertical feat have shape ", vertical_feats.shape)
                 x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input

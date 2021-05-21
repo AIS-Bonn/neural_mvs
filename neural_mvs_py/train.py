@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s3ch32m128"
+    experiment_name="s4sh"
 
 
     # use_ray_compression=False
