@@ -5498,7 +5498,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=99999)
+        self.unet=UNet( nr_channels_start=32, nr_channels_output=32, nr_stages=4, max_nr_channels=128)
         # self.unet_rgb=UNet( nr_channels_start=32, nr_channels_output=32, nr_stages=0, max_nr_channels=64)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
