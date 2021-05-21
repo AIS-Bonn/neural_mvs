@@ -5498,7 +5498,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=16, nr_channels_output=32-3, nr_stages=4, max_nr_channels=64)
+        self.unet=UNet( nr_channels_start=16, nr_channels_output=32, nr_stages=4, max_nr_channels=99999)
         # self.unet_rgb=UNet( nr_channels_start=32, nr_channels_output=32, nr_stages=0, max_nr_channels=64)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
@@ -5601,7 +5601,7 @@ class Net3_SRN(torch.nn.Module):
         #pass through unet 
         TIME_START("unet")
         frames_features, multi_res_features=self.unet( rgb_close_batch )
-        frames_features=torch.cat([frames_features,rgb_close_batch],1)
+        # frames_features=torch.cat([frames_features,rgb_close_batch],1)
 
         # print("frame features is ", frames_features.shape) 
         # for f in multi_res_features:

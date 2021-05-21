@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s4h10x2"
+    experiment_name="s_"
 
 
     # use_ray_compression=False
@@ -122,6 +122,7 @@ def run():
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
     # eval_every_x_epoch=30
     eval_every_x_epoch=1
+    do_sfm = False
 
 
     #get all the frames train in am array, becuase it's faster to have everything already on the gpu
@@ -135,32 +136,32 @@ def run():
     grad_history = []
     max_test_psnr=0.0
 
+    if do_sfm:
+        #get keypoints
+        sfm=SFM.create()
+        selected_frame_idx=np.arange(10) #For colmap
+        # selected_frame_idx=[10]
+        frames_query_selected=[]
+        frames_target_selected=[]
+        frames_all_selected=[]
+        meshes_for_query_frames=[]
+        for i in range(loader_train.nr_samples()):
+        # for i in range(1 ):
+            # frame_0=loader_train.get_frame_at_idx(i+3) 
+            if i in selected_frame_idx:
+                frame_query=frames_train[i].frame
+                # frame_target=loader_train.get_closest_frame(frame_query)
+                frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
+                mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
+                meshes_for_query_frames.append(mesh_sparse)
 
-    #get keypoints
-    sfm=SFM.create()
-    selected_frame_idx=np.arange(10) #For colmap
-    # selected_frame_idx=[10]
-    frames_query_selected=[]
-    frames_target_selected=[]
-    frames_all_selected=[]
-    meshes_for_query_frames=[]
-    for i in range(loader_train.nr_samples()):
-    # for i in range(1 ):
-        # frame_0=loader_train.get_frame_at_idx(i+3) 
-        if i in selected_frame_idx:
-            frame_query=frames_train[i].frame
-            # frame_target=loader_train.get_closest_frame(frame_query)
-            frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
-            mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-            meshes_for_query_frames.append(mesh_sparse)
-
-    #fuse all the meshes into one
-    mesh_full=Mesh()
-    for mesh in meshes_for_query_frames:
-        mesh_full.add(mesh)
-    mesh_full.m_vis.m_show_points=True
-    mesh_full.m_vis.set_color_pervertcolor()
-    Scene.show(mesh_full, "mesh_full" )
+        #fuse all the meshes into one
+        mesh_full=Mesh()
+        for mesh in meshes_for_query_frames:
+            mesh_full.add(mesh)
+        mesh_full.m_vis.m_show_points=True
+        mesh_full.m_vis.set_color_pervertcolor()
+        Scene.show(mesh_full, "mesh_full" )
     # print("scene scale is ", Scene.get_scale())
 
 
@@ -220,6 +221,7 @@ def run():
                             frame.load_images()
                             #get a subsampled frame if necessary
                             frame_full_res=frame
+                            # print("frame_full_res has size ", frame_full_res.height, " ", frame_full_res.width)
                             if factor_subsample_depth_pred!=0:
                                 frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
 
