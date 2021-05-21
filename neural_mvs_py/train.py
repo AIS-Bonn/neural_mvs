@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s4sh"
+    experiment_name="s2fr10_"
 
 
     # use_ray_compression=False
@@ -231,9 +231,9 @@ def run():
                             frames_to_consider_for_neighbourhood=frames_train
                             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                                 frames_to_consider_for_neighbourhood=phase.frames
-                            do_close_computation_with_delaunay=True
+                            do_close_computation_with_delaunay=False
                             if not do_close_computation_with_delaunay:
-                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 3, discard_same_idx) #the neighbour are only from the training set
+                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 10, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
                                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
