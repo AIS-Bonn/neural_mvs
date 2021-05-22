@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s13raydiffprep"
+    experiment_name="s15Hfixed"
 
 
     # use_ray_compression=False
