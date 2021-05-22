@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s_"
+    experiment_name="s13raydiffprep"
 
 
     # use_ray_compression=False
@@ -238,6 +238,7 @@ def run():
                             else:
                                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
                                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
+                            frames_close_full_res = frames_close
 
                             #load the image data for this frames that we selected
                             for i in range(len(frames_close)):
@@ -263,7 +264,7 @@ def run():
 
 
                             #prepare rgb data and rest of things
-                            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch = prepare_data(frame_full_res, frame, frames_close)
+                            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame_full_res, frames_close_full_res, frame, frames_close)
                             # print("rgb_gt", rgb_gt.shape)
 
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
@@ -307,7 +308,7 @@ def run():
 
 
                             TIME_START("forward")
-                            rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=not phase.grad)
+                            rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frames_close, weights, novel=not phase.grad)
                             TIME_END("forward")
 
                             # print("rgb_pred", rgb_pred.shape)

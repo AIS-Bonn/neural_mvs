@@ -5623,26 +5623,26 @@ class Net3_SRN(torch.nn.Module):
         self.vis_fc = nn.Sequential(
             WNReluConv( 32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             torch.nn.ReLU(),
-            WNReluConv( 32, 33, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNReluConv( 32, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
         
-        self.vis_fc2 = nn.Sequential(
-            WNReluConv( 32, 32, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            torch.nn.ReLU(),
-            WNReluConv( 32, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-            torch.nn.Sigmoid()
-                                     )
+        # self.vis_fc2 = nn.Sequential(
+        #     WNReluConv( 32, 32, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+        #     torch.nn.ReLU(),
+        #     WNReluConv( 32, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+        #     torch.nn.Sigmoid()
+        #                              )
         
-        self.rgb_fc = nn.Sequential(
-            WNReluConv( 37, 16, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            torch.nn.ReLU(),
-            WNReluConv( 16, 8, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-            WNReluConv( 8, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-                                    )
+        # self.rgb_fc = nn.Sequential(
+        #     WNReluConv( 37, 16, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+        #     torch.nn.ReLU(),
+        #     WNReluConv( 16, 8, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+        #     WNReluConv( 8, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+        #                             )
 
 
       
-    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frames_close, weights, novel=False):
 
        
         #pass through unet 
@@ -5862,10 +5862,10 @@ class Net3_SRN(torch.nn.Module):
         # print("rgb_feat is ", rgb_feat.shape)
 
         #get the ray_diff
-        with torch.set_grad_enabled(False):
-            ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
-            ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
-            ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
+        # with torch.set_grad_enabled(False):
+        #     ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
+        #     ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
+        #     ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
         direction_feat = self.ray_dir_fc(ray_diff)
         # print("direction_feat",direction_feat.shape)
 
@@ -5882,9 +5882,9 @@ class Net3_SRN(torch.nn.Module):
         # print("x is ", x.shape)
 
         #computation 
-        x_vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+        vis = self.vis_fc( x * weights.view(-1,1,1,1) )
         # x_vis = self.vis_fc( x  )
-        x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
+        # x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
         # vis = F.sigmoid(vis) 
         # vis = F.softmax(vis, dim=0)  
         # print("x res", x_res.shape, "vis si ", vis.shape)
