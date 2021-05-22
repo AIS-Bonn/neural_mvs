@@ -5847,7 +5847,7 @@ class Net3_SRN(torch.nn.Module):
 
         sliced_feat_LR= sliced_feat_batched_img
         sliced_feat_HR = self.upscale(sliced_feat_LR)
-        # print("mean_var_hr", mean_var_hr.shape)
+        # print("sliced_feat_HR", sliced_feat_HR.shape)
         # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
         full_res_height=rgb_close_fullres_batch.shape[2]
         full_res_width=rgb_close_fullres_batch.shape[3]
@@ -5862,9 +5862,10 @@ class Net3_SRN(torch.nn.Module):
         # print("rgb_feat is ", rgb_feat.shape)
 
         #get the ray_diff
-        ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
-        ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
-        ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
+        with torch.set_grad_enabled(False):
+            ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
+            ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
+            ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
         direction_feat = self.ray_dir_fc(ray_diff)
         # print("direction_feat",direction_feat.shape)
 
@@ -5882,6 +5883,7 @@ class Net3_SRN(torch.nn.Module):
 
         #computation 
         x_vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+        # x_vis = self.vis_fc( x  )
         x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
         # vis = F.sigmoid(vis) 
         # vis = F.softmax(vis, dim=0)  

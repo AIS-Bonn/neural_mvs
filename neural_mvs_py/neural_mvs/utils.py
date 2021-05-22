@@ -907,9 +907,9 @@ def compute_angle(height, width, ray_dirs, ray_dirs_close_batch):
     # num_views = len(train_poses)
     # query_pose = query_camera[-16:].reshape(-1, 4, 4).repeat(num_views, 1, 1)  # [n_views, 4, 4]
     ray2tar_pose = nchw2nXc(ray_dirs)
-    ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
+    # ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
     ray2train_pose =  nchw2nXc(ray_dirs_close_batch)
-    ray2train_pose = ray2train_pose/ (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
+    # ray2train_pose = ray2train_pose/ (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
     ray_diff = ray2tar_pose - ray2train_pose
     ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
     ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
