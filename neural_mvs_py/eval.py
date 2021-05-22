@@ -263,7 +263,7 @@ def run():
             frames_to_consider_for_neighbourhood=frames_train
             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                 frames_to_consider_for_neighbourhood=frames_test
-            do_close_computation_with_delaunay=False
+            do_close_computation_with_delaunay=True
             if not do_close_computation_with_delaunay:
                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 10, discard_same_idx) #the neighbour are only from the training set
                 weights= frame_weights_computer(frame, frames_close)
@@ -352,7 +352,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/room/model_e_350.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/horns2/model_e_250.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves2/model_e_300.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves3/model_e_350.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves3/model_e_350.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves4/model_e_200.pt" ))
 
 
             #normal

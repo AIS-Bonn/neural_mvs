@@ -48,13 +48,13 @@ def nchw2nXc(x):
     x=x.view(nr_batches, -1, nr_feat)
     return x
 
-#make from N,C,H,W to N,Nrpixels,C
-def nXc2nchw(x):
-    nr_feat=x.shape[1]
+#make from N,NrPixels,C to N,C,H,W
+def nXc2nchw(x, h, w):
+    nr_feat=x.shape[2]
     nr_batches=x.shape[0]
-    x=x.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-    x=x.view(nr_batches, -1, nr_feat)
-    return 
+    x=x.view(nr_batches, h, w, nr_feat)
+    x=x.permute(0,3,1,2) #from N,H,W,C, N,C,H,W 
+    return x
 
 # make from N,C,H,W to Nrpixels,C ONLY works when N is 1
 def nchw2lin(x):
@@ -889,3 +889,32 @@ def viewmatrix(z, up, pos):
     # print("xdotz", np.dot(normalize(vec2), normalize(vec0) ) )
     m = np.stack([vec0, vec1, vec2, pos], 1)
     return m
+
+
+
+#from ibrnet  https://github.com/googleinterns/IBRNet/blob/6c43eb3c83e1c8e851ef9b66364cd30647de16e2/ibrnet/projection.py#L64
+def compute_angle(height, width, ray_dirs, ray_dirs_close_batch):
+
+    # ray_dirs is N,3,H,W
+    # ray_dirs_close_batch is N,3,H,W
+
+    # return: [n_views, ..., 4]; The first 3 channels are unit-length vector of the difference between
+        # query and target ray directions, the last channel is the inner product of the two directions.
+    
+    # original_shape = xyz.shape[:2]
+    # xyz = xyz.reshape(-1, 3)
+    # train_poses = train_cameras[:, -16:].reshape(-1, 4, 4)  # [n_views, 4, 4]
+    # num_views = len(train_poses)
+    # query_pose = query_camera[-16:].reshape(-1, 4, 4).repeat(num_views, 1, 1)  # [n_views, 4, 4]
+    ray2tar_pose = nchw2nXc(ray_dirs)
+    ray2tar_pose = ray2tar_pose / (torch.norm(ray2tar_pose, dim=-1, keepdim=True) + 1e-6)
+    ray2train_pose =  nchw2nXc(ray_dirs_close_batch)
+    ray2train_pose = ray2train_pose/ (torch.norm(ray2train_pose, dim=-1, keepdim=True) + 1e-6)
+    ray_diff = ray2tar_pose - ray2train_pose
+    ray_diff_norm = torch.norm(ray_diff, dim=-1, keepdim=True)
+    ray_diff_dot = torch.sum(ray2tar_pose * ray2train_pose, dim=-1, keepdim=True)
+    ray_diff_direction = ray_diff / torch.clamp(ray_diff_norm, min=1e-6)
+    ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1)
+    ray_diff = nXc2nchw(ray_diff, height, width)
+    # print("ray_diff is  ", ray_diff.shape)
+    return ray_diff

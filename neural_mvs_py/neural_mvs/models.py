@@ -5572,10 +5572,15 @@ class Net3_SRN(torch.nn.Module):
         #     WNGatedConvRelu( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
         # )
 
+        # self.upscale=MetaSequential( 
+        #     WNReluConv( 64, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+        #     WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
+        # )
         self.upscale=MetaSequential( 
-            WNReluConv( 64, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-            WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
+            WNReluConv( 32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv(in_channels=32, out_channels=32, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+            WNReluConv(in_channels=32, out_channels=32, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
         )
 
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
@@ -5599,6 +5604,41 @@ class Net3_SRN(torch.nn.Module):
         self.slice_texture= SliceTextureModule()
         self.splat_texture= SplatTextureModule()
         self.concat_coord=ConcatCoord() 
+
+
+
+        #ibrnet things 
+        self.ray_dir_fc = nn.Sequential( 
+            WNReluConv( 4, 16, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            torch.nn.ReLU(),
+            WNReluConv( 16, 35, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            )
+
+        self.base_fc = nn.Sequential(
+            WNReluConv( 105, 64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            torch.nn.ReLU(),
+            WNReluConv( 64, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                     )
+
+        self.vis_fc = nn.Sequential(
+            WNReluConv( 32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            torch.nn.ReLU(),
+            WNReluConv( 32, 33, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                     )
+        
+        self.vis_fc2 = nn.Sequential(
+            WNReluConv( 32, 32, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            torch.nn.ReLU(),
+            WNReluConv( 32, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            torch.nn.Sigmoid()
+                                     )
+        
+        self.rgb_fc = nn.Sequential(
+            WNReluConv( 37, 16, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            torch.nn.ReLU(),
+            WNReluConv( 16, 8, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNReluConv( 8, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                    )
 
 
       
@@ -5708,29 +5748,160 @@ class Net3_SRN(torch.nn.Module):
 
 
         #using both mean and var of HR and also mean and var of the upscaled
+        # TIME_START("superres")
+        # mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
+        # mean_var_up = self.upscale(mean_var_lr)
+        # # print("mean_var_hr", mean_var_hr.shape)
+        # # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
+
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # mean_var_up = torch.nn.functional.interpolate(mean_var_up,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        # #slice also from the high res images and concat that too 
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        # # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
+        # sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
+        # mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+
+        # input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_HR, mean_var_up   ],1) 
+      
+        # rgb_pred, multi_res_features=self.super_res(input_superres )
+        # TIME_END("superres")
+
+
+
+        #make it more like ibr net---------------------------------------------------
+        # TIME_START("superres")
+
+        # sliced_feat_LR= sliced_feat_batched_img
+        # sliced_feat_HR = self.upscale(sliced_feat_LR)
+        # # print("mean_var_hr", mean_var_hr.shape)
+        # # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
+        # full_res_height=rgb_close_fullres_batch.shape[2]
+        # full_res_width=rgb_close_fullres_batch.shape[3]
+        # sliced_feat_HR = torch.nn.functional.interpolate(sliced_feat_HR,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        # #slice also from the high res images and concat that too 
+        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2) ####for upsamplign the uv, make some conv layers
+        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
+        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
+        # sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        # rgb_feat=torch.cat([sliced_color_HR, sliced_feat_HR],1)
+        # print("rgb_feat is ", rgb_feat.shape)
+
+        # #get the ray_diff
+        # ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
+        # ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
+        # ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
+        # direction_feat = self.ray_dir_fc(ray_diff)
+        # print("direction_feat",direction_feat.shape)
+
+        # #RGB_feat + direction_Feat
+        # rgb_feat = rgb_feat + direction_feat
+        # mean_var_HR = fused_mean_variance(rgb_feat, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+        # globalfeat= mean_var_HR
+        # print("globalfeat", globalfeat.shape)
+
+        # #concat each rgb_feat with the mean and var
+        # x = torch.cat([globalfeat.expand(nr_nearby_frames, -1, -1, -1), rgb_feat], dim=1)  # N,C,H,W
+        # print("x before is ", x.shape)
+        # x = self.base_fc(x)
+        # print("x is ", x.shape)
+
+        # #computation 
+        # x_vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+        # x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
+        # print("x res", x_res.shape, "vis si ", vis.shape)
+        # vis = F.sigmoid(vis) 
+        # x = x + x_res
+        # vis = self.vis_fc2(x * vis) 
+
+        # #RGB computation
+        # x = torch.cat([x, vis, ray_diff], dim=1)
+        # print("x before rgbfc ", x.shape)
+        # x = self.rgb_fc(x)
+        # # x = x.masked_fill(mask == 0, -1e9)
+        # blending_weights_valid = F.softmax(x, dim=0)  # color blending
+        # print("blending_weights_valid", blending_weights_valid.shape)
+        # print("sliced_color_HR", sliced_color_HR.shape)
+        # rgb_pred = torch.sum(sliced_color_HR*blending_weights_valid, dim=0, keepdim=True)
+        # print("rgb_pred", rgb_pred.shape)
+        # # out = torch.cat([rgb_out, sigma_out], dim=-1)
+        # TIME_END("superres")
+        #------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+        #get the weights similar to ibrnnet but thne do 3x3 convs similar to what I do --------------------------------------------------------------------
         TIME_START("superres")
-        mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
-        mean_var_up = self.upscale(mean_var_lr)
+
+        sliced_feat_LR= sliced_feat_batched_img
+        sliced_feat_HR = self.upscale(sliced_feat_LR)
         # print("mean_var_hr", mean_var_hr.shape)
         # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
-
         full_res_height=rgb_close_fullres_batch.shape[2]
         full_res_width=rgb_close_fullres_batch.shape[3]
-        mean_var_up = torch.nn.functional.interpolate(mean_var_up,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        sliced_feat_HR = torch.nn.functional.interpolate(sliced_feat_HR,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
         #slice also from the high res images and concat that too 
-        uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
+        uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2) ####for upsamplign the uv, make some conv layers
         uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
         uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
         uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
-        sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-        mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+        sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        rgb_feat=torch.cat([sliced_color_HR, sliced_feat_HR],1)
+        # print("rgb_feat is ", rgb_feat.shape)
 
-        input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_HR, mean_var_up   ],1) 
-      
+        #get the ray_diff
+        ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
+        ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
+        ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
+        direction_feat = self.ray_dir_fc(ray_diff)
+        # print("direction_feat",direction_feat.shape)
+
+        #RGB_feat + direction_Feat
+        rgb_feat = rgb_feat + direction_feat
+        mean_var_HR = fused_mean_variance(rgb_feat, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+        globalfeat= mean_var_HR
+        # print("globalfeat", globalfeat.shape)
+
+        #concat each rgb_feat with the mean and var
+        x = torch.cat([globalfeat.expand(nr_nearby_frames, -1, -1, -1), rgb_feat], dim=1)  # N,C,H,W
+        # print("x before is ", x.shape)
+        x = self.base_fc(x)
+        # print("x is ", x.shape)
+
+        #computation 
+        x_vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+        x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
+        # vis = F.sigmoid(vis) 
+        # vis = F.softmax(vis, dim=0)  
+        # print("x res", x_res.shape, "vis si ", vis.shape)
+
+        #get weighted mean and var from both colors and feat
+        rgb_feat_mean_var =  fused_mean_variance(rgb_feat, vis, dim_reduce=0, dim_concat=1, use_weights=True)
+        input_superres = rgb_feat_mean_var
         rgb_pred, multi_res_features=self.super_res(input_superres )
+       
         TIME_END("superres")
+        # --------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
 
 
 

@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s2fr10_"
+    experiment_name="s6RW3x3"
 
 
     # use_ray_compression=False
@@ -231,7 +231,7 @@ def run():
                             frames_to_consider_for_neighbourhood=frames_train
                             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                                 frames_to_consider_for_neighbourhood=phase.frames
-                            do_close_computation_with_delaunay=False
+                            do_close_computation_with_delaunay=True
                             if not do_close_computation_with_delaunay:
                                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 10, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
@@ -264,6 +264,7 @@ def run():
 
                             #prepare rgb data and rest of things
                             rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch = prepare_data(frame_full_res, frame, frames_close)
+                            # print("rgb_gt", rgb_gt.shape)
 
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
                         # TIME_START("crop")
@@ -357,7 +358,7 @@ def run():
                                 optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
-                                scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for llff when we overfit
+                                # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for llff when we overfit
                                 # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                                 optimizer.zero_grad()
 
