@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s27orig"
+    experiment_name="s3rayNodyn"
 
 
     # use_ray_compression=False
@@ -266,6 +266,16 @@ def run():
                             #prepare rgb data and rest of things
                             rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame_full_res, frames_close_full_res, frame, frames_close)
                             # print("rgb_gt", rgb_gt.shape)
+
+                            #if we were to use antialias pooling 
+                            # if self.anti_alias_pooling:
+                            # print("ray_diff",ray_diff.shape)
+                            # _, dot_prod = torch.split(ray_diff, [3, 1], dim=-1)
+                            # print("dot_prod",dot_prod.shape)
+                            # exp_dot_prod = torch.exp(torch.abs(0.2) * (dot_prod - 1))
+                            # weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=2, keepdim=True)[0]) * mask
+                            # weight = weight / (torch.sum(weight, dim=2, keepdim=True) + 1e-8)
+                            # print("weight", weight)
 
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
                         # TIME_START("crop")

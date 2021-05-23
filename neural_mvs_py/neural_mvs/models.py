@@ -4327,6 +4327,17 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         # ))
 
 
+        self.base_fc = nn.Sequential(
+            WNReluConv( 32*3, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                     )
+
+        self.vis_fc = nn.Sequential(
+            WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNReluConv( 8, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                     )
+
+
         #activ
         self.relu=torch.nn.ReLU()
         self.sigmoid=torch.nn.Sigmoid()
@@ -4335,6 +4346,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #params 
         self.nr_iters=10
         self.nr_resolutions=2
+        self.use_dynamic_weight=False
 
       
     def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
@@ -4461,6 +4473,18 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 mean=sliced_feat_batched.mean(dim=0, keepdim=True)
                 std=sliced_feat_batched.std(dim=0,keepdim=True)
                 img_features_aggregated=torch.cat([mean,std],1)
+
+                if self.use_dynamic_weight:
+                    globalfeat= img_features_aggregated
+
+                    #concat each rgb_feat with the mean and var
+                    x = torch.cat([globalfeat.expand(nr_nearby_frames, -1, -1, -1), sliced_feat_batched], dim=1)  # N,C,H,W
+                    # print("x before is ", x.shape)
+                    x = self.base_fc(x) #reduces to 32
+
+                    #gets the weights for each of the frames
+                    vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+                    img_features_aggregated =  fused_mean_variance(sliced_feat_batched, vis, dim_reduce=0, dim_concat=1, use_weights=True)
 
                 # img_features_aggregated = self.compress_feat[res_iter](img_features_aggregated)
 

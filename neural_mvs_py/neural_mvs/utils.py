@@ -345,8 +345,10 @@ class FramePY():
         # rgb_tensor=rgb_tensor*mask_tensor
 
         #Ray direction in world coordinates
-        ray_dirs_mesh=self.frame.pixels2dirs_mesh()
-        self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
+        self.ray_dirs=None
+        if not frame.is_shell:
+            ray_dirs_mesh=self.frame.pixels2dirs_mesh()
+            self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
  
         if not frame.is_shell:
             self.load_image_tensors()
@@ -442,6 +444,9 @@ class FramePY():
 
             #load the img tensors
             self.load_image_tensors()
+
+            ray_dirs_mesh=self.frame.pixels2dirs_mesh()
+            self.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
 
         if self.create_subsamples and not self.frame.is_shell:
             self.subsampled_frames=[]
