@@ -4307,11 +4307,14 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #     WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
         #     ]
         # )
+        for i in range(3):
+            self.compress_feat.append(None)
 
 
-        self.compress_feat.append(WNReluConv(in_channels=224, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        self.compress_feat.append(WNReluConv(in_channels=176, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        self.compress_feat.append(WNReluConv(in_channels=120, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+
+        # self.compress_feat.append(WNReluConv(in_channels=96, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=40, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
         # self.compress_feat.append(WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
 
 
@@ -4344,9 +4347,10 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         self.tanh=torch.nn.Tanh()
 
         #params 
-        self.nr_iters=10
+        self.nr_iters_per_res=[10,5,3]
+        self.total_nr_iters=sum(self.nr_iters_per_res)
         self.nr_resolutions=2
-        self.use_dynamic_weight=True
+        self.use_dynamic_weight=False
 
       
     def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
@@ -4430,6 +4434,9 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             # print("frames_features", frames_features.shape)
             frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
             # print("frames_features", frames_features.shape)
+            if self.compress_feat[res_iter]==None:
+                self.compress_feat[res_iter]=WNReluConv(in_channels=frames_features.shape[1], out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+
             frames_features = self.compress_feat[res_iter](frames_features)
             # if res_iter==0:
                 # rgb0=mat2tensor(frames_close[0].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
@@ -4452,7 +4459,9 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
             # weights=self.frame_weights_computer(frame, frames_close)
 
-            for iter_nr in range(self.nr_iters):
+            nr_iters=self.nr_iters_per_res[res_iter]
+            # for iter_nr in range(self.nr_iters):
+            for iter_nr in range(nr_iters):
                 TIME_START("raymarch_iter")
             
                 #compute the features at this position 
@@ -4518,7 +4527,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
                 # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
                 # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
-                depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
+                # depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
+                depth_scaling=1.0/(1.0*self.total_nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
                 signed_distance= torch.abs(signed_distance)
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
@@ -5795,7 +5805,7 @@ class Net3_SRN(torch.nn.Module):
         self.first_time=True
 
         #models
-        self.unet=UNet( nr_channels_start=32, nr_channels_output=32, nr_stages=4, max_nr_channels=128)
+        self.unet=UNet( nr_channels_start=8, nr_channels_output=32, nr_stages=4, max_nr_channels=128)
         # self.unet_rgb=UNet( nr_channels_start=32, nr_channels_output=32, nr_stages=0, max_nr_channels=64)
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
@@ -5867,10 +5877,16 @@ class Net3_SRN(torch.nn.Module):
         #     WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
         #     WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
         # )
+        # self.upscale=MetaSequential( 
+        #     WNReluConv( 32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+        #     WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
+        # )
         self.upscale=MetaSequential( 
-            WNReluConv( 32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-            WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
+            WNReluConv( 32, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            # WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
+            # WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
         )
 
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)

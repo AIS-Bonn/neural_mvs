@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s11dynf3"
+    experiment_name="s12HR"
 
 
     # use_ray_compression=False
@@ -117,8 +117,8 @@ def run():
     frame_weights_computer= FrameWeightComputer()
 
     show_every=1
-    factor_subsample_close_frames=2 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=2
+    factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
+    factor_subsample_depth_pred=0
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
     # eval_every_x_epoch=30
     eval_every_x_epoch=1
@@ -231,7 +231,7 @@ def run():
                             frames_to_consider_for_neighbourhood=frames_train
                             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                                 frames_to_consider_for_neighbourhood=phase.frames
-                            do_close_computation_with_delaunay=False
+                            do_close_computation_with_delaunay=True
                             if not do_close_computation_with_delaunay:
                                 frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 7, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
