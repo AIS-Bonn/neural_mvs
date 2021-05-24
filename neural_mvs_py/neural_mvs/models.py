@@ -4408,7 +4408,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             else: 
                 ## if any other level above the coarsest one, then we upsample the depth using nerest neighbour
                 depth_per_pixel =depth
-                depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
+                depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bicubic')
 
             ray_dirs=torch.from_numpy(frame_subsampled.ray_dirs).float().cuda().view(1, frame_subsampled.height, frame_subsampled.width, 3).permute(0,3,1,2)
 
