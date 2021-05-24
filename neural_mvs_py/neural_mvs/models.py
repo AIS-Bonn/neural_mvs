@@ -4533,7 +4533,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 # depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 depth_scaling=1.0/(1.0*self.total_nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
-                signed_distance= torch.abs(signed_distance)
+                # signed_distance= torch.abs(signed_distance)
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
                 
 
