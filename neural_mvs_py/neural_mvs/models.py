@@ -4384,6 +4384,9 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         K_batched=torch.cat(K_list,0)
 
 
+        points_3d_for_each_res=[]
+
+
         #go from each level of the hierarchy and ray march from there 
         for res_iter in range(len(frames_subsampled)):
             frame_subsampled=frames_subsampled[res_iter]
@@ -4548,8 +4551,11 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             #get the depth at this final 3d position
             depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
+            # print("new_world_coords", new_world_coords.shape)
+            points_3d_for_each_res.append( new_world_coords )
 
-        return new_world_coords, depth
+
+        return new_world_coords, depth, points_3d_for_each_res
 
 
 
@@ -5947,6 +5953,10 @@ class Net3_SRN(torch.nn.Module):
         #     WNReluConv( 8, 1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
         #                             )
 
+        self.rgb_pred_per_res=torch.nn.ModuleList([])
+        for i in range(3):
+            self.rgb_pred_per_res.append(None)
+
 
       
     def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frames_close, weights, novel=False):
@@ -5964,10 +5974,70 @@ class Net3_SRN(torch.nn.Module):
         TIME_END("unet")
        
         TIME_START("ray_march")
-        point3d, depth  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, multi_res_features, weights, novel)
+        point3d, depth, points3d_for_each_res  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, multi_res_features, weights, novel)
         TIME_END("ray_march")
 
-      
+
+        ######################################### 
+        #for each lvl of the points 3d, slice the features at the corresponding lvl of unet and predict an RGB
+        points3d_for_each_res.reverse() #this makes it from HR to LR
+        multi_res_features.reverse() #this makes it from HR to LR
+        # print("frame is ", frame.height, " ", frame.width)
+        rgb_loss_multires=0
+        for i in range(len(points3d_for_each_res)-1):
+            point3d_LR =  points3d_for_each_res[i+1]
+            # print("point3d_LR", point3d_LR.shape)
+            frame_LR=frame.subsampled_frames[i]
+            # print("frame_LR is ", frame_LR.height, " ", frame_LR.width)
+            feat =  multi_res_features[i+1]
+            # print("feat is ", feat.shape)
+            if feat.shape[2]!=frame_LR.height or feat.shape[3]!=frame_LR.width:
+                feat = torch.nn.functional.interpolate(feat,size=(frame_LR.height, frame_LR.width ), mode='bilinear') #3,c,h,w
+            #get gt 
+            rgb_gt=mat2tensor(frame_LR.frame.rgb_32f, False).to("cuda")
+            # print("rgb gt is ", rgb_gt.shape)
+
+            #get camera params
+            nr_nearby_frames=len(frames_close)
+            R_list=[]
+            t_list=[]
+            K_list=[]
+            for frame_idx in range(len(frames_close)):
+                frame_selected=frames_close[frame_idx].subsampled_frames[i]
+                # print("frame_selected", frame_selected.height, " ", frame_selected.width)
+                R_list.append( frame_selected.R_tensor.view(1,3,3) )
+                t_list.append( frame_selected.t_tensor.view(1,1,3) )
+                K_list.append( frame_selected.K_tensor.view(1,3,3) )
+            R_batched=torch.cat(R_list,0)
+            t_batched=torch.cat(t_list,0)
+            K_batched=torch.cat(K_list,0)
+            ######when we project we assume all the frames have the same size
+            height=frame_LR.height
+            width=frame_LR.width
+
+
+            #slice 
+            uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d_LR )
+            sliced_feat_batched=torch.nn.functional.grid_sample( feat, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+
+            mean_var = fused_mean_variance(sliced_feat_batched, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+
+            # print("mean_var", mean_var.shape)
+
+            if self.rgb_pred_per_res[i]==None:
+                self.rgb_pred_per_res[i]=torch.nn.Sequential(
+                    WNReluConv( mean_var.shape[1], 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+                    WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                    WNReluConv( 8, 3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda()
+                )
+            rgb_pred_LR=self.rgb_pred_per_res[i](mean_var)
+
+            rgb_loss_l1= ((rgb_gt- rgb_pred_LR).abs()).mean()
+            rgb_loss_multires+= rgb_loss_l1
+
+        # print("rgb_loss_multires", rgb_loss_multires.item())
+
+
 
         #rgb gets other features than the ray marcher 
         frames_features_rgb=frames_features
@@ -6322,7 +6392,7 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, depth, point3d
+        return rgb_pred, depth, point3d, rgb_loss_multires
 
 
     #https://github.com/pytorch/pytorch/issues/2001
