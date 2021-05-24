@@ -237,6 +237,9 @@ def run():
                 cam_tf_world_cam= cam_for_pred.model_matrix_affine()
                 frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
             frame=FramePY(frame.frame, create_subsamples=True)
+            #recalculate the dirs because the frame changes in space 
+            ray_dirs_mesh=frame.frame.pixels2dirs_mesh()
+            frame.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
 
 
 
@@ -263,9 +266,9 @@ def run():
             frames_to_consider_for_neighbourhood=frames_train
             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                 frames_to_consider_for_neighbourhood=frames_test
-            do_close_computation_with_delaunay=True
+            do_close_computation_with_delaunay=False
             if not do_close_computation_with_delaunay:
-                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 10, discard_same_idx) #the neighbour are only from the training set
+                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 7, discard_same_idx) #the neighbour are only from the training set
                 weights= frame_weights_computer(frame, frames_close)
             else:
                 triangulation_type="sphere"
@@ -273,6 +276,7 @@ def run():
                     triangulation_type="plane"
                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, sphere_center, sphere_radius, triangulation_type)
                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
+            frames_close_full_res = frames_close
 
 
             #double check why are the tf_matrices weird
@@ -281,9 +285,10 @@ def run():
             #load frames
             frame.load_images()
 
-            frame_full_res=frame
             if factor_subsample_depth_pred!=0 and first_time:
+                frame_full_res=frame
                 frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
+            # print("frame_full_res", frame_full_res.height, " ", frame_full_res.width)
 
             # print("K after subsample is ", frame.frame.K)
 
@@ -305,7 +310,12 @@ def run():
                 frames_close= frames_close_subsampled
 
 
-            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch = prepare_data(frame_full_res, frame, frames_close)
+            # rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch = prepare_data(frame_full_res, frame, frames_close)
+            #recalcualte the directions because the frame moved
+            frame_full_res.frame.tf_cam_world= tf_cam_world_eigen
+            ray_dirs_mesh=frame_full_res.frame.pixels2dirs_mesh()
+            frame_full_res.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
+            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame_full_res, frames_close_full_res, frame, frames_close)
 
             # #prepare rgb data and rest of things
             # rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
@@ -329,7 +339,7 @@ def run():
             pixels_indices=None
 
             # rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=True)
-            rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, frames_close, weights, novel=True)
+            rgb_pred, depth_pred, point3d=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frames_close, weights, novel=True)
             # print("depth_pred", depth_pred.mean())
 
             if first_time:
@@ -353,7 +363,11 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/horns2/model_e_250.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves2/model_e_300.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves3/model_e_350.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves4/model_e_200.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves4/model_e_200.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_test/model_e_350.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_test_raydyn/model_e_350.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_test_raydyn2/model_e_300.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_test_raydyn3Zeros/model_e_250.pt" ))
 
 
             #normal

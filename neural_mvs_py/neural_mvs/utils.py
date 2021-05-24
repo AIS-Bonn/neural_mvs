@@ -175,6 +175,8 @@ def prepare_data(frame_full_res, frames_close_full_res, frame, frames_close):
     ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
     raydirs_close_fullres_batch_list=[]
     for frame_close in frames_close_full_res:
+        # print("frame_close, hw", frame_close.height, " ", frame_close.width)
+        # print("frame_full_res, hw", frame_full_res.height, " ", frame_full_res.width)
         ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
         raydirs_close_fullres_batch_list.append(ray_dirs_close)
     ray_dirs_fullres_close_batch=torch.cat(raydirs_close_fullres_batch_list,0)
@@ -837,6 +839,7 @@ def make_list_of_poses_on_spiral(frames, path_zflat):
     # close_depth, inf_depth = bds.min() * .9, bds.max() * 5.
     close_depth, inf_depth = frames[0].frame.get_extra_field_float("min_near") * .9, frames[0].frame.get_extra_field_float("max_far") * 5.
     dt = .75
+    # dt = 1.0
     mean_dz = 1. / (((1. - dt) / close_depth + dt / inf_depth))
     focal = mean_dz
 

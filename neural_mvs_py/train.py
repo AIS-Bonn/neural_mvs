@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s3rayNodyn"
+    experiment_name="s11dynf3"
 
 
     # use_ray_compression=False
@@ -231,9 +231,9 @@ def run():
                             frames_to_consider_for_neighbourhood=frames_train
                             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU): #if it's these loader we cannot take the train frames for testing because they dont correspond to the same object
                                 frames_to_consider_for_neighbourhood=phase.frames
-                            do_close_computation_with_delaunay=True
+                            do_close_computation_with_delaunay=False
                             if not do_close_computation_with_delaunay:
-                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 10, discard_same_idx) #the neighbour are only from the training set
+                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 7, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
                                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
@@ -267,15 +267,35 @@ def run():
                             rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame_full_res, frames_close_full_res, frame, frames_close)
                             # print("rgb_gt", rgb_gt.shape)
 
-                            #if we were to use antialias pooling 
-                            # if self.anti_alias_pooling:
-                            # print("ray_diff",ray_diff.shape)
-                            # _, dot_prod = torch.split(ray_diff, [3, 1], dim=-1)
-                            # print("dot_prod",dot_prod.shape)
-                            # exp_dot_prod = torch.exp(torch.abs(0.2) * (dot_prod - 1))
-                            # weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=2, keepdim=True)[0]) * mask
-                            # weight = weight / (torch.sum(weight, dim=2, keepdim=True) + 1e-8)
-                            # print("weight", weight)
+                            # #if we were to use antialias pooling 
+                            # # if self.anti_alias_pooling:
+                            # ray_diff_lin=nchw2nXc(ray_diff)
+                            # # print("ray_diff",ray_diff.shape)
+                            # # print("ray_diff_lin",ray_diff_lin.shape)
+                            # _, dot_prod = torch.split(ray_diff_lin, [3, 1], dim=-1)
+                            # # print("dot_prod",dot_prod.shape)
+                            # # print("dot_prod min max is ", dot_prod.min(), " ", dot_prod.max())
+                            # exp_dot_prod = torch.exp(0.2 * (dot_prod - 1))
+                            # weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=0, keepdim=True)[0]) 
+                            # weight = weight / (torch.sum(weight, dim=0, keepdim=True) + 1e-8)
+                            # weight=nXc2nchw(weight, frame_full_res.height, frame_full_res.width)
+                            # # print("weight ", weight.shape)
+                            # # print("weight min max is ", weight.min(), " weight max is ", weight.max())
+                            # # print("weight", weight)
+                            # weights=weight
+                            # w0=tensor2mat(weight[0:1,:,:,:])
+                            # w1=tensor2mat(weight[1:2,:,:,:])
+                            # w2=tensor2mat(weight[2:3,:,:,:])
+                            # Gui.show(w0,"w0")
+                            # Gui.show(w1,"w1")
+                            # Gui.show(w2,"w2")
+                            # # ray_diff_only=ray_diff[0:1, 0:3, :, :]
+                            # # Gui.show(tensor2mat(ray_diff_only), "ray_diff_only")
+                            # weight_debug = weight.view(1,3,frame_full_res.height, frame_full_res.width)
+                            # Gui.show(tensor2mat(weight_debug),"weight_debug")
+                            # dot_debug= ray_diff[:,3:4, :, :].view(1,3,frame_full_res.height, frame_full_res.width)
+                            # # print("dot_debug", dot_debug.min(), " ", dot_debug.max())
+                            # Gui.show(tensor2mat(dot_debug),"dot_debug")
 
                         #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
                         # TIME_START("crop")

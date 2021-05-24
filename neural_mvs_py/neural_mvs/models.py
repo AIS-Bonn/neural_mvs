@@ -4346,7 +4346,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #params 
         self.nr_iters=10
         self.nr_resolutions=2
-        self.use_dynamic_weight=False
+        self.use_dynamic_weight=True
 
       
     def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
@@ -5977,7 +5977,7 @@ class Net3_SRN(torch.nn.Module):
 
         # uv_tensor=compute_uv_batched_original(frames_close, point3d )
         uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d )
-        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        sliced_feat_batched=torch.nn.functional.grid_sample( frames_features_rgb, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
           
 
         ##########################compute masks
@@ -6029,7 +6029,7 @@ class Net3_SRN(torch.nn.Module):
             frustum_mesh.m_vis.m_line_width= (weights[i])*15
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             frustum_mesh.m_force_vis_update=True
-            # Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
+            Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
 
 
 
@@ -6148,7 +6148,7 @@ class Net3_SRN(torch.nn.Module):
         uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
         uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
         uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
+        sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
         rgb_feat=torch.cat([sliced_color_HR, sliced_feat_HR],1)
         # print("rgb_feat is ", rgb_feat.shape)
 
@@ -6163,6 +6163,7 @@ class Net3_SRN(torch.nn.Module):
         #RGB_feat + direction_Feat
         rgb_feat = rgb_feat + direction_feat
         mean_var_HR = fused_mean_variance(rgb_feat, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+        # mean_var_HR = fused_mean_variance(rgb_feat, weights, dim_reduce=0, dim_concat=1, use_weights=True)
         globalfeat= mean_var_HR
         # print("globalfeat", globalfeat.shape)
 
@@ -6174,6 +6175,7 @@ class Net3_SRN(torch.nn.Module):
 
         #computation 
         vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+        # vis = self.vis_fc( x * weights )
         # x_vis = self.vis_fc( x  )
         # x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
         # vis = F.sigmoid(vis) 
