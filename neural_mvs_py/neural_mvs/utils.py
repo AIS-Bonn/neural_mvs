@@ -838,7 +838,7 @@ def make_list_of_poses_on_spiral(frames, path_zflat):
     # Find a reasonable "focus depth" for this dataset
     # close_depth, inf_depth = bds.min() * .9, bds.max() * 5.
     close_depth, inf_depth = frames[0].frame.get_extra_field_float("min_near") * .9, frames[0].frame.get_extra_field_float("max_far") * 5.
-    dt = .75
+    dt = .75 #ho far away have the look at point in the scene
     # dt = 1.0
     mean_dz = 1. / (((1. - dt) / close_depth + dt / inf_depth))
     focal = mean_dz
@@ -848,7 +848,7 @@ def make_list_of_poses_on_spiral(frames, path_zflat):
     zdelta = close_depth * .2
     # zdelta = 0.0
     tt = poses[:, :3, 3]  # ptstocam(poses[:3,3,:].T, c2w).T
-    rads = np.percentile(np.abs(tt), 90, 0)
+    rads = np.percentile(np.abs(tt), 70, 0) #it you push it to 90 then it would cover almost 90 of the space and move almost the edge of all the frames that you recorder. A lower values make it moves less on the edges
     c2w_path = c2w
     N_views = 120
     N_rots = 2

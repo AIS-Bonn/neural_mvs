@@ -5819,6 +5819,8 @@ class Net3_SRN(torch.nn.Module):
         num_encoding_directions=4
         self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
         dirs_channels=3+ 3*num_encoding_directions*2
+        num_encodings=8
+        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
 
         # num_encoding_directions=2
         # self.learned_pe_dirs=LearnedPE(in_channels=4, num_encoding_functions=num_encoding_directions, logsampling=True)
@@ -5960,7 +5962,7 @@ class Net3_SRN(torch.nn.Module):
 
 
       
-    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frames_close, weights, novel=False):
+    def forward(self, dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=False):
 
        
         #pass through unet 
@@ -6277,6 +6279,17 @@ class Net3_SRN(torch.nn.Module):
         #get weighted mean and var from both colors and feat
         rgb_feat_mean_var =  fused_mean_variance(rgb_feat, vis, dim_reduce=0, dim_concat=1, use_weights=True)
         input_superres = rgb_feat_mean_var
+
+        use_pos_and_dirs=False
+        if use_pos_and_dirs:
+            # pos_encoded_linear=self.learned_pe(  nchw2lin(point3d) ) 
+            # pos_encoded=lin2nchw(pos_encoded_linear, full_res_height, full_res_width).contiguous()
+            ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
+            dirs_encoded_linear=self.learned_pe_dirs(  nchw2lin(ray_dirs_fullres) ) 
+            dirs_encoded=lin2nchw(dirs_encoded_linear, full_res_height, full_res_width).contiguous()
+            # input_superres = torch.cat([input_superres,pos_encoded,dirs_encoded],1)
+            input_superres = torch.cat([input_superres,dirs_encoded],1)
+
         rgb_pred, multi_res_features=self.super_res(input_superres )
        
         TIME_END("superres")
