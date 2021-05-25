@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="6MRweAbs"
+    experiment_name="6MRlowweight"
 
 
     # use_ray_compression=False
@@ -356,7 +356,7 @@ def run():
                             rgb_loss_l1= ((rgb_gt_fullres- rgb_pred).abs()).mean()
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                             loss+=rgb_loss_l1
-                            loss+=new_loss
+                            loss+=new_loss*0.1
                             if not is_training and psnr_index.item()>max_test_psnr:
                                 max_test_psnr=psnr_index.detach().item()
                                 
