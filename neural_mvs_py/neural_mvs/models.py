@@ -4534,7 +4534,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 # depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 depth_scaling=1.0/(1.0*self.total_nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
-                # signed_distance= torch.abs(signed_distance)
+                signed_distance= torch.abs(signed_distance)
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
                 
 
@@ -5985,56 +5985,61 @@ class Net3_SRN(torch.nn.Module):
         multi_res_features.reverse() #this makes it from HR to LR
         # print("frame is ", frame.height, " ", frame.width)
         rgb_loss_multires=0
-        for i in range(len(points3d_for_each_res)-1):
-            point3d_LR =  points3d_for_each_res[i+1]
-            # print("point3d_LR", point3d_LR.shape)
-            frame_LR=frame.subsampled_frames[i]
-            # print("frame_LR is ", frame_LR.height, " ", frame_LR.width)
-            feat =  multi_res_features[i+1]
-            # print("feat is ", feat.shape)
-            if feat.shape[2]!=frame_LR.height or feat.shape[3]!=frame_LR.width:
-                feat = torch.nn.functional.interpolate(feat,size=(frame_LR.height, frame_LR.width ), mode='bilinear') #3,c,h,w
-            #get gt 
-            rgb_gt=mat2tensor(frame_LR.frame.rgb_32f, False).to("cuda")
-            # print("rgb gt is ", rgb_gt.shape)
+        multi_res_loss=True
+        if multi_res_loss:
+            for i in range(len(points3d_for_each_res)-1):
+                point3d_LR =  points3d_for_each_res[i+1]
+                # print("point3d_LR", point3d_LR.shape)
+                frame_LR=frame.subsampled_frames[i]
+                # print("frame_LR is ", frame_LR.height, " ", frame_LR.width)
+                feat =  multi_res_features[i+1]
+                # print("feat is ", feat.shape)
+                if feat.shape[2]!=frame_LR.height or feat.shape[3]!=frame_LR.width:
+                    feat = torch.nn.functional.interpolate(feat,size=(frame_LR.height, frame_LR.width ), mode='bilinear') #3,c,h,w
+                #get gt 
+                rgb_gt=mat2tensor(frame_LR.frame.rgb_32f, False).to("cuda")
+                # print("rgb gt is ", rgb_gt.shape)
 
-            #get camera params
-            nr_nearby_frames=len(frames_close)
-            R_list=[]
-            t_list=[]
-            K_list=[]
-            for frame_idx in range(len(frames_close)):
-                frame_selected=frames_close[frame_idx].subsampled_frames[i]
-                # print("frame_selected", frame_selected.height, " ", frame_selected.width)
-                R_list.append( frame_selected.R_tensor.view(1,3,3) )
-                t_list.append( frame_selected.t_tensor.view(1,1,3) )
-                K_list.append( frame_selected.K_tensor.view(1,3,3) )
-            R_batched=torch.cat(R_list,0)
-            t_batched=torch.cat(t_list,0)
-            K_batched=torch.cat(K_list,0)
-            ######when we project we assume all the frames have the same size
-            height=frame_LR.height
-            width=frame_LR.width
+                #get camera params
+                nr_nearby_frames=len(frames_close)
+                R_list=[]
+                t_list=[]
+                K_list=[]
+                for frame_idx in range(len(frames_close)):
+                    frame_selected=frames_close[frame_idx].subsampled_frames[i]
+                    # print("frame_selected", frame_selected.height, " ", frame_selected.width)
+                    R_list.append( frame_selected.R_tensor.view(1,3,3) )
+                    t_list.append( frame_selected.t_tensor.view(1,1,3) )
+                    K_list.append( frame_selected.K_tensor.view(1,3,3) )
+                R_batched=torch.cat(R_list,0)
+                t_batched=torch.cat(t_list,0)
+                K_batched=torch.cat(K_list,0)
+                ######when we project we assume all the frames have the same size
+                height=frame_LR.height
+                width=frame_LR.width
 
 
-            #slice 
-            uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d_LR )
-            sliced_feat_batched=torch.nn.functional.grid_sample( feat, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+                #slice 
+                uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, height, width,  point3d_LR )
+                sliced_feat_batched=torch.nn.functional.grid_sample( feat, uv_tensor, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
 
-            mean_var = fused_mean_variance(sliced_feat_batched, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
+                mean_var = fused_mean_variance(sliced_feat_batched, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
 
-            # print("mean_var", mean_var.shape)
+                # print("mean_var", mean_var.shape)
 
-            if self.rgb_pred_per_res[i]==None:
-                self.rgb_pred_per_res[i]=torch.nn.Sequential(
-                    WNReluConv( mean_var.shape[1], 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-                    WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-                    WNReluConv( 8, 3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda()
-                )
-            rgb_pred_LR=self.rgb_pred_per_res[i](mean_var)
+                if self.rgb_pred_per_res[i]==None:
+                    self.rgb_pred_per_res[i]=torch.nn.Sequential(
+                        WNReluConv( mean_var.shape[1], 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+                        WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                        WNReluConv( 8, 3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda()
+                    )
+                rgb_pred_LR=self.rgb_pred_per_res[i](mean_var)
 
-            rgb_loss_l1= ((rgb_gt- rgb_pred_LR).abs()).mean()
-            rgb_loss_multires+= rgb_loss_l1
+                weight= 1/(4*(i+1) ) #the lower the resolution the lower the weight, so half of resolution has a 1/4 of the weight and quarter res has 1/8 of res because it has 1/8 of pixels
+                # print("weight is ", weight)
+
+                rgb_loss_l1= ((rgb_gt- rgb_pred_LR).abs()).mean()
+                rgb_loss_multires+= rgb_loss_l1*weight
 
         # print("rgb_loss_multires", rgb_loss_multires.item())
 

@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s19bicubic"
+    experiment_name="6MRweAbs"
 
 
     # use_ray_compression=False
@@ -364,6 +364,12 @@ def run():
                             #at the beggining we just optimize so that the lstm predicts the center of the sphere 
                             weight=map_range( torch.tensor(phase.iter_nr), 0, 1000, 0.0, 1.0)
                             loss*=weight
+
+
+                            #constant loss that says that the depth should be have values above the  dataset_params.raymarch_depth_min, keeps the depht from flipping to the other side of the camera
+                            # diff= depth_pred-  dataset_params.raymarch_depth_min # ideally this is only positive values but if it has negative values then we apply the loss
+                            # diff=torch.clamp(diff, max=0.0) #make it run from the negative to the 0 so if the depth is above the minimum then the loss is zero
+                            # loss+=-diff.mean() #the more negtive the depth goes in the other direction, the more the loss increses
                 
 
                             #loss that pushes the points to be in the middle of the space 
