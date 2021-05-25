@@ -4435,7 +4435,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             # print("res iter, ", res_iter, " idx is ", idx)
             frames_features = multi_res_features[idx]
             # print("frames_features", frames_features.shape)
-            frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
+            if (frames_features.shape[2]!=frame_subsampled.height or frames_features.shape[3]!=frame_subsampled.width ):
+                frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
             # print("frames_features", frames_features.shape)
             if self.compress_feat[res_iter]==None:
                 self.compress_feat[res_iter]=WNReluConv(in_channels=frames_features.shape[1], out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
