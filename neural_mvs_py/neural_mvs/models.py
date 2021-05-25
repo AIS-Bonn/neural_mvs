@@ -4559,7 +4559,6 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         return new_world_coords, depth, points_3d_for_each_res
 
 
-
 class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
     def __init__(self):
         super(DifferentiableRayMarcherHierarchicalNoLSTM, self).__init__()
@@ -4568,36 +4567,40 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
         self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
         # cur_nr_channels = in_channels + 3*num_encodings*2
 
+        #model 
         self.lstm_hidden_size = 16
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
         self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
 
-        #params 
-        self.nr_iters=10
-        self.nr_resolutions=2
-
-        #feat nr after comptressing
-        self.feat_nr_per_res=[32,32,64,128,256]
-        self.feat_nr_per_res.reverse()
-
-
-        self.compress_feat = torch.nn.ModuleList([])
-        for i in range(self.nr_resolutions+1):
-            self.compress_feat.append(None)
+        # self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
+        # self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
       
 
-        #after compressing the features at every lvl, we pass them through the same depth pred multiple times
+        self.compress_feat = torch.nn.ModuleList([])
+        # self.compress_feat.append(
+        #     [WNReluConv(in_channels=96, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=112, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=88, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+        #     WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+        #     ]
+        # )
+        for i in range(5):
+            self.compress_feat.append(None)
+
         self.depth_pred_per_res = torch.nn.ModuleList([])
-        for i in range(self.nr_resolutions+1):
+        for i in range(5):
             self.depth_pred_per_res.append(None)
 
-        
-        
+        # self.compressmeanvar_per_res = torch.nn.ModuleList([])
+        # for i in range(4):
+            # self.compressmeanvar_per_res.append(None)
 
 
-        # self.compress_feat.append(WNReluConv(in_channels=224, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        # self.compress_feat.append(WNReluConv(in_channels=176, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
-        # self.compress_feat.append(WNReluConv(in_channels=120, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+
+
+        # self.compress_feat.append(WNReluConv(in_channels=96, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
+        # self.compress_feat.append(WNReluConv(in_channels=40, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
         # self.compress_feat.append(WNReluConv(in_channels=60, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ))
 
 
@@ -4613,11 +4616,31 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
         # ))
 
 
+        self.base_fc = nn.Sequential(
+            WNReluConv( 32*3, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                     )
+
+        self.vis_fc = nn.Sequential(
+            WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNReluConv( 8, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+                                     )
+
+
         #activ
         self.relu=torch.nn.ReLU()
         self.sigmoid=torch.nn.Sigmoid()
         self.tanh=torch.nn.Tanh()
 
+        #params 
+        # self.nr_iters_per_res=[5,5,5,3]
+        self.nr_iters_per_res=[1,1,1,1,1]
+        # self.nr_iters_per_res=[2,3,5,7]
+        # self.nr_feat_per_res=[64,64,32]
+        self.nr_feat_per_res=[16,16,16,16,16] #feature after compressing it form the unet
+        self.total_nr_iters=sum(self.nr_iters_per_res)
+        self.nr_resolutions=4
+        self.use_dynamic_weight=False
 
       
     def forward(self, dataset_params, frame, ray_dirs, frames_close, frames_features, multi_res_features, weights,  novel=False):
@@ -4651,6 +4674,9 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
         K_batched=torch.cat(K_list,0)
 
 
+        points_3d_for_each_res=[]
+
+
         #go from each level of the hierarchy and ray march from there 
         for res_iter in range(len(frames_subsampled)):
             frame_subsampled=frames_subsampled[res_iter]
@@ -4672,7 +4698,7 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
             else: 
                 ## if any other level above the coarsest one, then we upsample the depth using nerest neighbour
                 depth_per_pixel =depth
-                depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
+                depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bicubic')
 
             ray_dirs=torch.from_numpy(frame_subsampled.ray_dirs).float().cuda().view(1, frame_subsampled.height, frame_subsampled.width, 3).permute(0,3,1,2)
 
@@ -4691,7 +4717,7 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
             signed_distances_for_marchlvl=[]
             states = [None]
 
-            # print("res iter is ", res_iter)
+
 
             #get the frame_featues at this correct level
             # print("frame subsampled is ", frame_subsampled.height, " ", frame_subsampled.width)
@@ -4699,20 +4725,28 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
             # print("res iter, ", res_iter, " idx is ", idx)
             frames_features = multi_res_features[idx]
             # print("frames_features", frames_features.shape)
-            frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
+            if (frames_features.shape[2]!=frame_subsampled.height or frames_features.shape[3]!=frame_subsampled.width ):
+                frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
             # print("frames_features", frames_features.shape)
-            #make the feat compressor
-            # compress 
-            if self.compress_feat[idx]==None:
-                    res_feat_compressed= self.feat_nr_per_res[idx]
-                    in_feat= frames_features.shape[1]
-                    self.compress_feat[idx] = torch.nn.Sequential(
-                    #    WNReluConv(in_channels=in_feat, out_channels=res_feat_compressed, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
-                    #    WNReluConv(in_channels=in_feat, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
-                       WNReluConv(in_channels=in_feat, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
-                    )
+            if self.compress_feat[res_iter]==None:
+                feat=self.nr_feat_per_res[res_iter]
+                self.compress_feat[res_iter]=WNReluConv(in_channels=frames_features.shape[1], out_channels=feat, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+
             frames_features = self.compress_feat[res_iter](frames_features)
-            
+            # print("res iter ", res_iter, " frames_features is ", frames_features.shape)
+            # if res_iter==0:
+                # rgb0=mat2tensor(frames_close[0].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
+                # rgb1=mat2tensor(frames_close[1].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
+                # rgb2=mat2tensor(frames_close[2].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
+            # elif res_iter==1:
+                # rgb0=mat2tensor(frames_close[0].frame.rgb_32f, False).to("cuda")
+                # rgb1=mat2tensor(frames_close[1].frame.rgb_32f, False).to("cuda")
+                # rgb2=mat2tensor(frames_close[2].frame.rgb_32f, False).to("cuda")
+            # rgb = torch.cat([rgb0, rgb1, rgb2],0)
+            # print("rgb is ", rgb.shape)
+            # frames_features = torch.cat([frames_features, rgb],1)
+            # print("frames_features", frames_features.shape)
+            #get the K of this subsampled frame 
             K_list=[]
             for i in range(len(frames_close)):
                 K_list.append( frame_subsampled.K_tensor.view(1,3,3) )
@@ -4721,13 +4755,18 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
 
             # weights=self.frame_weights_computer(frame, frames_close)
 
-            for iter_nr in range(self.nr_iters):
+            nr_iters=self.nr_iters_per_res[res_iter]
+            # for iter_nr in range(self.nr_iters):
+            for iter_nr in range(nr_iters):
                 TIME_START("raymarch_iter")
+
+                print("res iter ", res_iter, " iter nr", iter_nr)
+
             
                 #compute the features at this position 
                 # feat=self.learned_pe(world_coords[-1])
-                pos_encoded_linear=self.learned_pe(  nchw2lin(world_coords[-1]) ) 
-                pos_encoded=lin2nchw(pos_encoded_linear, frame_subsampled.height, frame_subsampled.width).contiguous()
+                # pos_encoded_linear=self.learned_pe(  nchw2lin(world_coords[-1]) ) 
+                # pos_encoded=lin2nchw(pos_encoded_linear, frame_subsampled.height, frame_subsampled.width).contiguous()
 
                 # uv_tensor=compute_uv_batched(frames_close, world_coords[-1] )
                 uv_tensor, mask=compute_uv_batched(R_batched, t_batched, K_batched, frame_subsampled.height, frame_subsampled.width, world_coords[-1] )
@@ -4743,59 +4782,61 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
                 std=sliced_feat_batched.std(dim=0,keepdim=True)
                 img_features_aggregated=torch.cat([mean,std],1)
 
+                if self.use_dynamic_weight:
+                    globalfeat= img_features_aggregated
+
+                    #concat each rgb_feat with the mean and var
+                    x = torch.cat([globalfeat.expand(nr_nearby_frames, -1, -1, -1), sliced_feat_batched], dim=1)  # N,C,H,W
+                    # print("x before is ", x.shape)
+                    x = self.base_fc(x) #reduces to 32
+
+                    #gets the weights for each of the frames
+                    vis = self.vis_fc( x * weights.view(-1,1,1,1) )
+                    img_features_aggregated =  fused_mean_variance(sliced_feat_batched, vis, dim_reduce=0, dim_concat=1, use_weights=True)
+
                 # img_features_aggregated = self.compress_feat[res_iter](img_features_aggregated)
 
                 #conv the img featues and than concat with position and then some 1x1 convs 
                 TIME_START("raymarch_fuse")
-                img_features_aggregated=torch.cat([pos_encoded,img_features_aggregated],1)
+                # img_features_aggregated=torch.cat([pos_encoded,img_features_aggregated],1)
+                # print("img_features_aggregated.shape[1]", img_features_aggregated.shape)
+                if self.depth_pred_per_res[res_iter]==None:
+                    feat=self.nr_feat_per_res[res_iter]
+                    self.depth_pred_per_res[res_iter]=torch.nn.Sequential(
+                        WNReluConv(in_channels=img_features_aggregated.shape[1], out_channels=feat, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
+                        # WNReluConv(in_channels=feat, out_channels=feat//2, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
+                        WNReluConv(in_channels=feat, out_channels=1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+                    )
+                signed_distance = self.depth_pred_per_res[res_iter](img_features_aggregated)
                 # img_features_aggregated=self.conv1(img_features_aggregated)
                 # img_features_aggregated=self.conv2(img_features_aggregated)
                 # img_features_aggregated=torch.relu(img_features_aggregated)
-                
-                #create the deth pred per res 
-                # if self.depth_pred_per_res[idx]==None:
-                if self.depth_pred_per_res[0]==None:
-                    res_feat_compressed= self.feat_nr_per_res[idx]
-                    in_feat= img_features_aggregated.shape[1]
-                    # print("in feat is ", in_feat)
-                    # print("res_feat_compressed is ", res_feat_compressed)
-                    # self.depth_pred_per_res[idx] = torch.nn.Sequential(
-                    self.depth_pred_per_res[0] = torch.nn.Sequential(
-                       WNReluConv(in_channels=in_feat, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
-                       WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
-                    #    WNReluConv(in_channels=res_feat_compressed, out_channels=res_feat_compressed, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False ),
-                    #    WNReluConv(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
-                    )
-                    
-
-                # signed_distance =  self.depth_pred_per_res[idx](img_features_aggregated)
-                # feat =  self.depth_pred_per_res[idx](img_features_aggregated)
-                feat =  self.depth_pred_per_res[0](img_features_aggregated)
-                
+                # feat=img_features_aggregated
                 TIME_END("raymarch_fuse")
                 
             
                 
-                # create the lstm if not created 
-                TIME_START("raymarch_lstm")
-                if self.lstm==None:
-                    self.lstm = torch.nn.LSTMCell(input_size=feat.shape[1], hidden_size=self.lstm_hidden_size ).to("cuda")
-                    self.lstm.apply(init_recurrent_weights)
-                    lstm_forget_gate_init(self.lstm)
+                # #create the lstm if not created 
+                # TIME_START("raymarch_lstm")
+                # if self.lstm==None:
+                #     self.lstm = torch.nn.LSTMCell(input_size=feat.shape[1], hidden_size=self.lstm_hidden_size ).to("cuda")
+                #     self.lstm.apply(init_recurrent_weights)
+                #     lstm_forget_gate_init(self.lstm)
 
-                #run through the lstm
-                state = self.lstm(nchw2lin(feat), states[-1])
-                if state[0].requires_grad:
-                    state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+                # #run through the lstm
+                # state = self.lstm(nchw2lin(feat), states[-1])
+                # if state[0].requires_grad:
+                #     state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
-                signed_distance= self.out_layer(state[0])
-                # TIME_END("raymarch_lstm")
-                # # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
-                signed_distance = lin2nchw(signed_distance, frame_subsampled.height, frame_subsampled.width)
+                # signed_distance= self.out_layer(state[0])
+                TIME_END("raymarch_lstm")
+                # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
+                # signed_distance = lin2nchw(signed_distance, frame_subsampled.height, frame_subsampled.width)
                 #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
                 # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
                 # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
-                depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
+                # depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
+                depth_scaling=1.0/(1.0*self.total_nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
                 signed_distance= torch.abs(signed_distance)
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
@@ -4803,7 +4844,7 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
 
 
                 new_world_coords = world_coords[-1] + ray_dirs * signed_distance
-                states.append(state)
+                # states.append(state)
                 world_coords.append(new_world_coords)
                 signed_distances_for_marchlvl.append(signed_distance)
 
@@ -4815,8 +4856,16 @@ class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
             #get the depth at this final 3d position
             depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
 
+            # print("new_world_coords", new_world_coords.shape)
+            points_3d_for_each_res.append( new_world_coords )
 
-        return new_world_coords, depth
+
+        return new_world_coords, depth, points_3d_for_each_res
+
+
+
+
+
 
 
 
