@@ -5931,15 +5931,15 @@ class Net3_SRN(torch.nn.Module):
             )
 
         self.base_fc = nn.Sequential(
-            WNReluConv( (8+3)*3, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv( (8+3)*3, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             torch.nn.ReLU(),
-            WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNReluConv( 32, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
 
         self.vis_fc = nn.Sequential(
-            WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
+            WNReluConv( 16, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             torch.nn.ReLU(),
-            WNReluConv( 8, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNReluConv( 16, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
         
         # self.vis_fc2 = nn.Sequential(
