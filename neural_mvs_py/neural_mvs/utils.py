@@ -118,7 +118,7 @@ def compute_dataset_params(loader, frames):
 
     #min and jitter
     raymarch_depth_min = 0.15
-    raymarch_depth_jitter =  2e-2
+    raymarch_depth_jitter =  2e-3
     if isinstance(loader, DataLoaderLLFF):
         # raymarch_depth_min=0.005
         # raymarch_depth_jitter =  5e-4
