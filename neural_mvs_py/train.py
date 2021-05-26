@@ -520,7 +520,7 @@ def run():
             # pbar.close()
             if True: #if we reached this point we already read all the images so there is no need to check if the loader is finished 
                 print("epoch finished", phase.epoch_nr, " phase rag is", phase.grad)
-                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
+                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch(), score=psnr_index.detach().item()) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
                 # loader_test.reset()
