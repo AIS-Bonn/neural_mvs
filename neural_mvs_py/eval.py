@@ -197,6 +197,7 @@ def run():
     poses_on_spiral= make_list_of_poses_on_spiral(frames_train, path_zflat=False )
 
     use_spiral=True
+    img_nr=0
 
     while True:
         with torch.set_grad_enabled(False):
@@ -372,7 +373,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_test_raydynf3/model_e_250.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_HR16/model_e_500.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves2_HR16/model_e_750.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_5_dir/model_e_600.pt" ))
+                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_5_dir/model_e_600.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_100_score_21.298389434814453.pt" ))
 
 
             #normal
@@ -390,12 +392,11 @@ def run():
             # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2)
             if neural_mvs_gui.m_show_rgb:
                 pred_mat=tensor2mat(rgb_pred)
-            if neural_mvs_gui.m_show_depth:
-                depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-                # depth_vis=map_range(depth_vis, 0.2, 0.6, 0.0, 1.0) #for the colamp fine leaves
-                depth_vis=map_range(depth_vis, neural_mvs_gui.m_min_depth, neural_mvs_gui.m_max_depth, 0.0, 1.0) #for the colamp fine leaves
-                depth_vis=depth_vis.repeat(1,3,1,1)
+            depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+            depth_vis=map_range(depth_vis, neural_mvs_gui.m_min_depth, neural_mvs_gui.m_max_depth, 0.0, 1.0) #for the colamp fine leaves
+            depth_vis=depth_vis.repeat(1,3,1,1)
                 # depth_vis[rgb_pred_zeros_mask_img]=1.0 #MASK the point in the background
+            if neural_mvs_gui.m_show_depth:
                 pred_mat=tensor2mat(depth_vis)
             if neural_mvs_gui.m_show_normal:
                 # print("normal_vis has min max", normal_vis.min(), normal_vis.max())
@@ -418,7 +419,12 @@ def run():
             #     Gui.show(frames_close[i].frame.rgb_32f,"close_"+str(i) )
 
 
+            
+            tensor2mat(rgb_pred).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/rgb/rgb"+str(img_nr)+".png")
+            tensor2mat(depth_vis).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/depth/depth"+str(img_nr)+".png")
 
+
+            img_nr+=1
 
 
 
