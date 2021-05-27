@@ -431,6 +431,8 @@ def run():
 
                             optimizer.step()
 
+                        # Profiler.print_all_stats()
+
                      
                         if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                             scheduler.step(max_test_psnr)
