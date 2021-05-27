@@ -161,7 +161,8 @@ def run():
     torch.cuda.empty_cache()
     print( torch.cuda.memory_summary() )
 
-    neural_mvs_gui=NeuralMVSGUI.create(view)
+    if train_params.with_viewer():
+        neural_mvs_gui=NeuralMVSGUI.create(view)
 
 
     frame=FramePY(frames_test[0].frame)
@@ -184,10 +185,11 @@ def run():
     cam_for_pred.set_dist_to_lookat(0.5) #for nerf
 
     #check that the quat is correct 
-    pos= view.m_camera.model_matrix_affine().translation()
-    print("pos of the cam is ", pos)
-    quat=view.m_camera.model_matrix_affine().quat()
-    print("quat of the cam is ", quat)
+    if train_params.with_viewer():
+        pos= view.m_camera.model_matrix_affine().translation()
+        print("pos of the cam is ", pos)
+        quat=view.m_camera.model_matrix_affine().quat()
+        print("quat of the cam is ", quat)
 
     #usa_subsampled_frames
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
@@ -206,7 +208,7 @@ def run():
             #get the model matrix of the view and set it to the frame
             # cam_tf_world_cam= view.m_camera.model_matrix_affine()
             if use_spiral:
-                tf_world_cam_hwf = poses_on_spiral[ view.m_nr_drawn_frames% len(poses_on_spiral) ]
+                tf_world_cam_hwf = poses_on_spiral[ img_nr% len(poses_on_spiral) ]
                 # print("pose_on spiral ", tf_world_cam_hwf)
                 tf_world_cam = tf_world_cam_hwf[:, 0:4]
                 hwf=tf_world_cam_hwf[:, 4:5]
@@ -374,7 +376,7 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_HR16/model_e_500.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves2_HR16/model_e_750.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_5_dir/model_e_600.pt" ))
-                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_100_score_21.298389434814453.pt" ))
+                model.load_state_dict(torch.load( "/home/user/rosu/c_ws/src/phenorob/neural_mvs/saved_models/leaves_s4/model_e_1050_score_19.000194549560547.pt" ))
 
 
             #normal
@@ -390,18 +392,19 @@ def run():
             # rgb_pred_zeros_mask=rgb_pred_zeros_mask.repeat(1,3) #repeat 3 times for rgb
             # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask.view(1,frame.height,frame.width,3)
             # rgb_pred_zeros_mask_img=rgb_pred_zeros_mask_img.permute(0,3,1,2)
-            if neural_mvs_gui.m_show_rgb:
-                pred_mat=tensor2mat(rgb_pred)
-            depth_vis=depth_pred.view(1,1,frame.height,frame.width)
-            depth_vis=map_range(depth_vis, neural_mvs_gui.m_min_depth, neural_mvs_gui.m_max_depth, 0.0, 1.0) #for the colamp fine leaves
-            depth_vis=depth_vis.repeat(1,3,1,1)
-                # depth_vis[rgb_pred_zeros_mask_img]=1.0 #MASK the point in the background
-            if neural_mvs_gui.m_show_depth:
-                pred_mat=tensor2mat(depth_vis)
-            if neural_mvs_gui.m_show_normal:
-                # print("normal_vis has min max", normal_vis.min(), normal_vis.max())
-                pred_mat=tensor2mat(normal_vis)
-            Gui.show(pred_mat,"Depth")
+            if(train_params.with_viewer()):
+                depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+                depth_vis=map_range(depth_vis, neural_mvs_gui.m_min_depth, neural_mvs_gui.m_max_depth, 0.0, 1.0) #for the colamp fine leaves
+                depth_vis=depth_vis.repeat(1,3,1,1)
+                if neural_mvs_gui.m_show_rgb:
+                        pred_mat=tensor2mat(rgb_pred)
+                    # depth_vis[rgb_pred_zeros_mask_img]=1.0 #MASK the point in the background
+                if neural_mvs_gui.m_show_depth:
+                    pred_mat=tensor2mat(depth_vis)
+                if neural_mvs_gui.m_show_normal:
+                    # print("normal_vis has min max", normal_vis.min(), normal_vis.max())
+                    pred_mat=tensor2mat(normal_vis)
+                Gui.show(pred_mat,"Depth")
             # Gui.show(tensor2mat(rgb_refined),"RGB")
             # #show 3d points 
             # normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
@@ -420,8 +423,11 @@ def run():
 
 
             
-            tensor2mat(rgb_pred).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/rgb/rgb"+str(img_nr)+".png")
-            tensor2mat(depth_vis).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/depth/depth"+str(img_nr)+".png")
+            depth_vis=depth_pred.view(1,1,frame.height,frame.width)
+            depth_vis=map_range(depth_vis, 0.0, 1.0, 0.0, 1.0) #for the colamp fine leaves
+            depth_vis=depth_vis.repeat(1,3,1,1)
+            tensor2mat(rgb_pred).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/rgb/rgb"+str(img_nr)+".png")
+            tensor2mat(depth_vis).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/depth/depth"+str(img_nr)+".png")
 
 
             img_nr+=1
@@ -438,7 +444,8 @@ def run():
         # #render the real 3D scene
         # view.m_camera=view.m_default_camera
         # view.m_swap_buffers=True
-        view.update()
+        if(train_params.with_viewer()):
+            view.update()
         
 
 
