@@ -6460,7 +6460,16 @@ class Net3_SRN(torch.nn.Module):
         #     pca_mat=tensor2mat(pca)
         #     Gui.show(pca_mat, "pca_mat")
 
-        return rgb_pred, depth, point3d, rgb_loss_multires
+
+        depth_for_each_res=[]
+        for i in range(len(points3d_for_each_res)):
+            camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+            camera_center=camera_center.view(1,3,1,1)
+            point3d_LR =  points3d_for_each_res[i]
+            depth_for_res= (point3d_LR-camera_center).norm(dim=1, keepdim=True)
+            depth_for_each_res.append(depth_for_res)
+
+        return rgb_pred, depth, point3d, rgb_loss_multires, depth_for_each_res
 
 
     #https://github.com/pytorch/pytorch/issues/2001

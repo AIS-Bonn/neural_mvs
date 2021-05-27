@@ -343,7 +343,7 @@ def run():
             pixels_indices=None
 
             # rgb_pred, rgb_refined, depth_pred, mask_pred, signed_distances_for_marchlvl, std, raymarcher_loss, point3d=model(frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, depth_min, depth_max, frames_close, weights, pixels_indices, novel=True)
-            rgb_pred, depth_pred, point3d, new_loss=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
+            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
             # print("depth_pred", depth_pred.mean())
 
             if first_time:
@@ -376,7 +376,8 @@ def run():
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_HR16/model_e_500.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves2_HR16/model_e_750.pt" ))
                 # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves_5_dir/model_e_600.pt" ))
-                model.load_state_dict(torch.load( "/home/user/rosu/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s4/model_e_800_score_30.126384735107422.pt" ))
+                # model.load_state_dict(torch.load( "/home/user/rosu/c_ws/src/phenorob/neural_mvs/saved_models/flowers_s4/model_e_800_score_30.126384735107422.pt" ))
+                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/leaves/model_e_100_score_21.298389434814453.pt" ))
 
 
             #normal
@@ -428,8 +429,16 @@ def run():
             depth_vis=depth_vis.repeat(1,3,1,1)
             #tensor2mat(rgb_pred).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/rgb/rgb"+str(img_nr)+".png")
             #tensor2mat(depth_vis).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/depth/depth"+str(img_nr)+".png")
-            tensor2mat(rgb_pred).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/flower_eval/rgb/rgb"+str(img_nr)+".png")
-            tensor2mat(depth_vis).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/flower_eval/depth/depth"+str(img_nr)+".png")
+            # tensor2mat(rgb_pred).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/flower_eval/rgb/rgb"+str(img_nr)+".png")
+            # tensor2mat(depth_vis).to_cv8u().to_file("/home/user/rosu/c_ws/src/phenorob/neural_mvs/recordings/flower_eval/depth/depth"+str(img_nr)+".png")
+            tensor2mat(rgb_pred).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/rgb/rgb"+str(img_nr)+".png")
+            tensor2mat(depth_vis).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/depth/depth"+str(img_nr)+".png")
+            #also each res 
+            for i  in  range(len(depth_for_each_res)):
+                depth_LR=depth_for_each_res[i]
+                depth_vis_LR=map_range(depth_LR, 0.0, 1.0, 0.0, 1.0) #for the colamp fine leaves
+                depth_vis_LR=depth_vis_LR.repeat(1,3,1,1)
+                tensor2mat(depth_vis_LR).to_cv8u().to_file("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/leaves_eval/depth_"+str(i)+"/depth"+str(img_nr)+".png")
 
 
             img_nr+=1
