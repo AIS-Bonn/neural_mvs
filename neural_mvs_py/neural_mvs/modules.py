@@ -17,7 +17,7 @@ from torchmeta.modules import (MetaModule, MetaSequential)
 from neural_mvs_py.neural_mvs.pac import *
 from neural_mvs_py.neural_mvs.deform_conv import *
 from neural_mvs_py.neural_mvs.utils import *
-from latticenet_py.lattice.lattice_modules import *
+#from latticenet_py.lattice.lattice_modules import *
 
 
 from dataloaders import *

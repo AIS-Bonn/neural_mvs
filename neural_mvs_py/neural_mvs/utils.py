@@ -18,7 +18,7 @@ from neural_mvs_py.neural_mvs.funcs import *
 
 from neural_mvs_py.neural_mvs.pac import *
 from neural_mvs_py.neural_mvs.deform_conv import *
-from latticenet_py.lattice.lattice_modules import *
+#from latticenet_py.lattice.lattice_modules import *
 
 
 from dataloaders import *

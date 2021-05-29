@@ -15,10 +15,12 @@ from easypbr import *
 def profiler_start(name):
     if(Profiler.is_profiling_gpu()):
         torch.cuda.synchronize()
+    torch.cuda.synchronize()
     Profiler.start(name)
 def profiler_end(name):
     if(Profiler.is_profiling_gpu()):
         torch.cuda.synchronize()
+    torch.cuda.synchronize()
     Profiler.end(name)
 TIME_START = lambda name: profiler_start(name)
 TIME_END = lambda name: profiler_end(name)
