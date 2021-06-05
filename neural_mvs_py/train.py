@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="10MRmorelayers"
+    experiment_name="s_"
 
 
     # use_ray_compression=False
