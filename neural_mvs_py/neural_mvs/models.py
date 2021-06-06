@@ -4573,7 +4573,9 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
 
             #get the depth at this final 3d position
-            depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
+            # depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
+            # depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True) #this does not have a sign so if the points are somehow behind the camera, the norm is the same
+            depth= ( (new_world_coords-camera_center)/ray_dirs).mean(dim=1, keepdim=True) #because the ray is expressed as x=orig+dir*t, then the t is t=(x-orig)/dir and since each component xyz is scaled the same then we can just take the first one or just to have better gradient we just average
 
             # print("new_world_coords", new_world_coords.shape)
             points_3d_for_each_res.append( new_world_coords )

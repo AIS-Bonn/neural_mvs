@@ -77,7 +77,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s9SMD"
+    experiment_name="s14fixdepth"
 
 
     # use_ray_compression=False
