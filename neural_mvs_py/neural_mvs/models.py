@@ -4293,7 +4293,10 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #model 
         self.lstm_hidden_size = 16
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
-        self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=5,  bias=True ).cuda()
+        # self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=5,  bias=True ).cuda()
+        self.out_layer = torch.nn.Sequential(
+            WNReluConv(in_channels=self.lstm_hidden_size, out_channels=5, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False ),
+        )
 
         self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
@@ -4528,18 +4531,19 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
                 #Doing it like SMD-net 
                 activation = nn.Sigmoid()
-                pred= self.out_layer(state[0])
+                input_out_layer= lin2nchw(state[0], frame_subsampled.height, frame_subsampled.width)
+                pred= self.out_layer(input_out_layer)
 
                 eps = 1e-2 #1e-3 in case of gaussian distribution
                 # mu0 = activation(torch.unsqueeze(pred[:,0],1))
                 # mu1 = activation(torch.unsqueeze(pred[:,1],1))
-                mu0 = torch.unsqueeze(pred[:,0],1)
-                mu1 = torch.unsqueeze(pred[:,1],1)
+                mu0 = torch.unsqueeze(pred[:,0,:,:],1)
+                mu1 = torch.unsqueeze(pred[:,1,:,:],1)
 
-                sigma0 =  torch.clamp(activation(torch.unsqueeze(pred[:,2],1)), eps, 1.0)
-                sigma1 =  torch.clamp(activation(torch.unsqueeze(pred[:,3],1)), eps, 1.0)
+                sigma0 =  torch.clamp(activation(torch.unsqueeze(pred[:,2,:,:],1)), eps, 1.0)
+                sigma1 =  torch.clamp(activation(torch.unsqueeze(pred[:,3,:,:],1)), eps, 1.0)
 
-                pi0 = activation(torch.unsqueeze(pred[:,4],1))
+                pi0 = activation(torch.unsqueeze(pred[:,4,:,:],1))
                 pi1 = 1. - pi0
 
                 # Mode with the highest density value as final prediction
@@ -4550,7 +4554,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
                 TIME_END("raymarch_lstm")
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
-                signed_distance = lin2nchw(signed_distance, frame_subsampled.height, frame_subsampled.width)
+                # signed_distance = lin2nchw(signed_distance, frame_subsampled.height, frame_subsampled.width)
                 #the output of the lstm after abs will probably be on average around 0.5 (because before the abs it was zero meaned and kinda spread around [-1,1])
                 # however, doing nr_steps*0.5 will likely put the depth above the scene scale which is normally 1.0
                 # therefore we expect each step to be 1.0/nr_steps so for 10 steps each steps should to 0.1
