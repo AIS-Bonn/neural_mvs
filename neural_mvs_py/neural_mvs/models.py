@@ -4293,7 +4293,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         #model 
         self.lstm_hidden_size = 16
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
-        self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=1,  bias=True ).cuda()
+        self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=5,  bias=True ).cuda()
 
         self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
@@ -4524,7 +4524,30 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 if state[0].requires_grad:
                     state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
 
-                signed_distance= self.out_layer(state[0])
+                # signed_distance= self.out_layer(state[0])
+
+                #Doing it like SMD-net 
+                activation = nn.Sigmoid()
+                pred= self.out_layer(state[0])
+
+                eps = 1e-2 #1e-3 in case of gaussian distribution
+                # mu0 = activation(torch.unsqueeze(pred[:,0],1))
+                # mu1 = activation(torch.unsqueeze(pred[:,1],1))
+                mu0 = torch.unsqueeze(pred[:,0],1)
+                mu1 = torch.unsqueeze(pred[:,1],1)
+
+                sigma0 =  torch.clamp(activation(torch.unsqueeze(pred[:,2],1)), eps, 1.0)
+                sigma1 =  torch.clamp(activation(torch.unsqueeze(pred[:,3],1)), eps, 1.0)
+
+                pi0 = activation(torch.unsqueeze(pred[:,4],1))
+                pi1 = 1. - pi0
+
+                # Mode with the highest density value as final prediction
+                mask = (pi0 / sigma0  >   pi1 / sigma1).float()
+                disp = mu0 * mask + mu1 * (1. - mask)
+                signed_distance = disp
+
+
                 TIME_END("raymarch_lstm")
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
                 signed_distance = lin2nchw(signed_distance, frame_subsampled.height, frame_subsampled.width)
