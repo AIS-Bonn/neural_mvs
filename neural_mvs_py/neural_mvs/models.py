@@ -6368,6 +6368,8 @@ class Net3_SRN(torch.nn.Module):
             # input_superres = torch.cat([input_superres,pos_encoded,dirs_encoded],1)
             input_superres = torch.cat([input_superres,dirs_encoded],1)
 
+        # input_superres=torch.cat([mean_var_HR, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
+        input_superres=torch.cat([input_superres, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
         rgb_pred, multi_res_features=self.super_res(input_superres )
        
         TIME_END("superres")
