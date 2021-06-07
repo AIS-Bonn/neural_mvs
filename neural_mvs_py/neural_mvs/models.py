@@ -5884,8 +5884,10 @@ class Net2(torch.nn.Module):
 
 #Instead of doing ray marching like in NERF we use a LSTM to update the ray step similar to Scene representation network
 class Net3_SRN(torch.nn.Module):
-    def __init__(self, model_params):
+    def __init__(self, model_params, predict_confidence_map):
         super(Net3_SRN, self).__init__()
+
+        self.predict_confidence_map=predict_confidence_map
 
         self.first_time=True
 
@@ -5942,7 +5944,10 @@ class Net3_SRN(torch.nn.Module):
         edsr_args.scale=4
         # self.super_res=EDSR(edsr_args)
         # self.super_res=SuperRes(edsr_args)
-        self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
+        out_nr=3
+        if self.predict_confidence_map:
+            out_nr=4
+        self.super_res=UNet( nr_channels_start=16, nr_channels_output=out_nr, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
         # self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNGatedConvRelu)
         # self.super_res=MetaSequential( 
         #     WNReluConv( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
@@ -6371,6 +6376,10 @@ class Net3_SRN(torch.nn.Module):
         # input_superres=torch.cat([mean_var_HR, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
         input_superres=torch.cat([input_superres, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
         rgb_pred, multi_res_features=self.super_res(input_superres )
+        
+        if self.predict_confidence_map:
+            confidence_map=rgb_pred[:,0:1,:,:]
+            rgb_pred=rgb_pred[:,1:4,:,:]
        
         TIME_END("superres")
         # --------------------------------------------------------------------------------------------
@@ -6500,7 +6509,7 @@ class Net3_SRN(torch.nn.Module):
             depth_for_res= (point3d_LR-camera_center).norm(dim=1, keepdim=True)
             depth_for_each_res.append(depth_for_res)
 
-        return rgb_pred, depth, point3d, rgb_loss_multires, depth_for_each_res
+        return rgb_pred, depth, point3d, rgb_loss_multires, depth_for_each_res, confidence_map
 
 
     #https://github.com/pytorch/pytorch/issues/2001

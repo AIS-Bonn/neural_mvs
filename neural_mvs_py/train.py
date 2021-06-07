@@ -77,12 +77,13 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s19origrgblin"
+    experiment_name="s23_confidence"
 
 
     # use_ray_compression=False
     # do_superres=True
     # predict_occlusion_map=False
+    predict_confidence_map=True
 
 
 
@@ -108,7 +109,7 @@ def run():
     ]
     #model 
     model=None
-    model=Net3_SRN(model_params).to("cuda")
+    model=Net3_SRN(model_params, predict_confidence_map).to("cuda")
     model.train()
 
     scheduler=None
@@ -233,12 +234,13 @@ def run():
                                 frames_to_consider_for_neighbourhood=phase.frames
                             do_close_computation_with_delaunay=True
                             if not do_close_computation_with_delaunay:
-                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 7, discard_same_idx) #the neighbour are only from the training set
+                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 8, discard_same_idx) #the neighbour are only from the training set
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
                                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
                                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
                             frames_close_full_res = frames_close
+                            # print("weights",weights)
 
                             #load the image data for this frames that we selected
                             for i in range(len(frames_close)):
@@ -338,7 +340,7 @@ def run():
 
 
                             TIME_START("forward")
-                            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
+                            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
                             TIME_END("forward")
 
                             # print("rgb_pred", rgb_pred.shape)
@@ -349,11 +351,20 @@ def run():
                                 # rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(rgb_gt_fullres.shape[2], rgb_gt_fullres.shape[3]), mode='bilinear')
                             rgb_lowres=torch.nn.functional.interpolate(rgb_pred,size=(frame.height, frame.width), mode='bilinear')
 
+                            if predict_confidence_map:
+                                rgb_pred_with_confidence_blending=confidence_map*rgb_pred + (1-confidence_map)*rgb_gt_fullres
+
                          
                         
                             #loss
                             loss=0
-                            rgb_loss_l1= ((rgb_gt_fullres- rgb_pred).abs()).mean()
+                            if predict_confidence_map:
+                                rgb_loss_l1= ((rgb_gt_fullres- rgb_pred_with_confidence_blending).abs()).mean()
+                                #loss to pus the conidence to be close to 1.0
+                                loss_mask=((1.0-confidence_map)**2).mean()
+                                loss+=loss_mask*0.1
+                            else:
+                                rgb_loss_l1= ((rgb_gt_fullres- rgb_pred).abs()).mean()
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                             loss+=rgb_loss_l1
                             # loss+=new_loss*0.1
@@ -450,6 +461,7 @@ def run():
                                     diff=( rgb_gt_fullres-rgb_pred)**2*10
                                     Gui.show(tensor2mat(diff),"diff_"+phase.name)
                                     Gui.show( tensor2mat(rgb_pred) ,"rgb_pred_"+phase.name)
+                                    Gui.show( tensor2mat(confidence_map) ,"confidence_"+phase.name)
                                  
                                     #view gt
                                     Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)

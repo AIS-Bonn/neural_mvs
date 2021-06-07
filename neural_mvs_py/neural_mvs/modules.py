@@ -577,7 +577,8 @@ class FrameWeightComputer(torch.nn.Module):
         #     self.s_weight.fill_(10.0)
 
         ######CREATING A NEW parameter for the s_weight for some reason destroys the rest of the network and it doesnt optimize anymore. Either way, it barely changes so we just set it to 10
-        self.s_weight=10
+        # self.s_weight=10
+        self.s_weight=1
 
     def forward(self, frame, frames_close):
         cur_dir=frame.look_dir
