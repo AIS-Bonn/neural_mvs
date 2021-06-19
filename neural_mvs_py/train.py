@@ -369,8 +369,8 @@ def run():
                             loss+=rgb_loss_l1
                             # loss+=new_loss*0.1
                             loss+=new_loss
-                            if not is_training and psnr_index.item()>max_test_psnr:
-                                max_test_psnr=psnr_index.detach().item()
+                            # if not is_training and psnr_index.item()>max_test_psnr:
+                                # max_test_psnr=psnr_index.detach().item()
                                 
                           
                             #at the beggining we just optimize so that the lstm predicts the center of the sphere 
@@ -412,7 +412,7 @@ def run():
                                 # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                                 optimizer.zero_grad()
 
-                            cb.after_forward_pass(loss=psnr_index.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                            cb.after_forward_pass(loss=psnr_index.item(), psnr=psnr_index.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
 
 
                         #backward
@@ -535,8 +535,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if True: #if we reached this point we already read all the images so there is no need to check if the loader is finished 
-                print("epoch finished", phase.epoch_nr, " phase rag is", phase.grad)
-                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch(), score=psnr_index.detach().item()) 
+                # print("epoch finished", phase.epoch_nr, " phase rag is", phase.grad)
+                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
                 # loader_test.reset()
