@@ -83,7 +83,7 @@ def run():
     # use_ray_compression=False
     # do_superres=True
     # predict_occlusion_map=False
-    predict_confidence_map=True
+    predict_confidence_map=False
 
 
 
@@ -461,7 +461,8 @@ def run():
                                     diff=( rgb_gt_fullres-rgb_pred)**2*10
                                     Gui.show(tensor2mat(diff),"diff_"+phase.name)
                                     Gui.show( tensor2mat(rgb_pred) ,"rgb_pred_"+phase.name)
-                                    Gui.show( tensor2mat(confidence_map) ,"confidence_"+phase.name)
+                                    if predict_confidence_map:
+                                        Gui.show( tensor2mat(confidence_map) ,"confidence_"+phase.name)
                                  
                                     #view gt
                                     Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)

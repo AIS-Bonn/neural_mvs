@@ -6376,7 +6376,8 @@ class Net3_SRN(torch.nn.Module):
         # input_superres=torch.cat([mean_var_HR, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
         input_superres=torch.cat([input_superres, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
         rgb_pred, multi_res_features=self.super_res(input_superres )
-        
+
+        confidence_map=None 
         if self.predict_confidence_map:
             confidence_map=rgb_pred[:,0:1,:,:]
             rgb_pred=rgb_pred[:,1:4,:,:]
