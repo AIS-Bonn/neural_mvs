@@ -408,7 +408,7 @@ def run():
                                 optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
-                                # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for llff when we overfit
+                                scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for nerf synthetic when we overfit
                                 # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                                 optimizer.zero_grad()
 
@@ -446,14 +446,14 @@ def run():
                        # Profiler.print_all_stats()
 
                      
-                        if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                            scheduler.step(max_test_psnr)
+                        # if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                            # scheduler.step(max_test_psnr)
 
                         TIME_END("all")
 
 
 
-                        if True: 
+                        if train_params.with_viewer(): 
                             with torch.set_grad_enabled(False):
                                 #VIEW pred
                                 if phase.iter_nr%show_every==0:
@@ -535,7 +535,8 @@ def run():
             # finished all the images 
             # pbar.close()
             if True: #if we reached this point we already read all the images so there is no need to check if the loader is finished 
-                # print("epoch finished", phase.epoch_nr, " phase rag is", phase.grad)
+                if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(phase.scores.avg_psnr())
                 cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
                 cb.phase_ended(phase=phase) 
                 # phase.epoch_nr+=1
