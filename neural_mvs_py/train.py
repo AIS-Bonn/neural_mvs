@@ -77,13 +77,14 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s23_confidence"
+    experiment_name="28FMR"
 
 
     # use_ray_compression=False
     # do_superres=True
     # predict_occlusion_map=False
     predict_confidence_map=False
+    multi_res_loss=True
 
 
 
@@ -109,7 +110,7 @@ def run():
     ]
     #model 
     model=None
-    model=Net3_SRN(model_params, predict_confidence_map).to("cuda")
+    model=Net3_SRN(model_params, predict_confidence_map, multi_res_loss).to("cuda")
     model.train()
 
     scheduler=None
@@ -368,7 +369,10 @@ def run():
                             psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                             loss+=rgb_loss_l1
                             # loss+=new_loss*0.1
+                            # weight_multi_res_los=map_range( torch.tensor(phase.epoch_nr), 0, 100, 1.0, 0.0)
+                            # loss+=new_loss*weight_multi_res_los
                             loss+=new_loss
+
                             # if not is_training and psnr_index.item()>max_test_psnr:
                                 # max_test_psnr=psnr_index.detach().item()
                                 
@@ -381,7 +385,7 @@ def run():
                             #constant loss that says that the depth should be have values above the  dataset_params.raymarch_depth_min, keeps the depht from flipping to the other side of the camera
                             diff= depth_pred-  dataset_params.raymarch_depth_min # ideally this is only positive values but if it has negative values then we apply the loss
                             diff=torch.clamp(diff, max=0.0) #make it run from the negative to the 0 so if the depth is above the minimum then the loss is zero
-                            loss+=-diff.mean() #the more negtive the depth goes in the other direction, the more the loss increses
+                            loss+=-diff.mean()*100 #the more negtive the depth goes in the other direction, the more the loss increses
                 
 
                             #loss that pushes the points to be in the middle of the space 

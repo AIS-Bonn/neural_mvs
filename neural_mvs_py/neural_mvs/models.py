@@ -4561,7 +4561,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 # depth_scaling=1.0/(1.0*self.nr_iters*self.nr_resolutions) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 depth_scaling=1.0/(1.0*self.total_nr_iters) #1.0 is the scene scale and we expect on average that every step will do a movement of 0.5, maybe the average movement is more like 0.25 idunno
                 signed_distance=signed_distance*depth_scaling
-                # signed_distance= torch.abs(signed_distance)
+                # signed_distance= torch.abs(signed_distance) #NOT having the abs is definitelly better, it seems that being able to predict negative values is quite important
                 # print("signed_distance iter", iter_nr, " is ", signed_distance.mean())
                 
 
@@ -4578,8 +4578,12 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
             #get the depth at this final 3d position
             # depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True)
-            # depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True) #this does not have a sign so if the points are somehow behind the camera, the norm is the same
-            depth= ( (new_world_coords-camera_center)/ (ray_dirs+1e-6)  ).mean(dim=1, keepdim=True) #because the ray is expressed as x=orig+dir*t, then the t is t=(x-orig)/dir and since each component xyz is scaled the same then we can just take the first one or just to have better gradient we just average
+            depth= (new_world_coords-camera_center).norm(dim=1, keepdim=True) #this does not have a sign so if the points are somehow behind the camera, the norm is the same
+            # depth= ( (new_world_coords-camera_center)/ (ray_dirs+1e-5)  ).mean(dim=1, keepdim=True) #because the ray is expressed as x=orig+dir*t, then the t is t=(x-orig)/dir and since each component xyz is scaled the same then we can just take the first one or just to have better gradient we just average
+            #in order to get the sign of the depth we do NOT use the previous line which divides by ray_dirs because that can give you division by zero and instability ever with an epsilon, rather, we just multiply by the dot product between the ray_dirs and the vector made by this new positions
+            pos_dir= F.normalize((new_world_coords-camera_center), dim=1)
+            dot=torch.sum(pos_dir * ray_dirs, dim=1, keepdim=True)
+            depth=depth*dot
 
             # print("new_world_coords", new_world_coords.shape)
             points_3d_for_each_res.append( new_world_coords )
@@ -5884,10 +5888,11 @@ class Net2(torch.nn.Module):
 
 #Instead of doing ray marching like in NERF we use a LSTM to update the ray step similar to Scene representation network
 class Net3_SRN(torch.nn.Module):
-    def __init__(self, model_params, predict_confidence_map):
+    def __init__(self, model_params, predict_confidence_map, multi_res_loss):
         super(Net3_SRN, self).__init__()
 
         self.predict_confidence_map=predict_confidence_map
+        self.multi_res_loss=multi_res_loss
 
         self.first_time=True
 
@@ -6070,8 +6075,7 @@ class Net3_SRN(torch.nn.Module):
         multi_res_features.reverse() #this makes it from HR to LR
         # print("frame is ", frame.height, " ", frame.width)
         rgb_loss_multires=0
-        multi_res_loss=True
-        if multi_res_loss:
+        if self.multi_res_loss:
             for i in range(len(points3d_for_each_res)-1):
                 point3d_LR =  points3d_for_each_res[i+1]
                 # print("point3d_LR", point3d_LR.shape)
