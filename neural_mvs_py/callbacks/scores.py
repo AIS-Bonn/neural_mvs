@@ -26,8 +26,11 @@ class Scores():
         
     #compute all the starts that you may need, psnr, ssim, etc . TODO implement ssim and other metrics
     def compute_stats(self, print_stats=False):
-
-        avg_psnr=self.psnr_acum/self.nr_times_accumulated
+        
+        if(self.nr_times_accumulated==0):
+            avg_psnr=0
+        else:
+            avg_psnr=self.psnr_acum/self.nr_times_accumulated
         
         if print_stats:
             print("average psnr is", avg_psnr  )
