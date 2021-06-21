@@ -412,7 +412,8 @@ def run():
                                 optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
-                                scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for nerf synthetic when we overfit
+                                # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for nerf synthetic when we overfit
+                                scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=500) #for LLFF when we overfit
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=1000) #for DTU
                                 # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                                 optimizer.zero_grad()
