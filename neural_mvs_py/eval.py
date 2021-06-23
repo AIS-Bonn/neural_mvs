@@ -264,13 +264,15 @@ def run():
                                     first_time=False
                                     #TODO load checkpoint
                                     # now that all the parameters are created we can fill them with a model from a file
-                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
+                                    # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
+                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
                                     #rerun 
                                     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
 
 
 
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4"
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4_dtu_eval"
 
                                 #compute psnr, ssim an lpips
                                 psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
@@ -306,12 +308,22 @@ def run():
                                 #compute all visualizable thing
                                 #RGB
                                 rgb_mat =  tensor2mat(rgb_pred)
+                                #GT
+                                gt_mat =  tensor2mat(rgb_gt_fullres)
                                 #depth
                                 depth_mats=[]
                                 depth_mats_colored=[]
                                 for i in range(len(depth_for_each_res)):
                                     depth_for_lvl=depth_for_each_res[i].repeat(1,3,1,1) #make it have 3 channels
-                                    depth_for_lvl=map_range(depth_for_lvl, 0.35, 0.7, 1.0, 0.0) ######Is dataset specific
+
+                                    #range it
+                                    if  isinstance(loader_test, DataLoaderNerf):
+                                        depth_for_lvl=map_range(depth_for_lvl, 0.35, 0.7, 1.0, 0.0) ######Is dataset specific FOR NERF synthetic
+                                    if  isinstance(loader_test, DataLoaderLLFF):
+                                        depth_for_lvl=map_range(depth_for_lvl, 0.0, 1.0, 1.0, 0.0) ######Is dataset specific 
+                                    if  isinstance(loader_test, DataLoaderDTU):
+                                        depth_for_lvl=map_range(depth_for_lvl, 0.15, 1.0, 1.0, 0.0) ######Is dataset specific FOR NERF synthetic
+
                                     if use_mask: #concat a alpha channel
                                         # depth_for_lvl[1-mask_list[i]]=[54/255, 15/255, 107/255]
                                         depth_for_lvl=torch.cat([depth_for_lvl, mask_list[i] ], 1)
@@ -342,7 +354,9 @@ def run():
                                 if(not os.path.exists(path)):
                                     print("path does not exist, are you sure you are on the correct machine", path)
                                     exit(1)
+                                path=os.path.join(path,str(scene_idx))
                                 rgb_path=os.path.join(path,"rgb")
+                                gt_path=os.path.join(path,"gt")
                                 depth_paths=[]
                                 depth_colored_paths=[]
                                 for i in range(len(depth_for_each_res)):
@@ -352,6 +366,7 @@ def run():
                                 confidence_path=os.path.join(path,"confidence")
                                 #make the paths
                                 os.makedirs(rgb_path, exist_ok=True)
+                                os.makedirs(gt_path, exist_ok=True)
                                 for i in range(len(depth_for_each_res)):
                                     os.makedirs(depth_paths[i], exist_ok=True)
                                     os.makedirs(depth_colored_paths[i], exist_ok=True)
@@ -359,6 +374,7 @@ def run():
                                 os.makedirs(confidence_path, exist_ok=True)
                                 #write
                                 rgb_mat.to_cv8u().to_file(rgb_path+"/"+str(img_nr)+".png")
+                                gt_mat.to_cv8u().to_file(gt_path+"/"+str(img_nr)+".png")
                                 for i in range(len(depth_mats)):
                                     depth_mats[i].to_cv8u().to_file(depth_paths[i]+"/"+str(img_nr)+".png")
                                 for i in range(len(depth_mats_colored)):
@@ -391,6 +407,26 @@ def run():
 
 
                                     view.update()
+
+
+                        TIME_START("load")
+                        if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
+                            TIME_START("justload")
+
+                            img_nr=0
+                        
+                            phase.loader.start_reading_next_scene()
+                            #wait until they are read
+                            while True:
+                                if( phase.loader.finished_reading_scene() ): 
+                                    break
+                            TIME_END("justload")
+                            frames_list=[]
+                            for i in range(phase.loader.nr_samples()):
+                                frame_cur=phase.loader.get_frame_at_idx(i)
+                                frames_list.append(FramePY(frame_cur, create_subsamples=True))
+                            phase.frames=frames_list
+                        TIME_END("load")
 
 
     #print avg values
