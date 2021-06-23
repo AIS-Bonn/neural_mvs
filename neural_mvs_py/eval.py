@@ -270,12 +270,13 @@ def run():
 
 
 
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4"
 
                                 #compute psnr, ssim an lpips
                                 psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                                 ssim = piq.ssim(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0) )
                                 lpips: torch.Tensor = piq.LPIPS()(  rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0)  )
-                                # print("psnr", psnr.item())
+                                print("psnr", psnr.item())
                                 # print("ssim", ssim.item())
                                 # print("lpips", lpips.item())
                                 psnr_acum+=psnr.item()
@@ -292,10 +293,10 @@ def run():
                                 mask_list=[]
                                 use_mask=True #whne we use the mask we set the masked ares to white
                                 if use_mask:
-                                    mask_list.append( mat2tensor(frame.frame.mask, False).cuda().repeat(1,3,1,1) )
-                                    mask_list.append( mat2tensor(frame.subsampled_frames[0].frame.mask, False).cuda().repeat(1,3,1,1) )
-                                    mask_list.append( mat2tensor(frame.subsampled_frames[1].frame.mask, False).cuda().repeat(1,3,1,1) )
-                                    mask_list.append( mat2tensor(frame.subsampled_frames[2].frame.mask, False).cuda().repeat(1,3,1,1) )
+                                    mask_list.append( mat2tensor(frame.frame.mask, False).cuda().repeat(1,1,1,1) )
+                                    mask_list.append( mat2tensor(frame.subsampled_frames[0].frame.mask, False).cuda().repeat(1,1,1,1) )
+                                    mask_list.append( mat2tensor(frame.subsampled_frames[1].frame.mask, False).cuda().repeat(1,1,1,1) )
+                                    mask_list.append( mat2tensor(frame.subsampled_frames[2].frame.mask, False).cuda().repeat(1,1,1,1) )
 
 
 
@@ -311,23 +312,25 @@ def run():
                                 for i in range(len(depth_for_each_res)):
                                     depth_for_lvl=depth_for_each_res[i].repeat(1,3,1,1) #make it have 3 channels
                                     depth_for_lvl=map_range(depth_for_lvl, 0.35, 0.7, 1.0, 0.0) ######Is dataset specific
-                                    if use_mask:
-                                        depth_for_lvl[1-mask_list[i]]=1.0
+                                    if use_mask: #concat a alpha channel
+                                        # depth_for_lvl[1-mask_list[i]]=[54/255, 15/255, 107/255]
+                                        depth_for_lvl=torch.cat([depth_for_lvl, mask_list[i] ], 1)
                                     depth_mat=tensor2mat(depth_for_lvl)
                                     depth_mats.append(depth_mat)
                                     #color it
                                     depth_mat_colored= color_mngr.mat2color(depth_mat, "magma")
-                                    if use_mask:
-                                        depth_mat_colored_tensor=mat2tensor(depth_mat_colored,False)
-                                        depth_mat_colored_tensor[1-mask_list[i]]=1.0
-                                        depth_mat_colored=tensor2mat(depth_mat_colored_tensor)
+                                    # if use_mask: 
+                                        # depth_mat_colored_tensor=mat2tensor(depth_mat_colored,False)
+                                        # depth_mat_colored_tensor[1-mask_list[i]]=1.0
+                                        # depth_mat_colored=tensor2mat(depth_mat_colored_tensor)
                                     depth_mats_colored.append(depth_mat_colored)
                                 #normal 
                                 points3D_img=point3d
                                 normal_img=compute_normal(points3D_img)
                                 normal_vis=(normal_img+1.0)*0.5
                                 if use_mask:
-                                    normal_vis[1-mask_list[0]]=1.0
+                                    # normal_vis[1-mask_list[0]]=1.0
+                                    normal_vis=torch.cat([normal_vis, mask_list[0] ], 1)
                                 normal_mat=tensor2mat(normal_vis)
                                 #confidence
                                 if confidence_map!=None:
@@ -336,7 +339,6 @@ def run():
 
 
                                 #write to disk
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test"
                                 if(not os.path.exists(path)):
                                     print("path does not exist, are you sure you are on the correct machine", path)
                                     exit(1)
