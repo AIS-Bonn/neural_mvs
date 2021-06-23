@@ -413,7 +413,7 @@ def run():
                         if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                             TIME_START("justload")
 
-                            img_nr=0
+                            # img_nr=0
                         
                             phase.loader.start_reading_next_scene()
                             #wait until they are read
