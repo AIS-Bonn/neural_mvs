@@ -12,6 +12,9 @@ import random
 import os.path
 from os import path
 
+import piq
+
+
 from easypbr  import *
 from dataloaders import *
 from neuralmvs import *
@@ -174,6 +177,9 @@ def run():
         poses_on_spiral= make_list_of_poses_on_spiral(frames_train, path_zflat=False )
 
     img_nr=0
+    psnr_acum=0
+    ssim_acum=0
+    lpips_acum=0
 
 
     # while True: #Do it infinitely if we want to just visualize things
@@ -261,6 +267,23 @@ def run():
                                     model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
                                     #rerun 
                                     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
+
+
+
+
+                                #compute psnr, ssim an lpips
+                                psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
+                                ssim = piq.ssim(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0) )
+                                lpips: torch.Tensor = piq.LPIPS()(  rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0)  )
+                                # print("psnr", psnr.item())
+                                # print("ssim", ssim.item())
+                                # print("lpips", lpips.item())
+                                psnr_acum+=psnr.item()
+                                ssim_acum+=ssim.item()
+                                lpips_acum+=lpips.item()
+
+
+
 
 
 
@@ -366,6 +389,16 @@ def run():
 
 
                                     view.update()
+
+
+    #print avg values
+    psnr_avg=psnr_acum/img_nr
+    ssim_avg=ssim_acum/img_nr
+    lpips_avg=lpips_acum/img_nr
+    print("EVALUATION METRICs, averaged over all images")
+    print("psnr_avg", psnr_avg)
+    print("ssim_avg", ssim_avg)
+    print("lpips_avg", lpips_avg)
 
                 
 
