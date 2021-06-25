@@ -4387,7 +4387,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         K_batched=torch.cat(K_list,0)
 
 
-        points_3d_for_each_res=[]
+        points_3d_for_each_res=[] #stores the world coords after each res stage
+        points_3d_for_each_step=[] #stores the world coords after each step of the ray marcher
 
 
         #go from each level of the hierarchy and ray march from there 
@@ -4570,6 +4571,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 states.append(state)
                 world_coords.append(new_world_coords)
                 signed_distances_for_marchlvl.append(signed_distance)
+                points_3d_for_each_step.append( new_world_coords )
 
                 # if iter_nr==self.nr_iters-1:
                     # show_3D_points(new_world_coords, "points_3d_"+str(res_iter))
@@ -4589,7 +4591,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             points_3d_for_each_res.append( new_world_coords )
 
 
-        return new_world_coords, depth, points_3d_for_each_res
+        return new_world_coords, depth, points_3d_for_each_res, points_3d_for_each_step
 
 
 class DifferentiableRayMarcherHierarchicalNoLSTM(torch.nn.Module):
@@ -6065,7 +6067,7 @@ class Net3_SRN(torch.nn.Module):
         TIME_END("unet")
        
         TIME_START("ray_march")
-        point3d, depth, points3d_for_each_res  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, multi_res_features, weights, novel)
+        point3d, depth, points3d_for_each_res, points3d_for_each_step  = self.ray_marcher(dataset_params, frame, ray_dirs,frames_close, frames_features, multi_res_features, weights, novel)
         TIME_END("ray_march")
 
 
@@ -6514,7 +6516,15 @@ class Net3_SRN(torch.nn.Module):
             depth_for_res= (point3d_LR-camera_center).norm(dim=1, keepdim=True)
             depth_for_each_res.append(depth_for_res)
 
-        return rgb_pred, depth, point3d, rgb_loss_multires, depth_for_each_res, confidence_map
+        depth_for_each_step=[]
+        for i in range(len(points3d_for_each_step)):
+            camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
+            camera_center=camera_center.view(1,3,1,1)
+            point3d_LR =  points3d_for_each_step[i]
+            depth_for_step= (point3d_LR-camera_center).norm(dim=1, keepdim=True)
+            depth_for_each_step.append(depth_for_step)
+
+        return rgb_pred, depth, point3d, rgb_loss_multires, depth_for_each_res, confidence_map, depth_for_each_step
 
 
     #https://github.com/pytorch/pytorch/issues/2001

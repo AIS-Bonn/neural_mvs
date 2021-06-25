@@ -257,7 +257,7 @@ def run():
                                 #prepare rgb data and rest of things
                                 rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame_full_res, frames_close_full_res, frame, frames_close)
 
-                                rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
+                                rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
 
 
                                 if first_time:
@@ -265,14 +265,16 @@ def run():
                                     #TODO load checkpoint
                                     # now that all the parameters are created we can fill them with a model from a file
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
+                                    # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
                                     model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
                                     #rerun 
-                                    rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
+                                    rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
 
 
 
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4"
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4_dtu_eval"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4_dtu_eval"
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test5llff_depth_for_each_step"
 
                                 #compute psnr, ssim an lpips
                                 psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
@@ -306,11 +308,11 @@ def run():
 
 
                                 #compute all visualizable thing
-                                #RGB
+                                #RGB--------------------------------------------------------------------------------
                                 rgb_mat =  tensor2mat(rgb_pred)
-                                #GT
+                                #GT----------------------------------------------------------------------------
                                 gt_mat =  tensor2mat(rgb_gt_fullres)
-                                #depth
+                                #depth------------------------------------------------------------------------------------------------
                                 depth_mats=[]
                                 depth_mats_colored=[]
                                 for i in range(len(depth_for_each_res)):
@@ -320,7 +322,9 @@ def run():
                                     if  isinstance(loader_test, DataLoaderNerf):
                                         depth_for_lvl=map_range(depth_for_lvl, 0.35, 0.7, 1.0, 0.0) ######Is dataset specific FOR NERF synthetic
                                     if  isinstance(loader_test, DataLoaderLLFF):
-                                        depth_for_lvl=map_range(depth_for_lvl, 0.0, 1.0, 1.0, 0.0) ######Is dataset specific 
+                                        # print("min", frame.frame.get_extra_field_float("min_near"))
+                                        minimum=frame.frame.get_extra_field_float("min_near")
+                                        depth_for_lvl=map_range(depth_for_lvl, minimum, 1.0, 1.0, 0.0) ######Is dataset specific 
                                     if  isinstance(loader_test, DataLoaderDTU):
                                         depth_for_lvl=map_range(depth_for_lvl, 0.15, 1.0, 1.0, 0.0) ######Is dataset specific FOR NERF synthetic
 
@@ -336,7 +340,40 @@ def run():
                                         # depth_mat_colored_tensor[1-mask_list[i]]=1.0
                                         # depth_mat_colored=tensor2mat(depth_mat_colored_tensor)
                                     depth_mats_colored.append(depth_mat_colored)
-                                #normal 
+                                #depth at each step------------------------------------------------------------------------------------------------
+                                depth_for_each_step_mats=[]
+                                depth_for_each_step_mats_colored=[]
+                                for i in range(len(depth_for_each_step)):
+                                    depth_for_lvl=depth_for_each_step[i].repeat(1,3,1,1) #make it have 3 channels
+                                    # print("depth_for_lvl",depth_for_lvl.shape)
+
+                                    #range it
+                                    if  isinstance(loader_test, DataLoaderNerf):
+                                        depth_for_lvl=map_range(depth_for_lvl, 0.35, 0.7, 1.0, 0.0) ######Is dataset specific FOR NERF synthetic
+                                    if  isinstance(loader_test, DataLoaderLLFF):
+                                        # depth_for_lvl=map_range(depth_for_lvl, 0.0, 1.0, 1.0, 0.0) ######Is dataset specific 
+                                        minimum=frame.frame.get_extra_field_float("min_near")
+                                        depth_for_lvl=map_range(depth_for_lvl, minimum, 1.0, 1.0, 0.0) ######Is dataset specific 
+                                    if  isinstance(loader_test, DataLoaderDTU):
+                                        depth_for_lvl=map_range(depth_for_lvl, 0.15, 1.0, 1.0, 0.0) ######Is dataset specific FOR NERF synthetic
+
+                                    if use_mask: #concat a alpha channel
+                                        mask_idx=0
+                                        #dirty way of finding which mask  matches in size 
+                                        for m in range(len(mask_list)):
+                                            # print("m si ", m)
+                                            # print("depth for lvl ahs shape ", depth_for_lvl.shape)
+                                            # print(" mask_list[m] ahs shape ",  mask_list[m].shape)
+                                            if depth_for_lvl.shape[2] == mask_list[m].shape[2]: #chekc if the height is the same which probably meants that the correct map to use
+                                                mask_idx=m
+                                                break
+                                        depth_for_lvl=torch.cat([depth_for_lvl, mask_list[mask_idx] ], 1)
+                                    depth_mat=tensor2mat(depth_for_lvl)
+                                    depth_for_each_step_mats.append(depth_mat)
+                                    #color it
+                                    depth_mat_colored= color_mngr.mat2color(depth_mat, "magma")
+                                    depth_for_each_step_mats_colored.append(depth_mat_colored)
+                                #normal ----------------------------------------------------------------------------------------------------------------
                                 points3D_img=point3d
                                 normal_img=compute_normal(points3D_img)
                                 normal_vis=(normal_img+1.0)*0.5
@@ -344,7 +381,7 @@ def run():
                                     # normal_vis[1-mask_list[0]]=1.0
                                     normal_vis=torch.cat([normal_vis, mask_list[0] ], 1)
                                 normal_mat=tensor2mat(normal_vis)
-                                #confidence
+                                #confidence---------------------------------------------------------------------------------------------------------
                                 if confidence_map!=None:
                                     confidence_mat =  tensor2mat(confidence_map)
 
@@ -357,11 +394,18 @@ def run():
                                 path=os.path.join(path,str(scene_idx))
                                 rgb_path=os.path.join(path,"rgb")
                                 gt_path=os.path.join(path,"gt")
+                                ####paths for depth--------------------------------------------------------------------
                                 depth_paths=[]
                                 depth_colored_paths=[]
                                 for i in range(len(depth_for_each_res)):
-                                    depth_paths.append( os.path.join(path,"depth/depth_"+str(i)) )
-                                    depth_colored_paths.append( os.path.join(path,"depth/depth_colored_"+str(i)) )
+                                    depth_paths.append( os.path.join(path,"depth_for_each_res/depth_"+str(i)) )
+                                    depth_colored_paths.append( os.path.join(path,"depth_for_each_res/depth_colored_"+str(i)) )
+                                #paths for depth for each step --------------------------------------------------------------
+                                depth_for_each_step_paths=[]
+                                depth_for_each_step_colored_paths=[]
+                                for i in range(len(depth_for_each_step)):
+                                    depth_for_each_step_paths.append( os.path.join(path,"depth_for_each_step/depth_"+str(i)) )
+                                    depth_for_each_step_colored_paths.append( os.path.join(path,"depth_for_each_step/depth_colored_"+str(i)) )
                                 normal_path=os.path.join(path,"normal")
                                 confidence_path=os.path.join(path,"confidence")
                                 #make the paths
@@ -370,15 +414,24 @@ def run():
                                 for i in range(len(depth_for_each_res)):
                                     os.makedirs(depth_paths[i], exist_ok=True)
                                     os.makedirs(depth_colored_paths[i], exist_ok=True)
+                                for i in range(len(depth_for_each_step)):
+                                    os.makedirs(depth_for_each_step_paths[i], exist_ok=True)
+                                    os.makedirs(depth_for_each_step_colored_paths[i], exist_ok=True)
                                 os.makedirs(normal_path, exist_ok=True)
                                 os.makedirs(confidence_path, exist_ok=True)
                                 #write
                                 rgb_mat.to_cv8u().to_file(rgb_path+"/"+str(img_nr)+".png")
                                 gt_mat.to_cv8u().to_file(gt_path+"/"+str(img_nr)+".png")
+                                #depth for each res
                                 for i in range(len(depth_mats)):
                                     depth_mats[i].to_cv8u().to_file(depth_paths[i]+"/"+str(img_nr)+".png")
                                 for i in range(len(depth_mats_colored)):
                                     depth_mats_colored[i].to_cv8u().to_file(depth_colored_paths[i]+"/"+str(img_nr)+".png")
+                                #depth for each step 
+                                for i in range(len(depth_for_each_step_mats)):
+                                    depth_for_each_step_mats[i].to_cv8u().to_file(depth_for_each_step_paths[i]+"/"+str(img_nr)+".png")
+                                for i in range(len(depth_for_each_step_mats_colored)):
+                                    depth_for_each_step_mats_colored[i].to_cv8u().to_file(depth_for_each_step_colored_paths[i]+"/"+str(img_nr)+".png")
                                 normal_mat.to_cv8u().to_file(normal_path+"/"+str(img_nr)+".png")
                                 if confidence_map!=None:
                                     confidence_mat.to_cv8u().to_file(confidence_path+"/"+str(img_nr)+".png")

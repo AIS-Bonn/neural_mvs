@@ -341,7 +341,7 @@ def run():
 
 
                             TIME_START("forward")
-                            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
+                            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
                             TIME_END("forward")
 
                             # print("rgb_pred", rgb_pred.shape)
