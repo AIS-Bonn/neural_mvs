@@ -457,6 +457,9 @@ def run():
                                 #confidence---------------------------------------------------------------------------------------------------------
                                 if confidence_map!=None:
                                     confidence_mat =  tensor2mat(confidence_map)
+                                    confidence_map_range=map_range(confidence_map**3, 0.0, 1.0, 0.0, 0.9)
+                                    confidence_mat_range =  tensor2mat(confidence_map_range)
+                                    confidence_colored_mat =  color_mngr.mat2color(confidence_mat_range,"viridis")
 
 
 
@@ -481,6 +484,7 @@ def run():
                                     depth_for_each_step_colored_paths.append( os.path.join(path,"depth_for_each_step/depth_colored_"+str(i)) )
                                 normal_path=os.path.join(path,"normal")
                                 confidence_path=os.path.join(path,"confidence")
+                                confidence_colored_path=os.path.join(path,"confidence_colored")
                                 #make the paths
                                 os.makedirs(rgb_path, exist_ok=True)
                                 os.makedirs(gt_path, exist_ok=True)
@@ -492,6 +496,7 @@ def run():
                                     os.makedirs(depth_for_each_step_colored_paths[i], exist_ok=True)
                                 os.makedirs(normal_path, exist_ok=True)
                                 os.makedirs(confidence_path, exist_ok=True)
+                                os.makedirs(confidence_colored_path, exist_ok=True)
                                 #write
                                 rgb_mat.to_cv8u().to_file(rgb_path+"/"+str(img_nr)+".png")
                                 gt_mat.to_cv8u().to_file(gt_path+"/"+str(img_nr)+".png")
@@ -508,6 +513,7 @@ def run():
                                 normal_mat.to_cv8u().to_file(normal_path+"/"+str(img_nr)+".png")
                                 if confidence_map!=None:
                                     confidence_mat.to_cv8u().to_file(confidence_path+"/"+str(img_nr)+".png")
+                                    confidence_colored_mat.to_cv8u().to_file(confidence_colored_path+"/"+str(img_nr)+".png")
 
 
                                 img_nr+=1
