@@ -130,8 +130,8 @@ def run():
     factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
     factor_subsample_depth_pred=0
     use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
-    # eval_every_x_epoch=30
-    eval_every_x_epoch=1
+    eval_every_x_epoch=30
+    # eval_every_x_epoch=1
     do_sfm = False
 
 

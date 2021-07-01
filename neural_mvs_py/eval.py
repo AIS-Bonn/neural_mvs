@@ -157,8 +157,8 @@ def run():
     #attempt 2 to get two cameras working 
     cam_for_pred=Camera()
     cam_for_pred.set_model_matrix(tf_world_cam)
-    # cam_for_pred.set_dist_to_lookat(0.3) #for dtu
-    cam_for_pred.set_dist_to_lookat(0.5) #for nerf
+    cam_for_pred.set_dist_to_lookat(0.3) #for dtu
+    # cam_for_pred.set_dist_to_lookat(0.5) #for nerf
 
     #check that the quat is correct 
     if train_params.with_viewer():
@@ -172,9 +172,17 @@ def run():
     factor_subsample_depth_pred=0
 
 
-    use_spiral=True
+    use_spiral=False
+    # use_spiral_for_dtu=True
+    use_mouse_control=True
     if use_spiral:
+        # if isinstance(loader_train, DataLoaderDTU):
+            # frames_train[0].frame.add_extra_field("min_near",0.1)
+            # frames_train[0].frame.add_extra_field("max_far",1.0)
         poses_on_spiral= make_list_of_poses_on_spiral(frames_train, path_zflat=False )
+    if use_mouse_control:
+        view.m_camera=cam_for_pred
+
 
     img_nr=0
     psnr_acum=0
@@ -204,6 +212,8 @@ def run():
 
                     if use_spiral:
                         nr_frames=len(poses_on_spiral) 
+                    if use_spiral:
+                        nr_frames=360
 
 
                     for scene_idx in range(nr_scenes):
@@ -242,7 +252,15 @@ def run():
                                 # print("new K is ", new_K)
                                 frame=FramePY(frame.frame, create_subsamples=True)
                                 #recalculate the dirs because the frame changes in space 
-                                ray_dirs_mesh=frame.frame.pixels2dirs_mesh()
+                                # ray_dirs_mesh=frame.frame.pixels2dirs_mesh()
+                            elif use_mouse_control:
+                                view.m_camera=cam_for_pred
+                                cam_tf_world_cam= cam_for_pred.model_matrix_affine()
+                                frame.frame.tf_cam_world=cam_tf_world_cam.inverse()
+                                frame=FramePY(frame.frame, create_subsamples=True)
+                                #recalculate the dirs because the frame changes in space 
+                                # ray_dirs_mesh=frame.frame.pixels2dirs_mesh()
+                                # frame.ray_dirs=ray_dirs_mesh.V.copy() #Nx3
                             else:
                                 frame=phase.frames[i]
 
@@ -256,6 +274,11 @@ def run():
                                 # print("frame rgb path is ", frame.frame.rgb_path)
 
                                 frame.load_images()
+
+                                frustum_mesh=frame.frame.create_frustum_mesh(0.05)
+                                Scene.show(frustum_mesh, "frustum_cur" )
+
+
                                 #get a subsampled frame if necessary
                                 frame_full_res=frame
                                 # print("frame_full_res has size ", frame_full_res.height, " ", frame_full_res.width)
@@ -309,7 +332,8 @@ def run():
                                     # now that all the parameters are created we can fill them with a model from a file
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
-                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_llff2/model_e_280_score_28.2220196723938.pt" ))
+                                    # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_llff2/model_e_280_score_28.2220196723938.pt" ))
+                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_dtu/model_e_62_score_0.pt" ))
                                     #rerun 
                                     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
 
@@ -318,18 +342,23 @@ def run():
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4_dtu_eval"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test5llff_depth_for_each_step"
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test6llff_spiral"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test6llff_spiral"
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test7dtu_spiral"
 
-                                #compute psnr, ssim an lpips
-                                psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
-                                ssim = piq.ssim(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0) )
-                                lpips: torch.Tensor = piq.LPIPS()(  rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0)  )
-                                print("psnr", psnr.item())
-                                # print("ssim", ssim.item())
-                                # print("lpips", lpips.item())
-                                psnr_acum+=psnr.item()
-                                ssim_acum+=ssim.item()
-                                lpips_acum+=lpips.item()
+
+
+                                compute_metrics=False
+                                if compute_metrics:
+                                    #compute psnr, ssim an lpips
+                                    psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
+                                    ssim = piq.ssim(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0) )
+                                    lpips: torch.Tensor = piq.LPIPS()(  rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0)  )
+                                    print("psnr", psnr.item())
+                                    # print("ssim", ssim.item())
+                                    # print("lpips", lpips.item())
+                                    psnr_acum+=psnr.item()
+                                    ssim_acum+=ssim.item()
+                                    lpips_acum+=lpips.item()
 
 
 
