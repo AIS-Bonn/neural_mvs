@@ -172,9 +172,9 @@ def run():
     factor_subsample_depth_pred=0
 
 
-    use_spiral=False
+    use_spiral=True
     # use_spiral_for_dtu=True
-    use_mouse_control=True
+    use_mouse_control=False
     if use_spiral:
         # if isinstance(loader_train, DataLoaderDTU):
             # frames_train[0].frame.add_extra_field("min_near",0.1)
