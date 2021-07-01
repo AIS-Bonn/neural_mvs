@@ -104,9 +104,9 @@ def run():
    
 
     ####dirty way to train on DTU for the overfitting experiment
-    loader_train=DataLoaderDTU(config_path)
-    loader_train.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
-    loader_train.start()
+    # loader_train=DataLoaderDTU(config_path)
+    # loader_train.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
+    # loader_train.start()
     #########
 
 
@@ -353,14 +353,14 @@ def run():
                             TIME_END("forward")
 
 
-                            if first_time:
-                                #TODO load checkpoint
-                                # now that all the parameters are created we can fill them with a model from a file
-                                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
-                                # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
-                                model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
-                                #rerun 
-                                rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
+                            # if first_time:
+                            #     #TODO load checkpoint
+                            #     # now that all the parameters are created we can fill them with a model from a file
+                            #     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
+                            #     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
+                            #     model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
+                            #     #rerun 
+                            #     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
 
 
 
