@@ -172,7 +172,7 @@ def run():
     factor_subsample_depth_pred=0
 
 
-    use_spiral=False
+    use_spiral=True
     if use_spiral:
         poses_on_spiral= make_list_of_poses_on_spiral(frames_train, path_zflat=False )
 
@@ -202,10 +202,53 @@ def run():
                     else: 
                         nr_frames=phase.loader.nr_samples()
 
+                    if use_spiral:
+                        nr_frames=len(poses_on_spiral) 
+
 
                     for scene_idx in range(nr_scenes):
                         for i in range( nr_frames ):
-                            frame=phase.frames[i]
+                            # frame=phase.frames[i]
+
+                            #SPIRAL
+                            if use_spiral:
+                                frame=phase.frames[0]
+                                tf_world_cam_hwf = poses_on_spiral[ img_nr% len(poses_on_spiral) ]
+                                # print("pose_on spiral ", tf_world_cam_hwf)
+                                tf_world_cam = tf_world_cam_hwf[:, 0:4]
+                                hwf=tf_world_cam_hwf[:, 4:5]
+                                # print("hwf", hwf)
+                                # print("tf_world_cam", tf_world_cam)
+                                row = np.array([ 0,0,0,1  ])  #the last row in the matrix
+                                row = row.reshape((1, 4))
+                                tf_world_cam = np.concatenate([ tf_world_cam, row ], 0)
+                                # print("tf_world_cam with lasr tow", tf_world_cam)
+                                tf_cam_world = np.linalg.inv(tf_world_cam)
+                                # print("tf_cam_world with lasr tow", tf_cam_world)
+                                # tf_cam_world[:,0:1] = -tf_cam_world[:,0:1]
+
+                                tf_cam_world_eigen= Affine3f()
+                                tf_cam_world_eigen.from_matrix(tf_cam_world)
+                                tf_cam_world_eigen.flip_z()
+                                frame.frame.tf_cam_world= tf_cam_world_eigen
+                                #restrict also the focal a bit
+                                # new_K=K.copy()
+                                # new_K=new_K*0.25
+                                # new_K[0,0]=new_K[0,0]*1.2
+                                # new_K[1,1]=new_K[1,1]*1.2
+                                # new_K[2,2]=1.0
+                                # frame.frame.K=new_K
+                                # print("normal K is ", frame.frame.K)
+                                # print("new K is ", new_K)
+                                frame=FramePY(frame.frame, create_subsamples=True)
+                                #recalculate the dirs because the frame changes in space 
+                                ray_dirs_mesh=frame.frame.pixels2dirs_mesh()
+                            else:
+                                frame=phase.frames[i]
+
+
+
+
                             TIME_START("all")
 
                             with torch.set_grad_enabled(False):
@@ -266,7 +309,7 @@ def run():
                                     # now that all the parameters are created we can fill them with a model from a file
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
-                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
+                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_llff2/model_e_280_score_28.2220196723938.pt" ))
                                     #rerun 
                                     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
 
@@ -274,7 +317,8 @@ def run():
 
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4_dtu_eval"
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test5llff_depth_for_each_step"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test5llff_depth_for_each_step"
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test6llff_spiral"
 
                                 #compute psnr, ssim an lpips
                                 psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
