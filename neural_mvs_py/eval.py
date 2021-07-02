@@ -172,9 +172,9 @@ def run():
     factor_subsample_depth_pred=0
 
 
-    use_spiral=True
+    use_spiral=False
     # use_spiral_for_dtu=True
-    use_mouse_control=False
+    use_mouse_control=True
     if use_spiral:
         # if isinstance(loader_train, DataLoaderDTU):
             # frames_train[0].frame.add_extra_field("min_near",0.1)
@@ -190,8 +190,31 @@ def run():
     lpips_acum=0
 
 
-    # while True: #Do it infinitely if we want to just visualize things
-    if True: #to just do it once
+    #make another dtu restricted to just one scan 
+    loader_test=DataLoaderDTU(config_path)
+    loader_test.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
+    # loader_test.set_restrict_to_scan_idx(8) #red ball
+    # loader_test.set_restrict_to_scan_idx(21) #buildings 
+    # loader_test.set_restrict_to_scan_idx(30) #pumpkin
+    # loader_test.set_restrict_to_scan_idx(31) #pumpkin with cans
+    # loader_test.set_restrict_to_scan_idx(34) #bricks stackd
+    # loader_test.set_restrict_to_scan_idx(38) #brickes stacekd 2
+    # loader_test.set_restrict_to_scan_idx(40) #bricks arch
+    # loader_test.set_restrict_to_scan_idx(41) #painted bucked upside down
+    # loader_test.set_restrict_to_scan_idx(45) #shampoo and beans
+    # loader_test.set_restrict_to_scan_idx(55) #bunny
+    # loader_test.set_restrict_to_scan_idx(63) #fruits
+    # loader_test.set_restrict_to_scan_idx(82) #smurf
+    # loader_test.set_restrict_to_scan_idx(103) #pig
+    # loader_test.set_restrict_to_scan_idx(110) #golden bunny
+    loader_test.set_restrict_to_scan_idx(114) #bundha
+    loader_test.start()
+    frames_test = get_frames(loader_test)
+    phases[0].frames=frames_test 
+
+
+    while True: #Do it infinitely if we want to just visualize things
+    # if True: #to just do it once
         img_nr=0
         for phase in phases:
                 cb.epoch_started(phase=phase)
@@ -214,6 +237,8 @@ def run():
                         nr_frames=len(poses_on_spiral) 
                     if use_spiral:
                         nr_frames=360
+                    if use_mouse_control:
+                        nr_frames=9999999999
 
 
                     for scene_idx in range(nr_scenes):
@@ -333,7 +358,8 @@ def run():
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
                                     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_llff2/model_e_280_score_28.2220196723938.pt" ))
-                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_dtu/model_e_62_score_0.pt" ))
+                                    # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/test_dtu/model_e_62_score_0.pt" ))
+                                    model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/from_other_comps/dtu_trained_fully/model_e_2760_score_26.845432066106472.pt" ))
                                     #rerun 
                                     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=True)
 
@@ -343,7 +369,13 @@ def run():
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test4_dtu_eval"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test5llff_depth_for_each_step"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test6llff_spiral"
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test7dtu_spiral"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene21_buildings"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene45_shampoo"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene55_bunny"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene63_fruits"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene82_smurf"
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene110_golden_bunny"
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene114_budha"
 
 
 
