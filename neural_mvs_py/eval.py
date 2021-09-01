@@ -172,9 +172,9 @@ def run():
     factor_subsample_depth_pred=0
 
 
-    use_spiral=False
+    use_spiral=True
     # use_spiral_for_dtu=True
-    use_mouse_control=True
+    use_mouse_control=False
     if use_spiral:
         # if isinstance(loader_train, DataLoaderDTU):
             # frames_train[0].frame.add_extra_field("min_near",0.1)
@@ -191,26 +191,26 @@ def run():
 
 
     #make another dtu restricted to just one scan 
-    loader_test=DataLoaderDTU(config_path)
-    loader_test.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
-    # loader_test.set_restrict_to_scan_idx(8) #red ball
-    # loader_test.set_restrict_to_scan_idx(21) #buildings 
-    # loader_test.set_restrict_to_scan_idx(30) #pumpkin
-    # loader_test.set_restrict_to_scan_idx(31) #pumpkin with cans
-    # loader_test.set_restrict_to_scan_idx(34) #bricks stackd
-    # loader_test.set_restrict_to_scan_idx(38) #brickes stacekd 2
-    # loader_test.set_restrict_to_scan_idx(40) #bricks arch
-    # loader_test.set_restrict_to_scan_idx(41) #painted bucked upside down
-    # loader_test.set_restrict_to_scan_idx(45) #shampoo and beans
-    # loader_test.set_restrict_to_scan_idx(55) #bunny
-    # loader_test.set_restrict_to_scan_idx(63) #fruits
-    # loader_test.set_restrict_to_scan_idx(82) #smurf
-    # loader_test.set_restrict_to_scan_idx(103) #pig
-    # loader_test.set_restrict_to_scan_idx(110) #golden bunny
-    loader_test.set_restrict_to_scan_idx(114) #bundha
-    loader_test.start()
-    frames_test = get_frames(loader_test)
-    phases[0].frames=frames_test 
+    # loader_test=DataLoaderDTU(config_path)
+    # loader_test.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
+    # # loader_test.set_restrict_to_scan_idx(8) #red ball
+    # # loader_test.set_restrict_to_scan_idx(21) #buildings 
+    # # loader_test.set_restrict_to_scan_idx(30) #pumpkin
+    # # loader_test.set_restrict_to_scan_idx(31) #pumpkin with cans
+    # # loader_test.set_restrict_to_scan_idx(34) #bricks stackd
+    # # loader_test.set_restrict_to_scan_idx(38) #brickes stacekd 2
+    # # loader_test.set_restrict_to_scan_idx(40) #bricks arch
+    # # loader_test.set_restrict_to_scan_idx(41) #painted bucked upside down
+    # # loader_test.set_restrict_to_scan_idx(45) #shampoo and beans
+    # # loader_test.set_restrict_to_scan_idx(55) #bunny
+    # # loader_test.set_restrict_to_scan_idx(63) #fruits
+    # # loader_test.set_restrict_to_scan_idx(82) #smurf
+    # # loader_test.set_restrict_to_scan_idx(103) #pig
+    # # loader_test.set_restrict_to_scan_idx(110) #golden bunny
+    # loader_test.set_restrict_to_scan_idx(114) #bundha
+    # loader_test.start()
+    # frames_test = get_frames(loader_test)
+    # phases[0].frames=frames_test 
 
 
     while True: #Do it infinitely if we want to just visualize things
@@ -300,7 +300,10 @@ def run():
 
                                 frame.load_images()
 
-                                frustum_mesh=frame.frame.create_frustum_mesh(0.05)
+                                frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
+                                frustum_mesh.m_vis.m_show_mesh=False
+                                frustum_mesh.m_vis.m_line_color=[0,1,1]
+                                frustum_mesh.m_vis.m_line_width=3
                                 Scene.show(frustum_mesh, "frustum_cur" )
 
 
@@ -375,11 +378,14 @@ def run():
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene63_fruits"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene82_smurf"
                                 # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene110_golden_bunny"
-                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene114_budha"
-
+                                # path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/dtu_spiral_scene114_budha"
+                                path="/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/test"
 
 
                                 compute_metrics=False
+                                write_to_disk=False
+
+
                                 if compute_metrics:
                                     #compute psnr, ssim an lpips
                                     psnr = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
@@ -496,56 +502,57 @@ def run():
 
 
                                 #write to disk
-                                if(not os.path.exists(path)):
-                                    print("path does not exist, are you sure you are on the correct machine", path)
-                                    exit(1)
-                                path=os.path.join(path,str(scene_idx))
-                                rgb_path=os.path.join(path,"rgb")
-                                gt_path=os.path.join(path,"gt")
-                                ####paths for depth--------------------------------------------------------------------
-                                depth_paths=[]
-                                depth_colored_paths=[]
-                                for i in range(len(depth_for_each_res)):
-                                    depth_paths.append( os.path.join(path,"depth_for_each_res/depth_"+str(i)) )
-                                    depth_colored_paths.append( os.path.join(path,"depth_for_each_res/depth_colored_"+str(i)) )
-                                #paths for depth for each step --------------------------------------------------------------
-                                depth_for_each_step_paths=[]
-                                depth_for_each_step_colored_paths=[]
-                                for i in range(len(depth_for_each_step)):
-                                    depth_for_each_step_paths.append( os.path.join(path,"depth_for_each_step/depth_"+str(i)) )
-                                    depth_for_each_step_colored_paths.append( os.path.join(path,"depth_for_each_step/depth_colored_"+str(i)) )
-                                normal_path=os.path.join(path,"normal")
-                                confidence_path=os.path.join(path,"confidence")
-                                confidence_colored_path=os.path.join(path,"confidence_colored")
-                                #make the paths
-                                os.makedirs(rgb_path, exist_ok=True)
-                                os.makedirs(gt_path, exist_ok=True)
-                                for i in range(len(depth_for_each_res)):
-                                    os.makedirs(depth_paths[i], exist_ok=True)
-                                    os.makedirs(depth_colored_paths[i], exist_ok=True)
-                                for i in range(len(depth_for_each_step)):
-                                    os.makedirs(depth_for_each_step_paths[i], exist_ok=True)
-                                    os.makedirs(depth_for_each_step_colored_paths[i], exist_ok=True)
-                                os.makedirs(normal_path, exist_ok=True)
-                                os.makedirs(confidence_path, exist_ok=True)
-                                os.makedirs(confidence_colored_path, exist_ok=True)
-                                #write
-                                rgb_mat.to_cv8u().to_file(rgb_path+"/"+str(img_nr)+".png")
-                                gt_mat.to_cv8u().to_file(gt_path+"/"+str(img_nr)+".png")
-                                #depth for each res
-                                for i in range(len(depth_mats)):
-                                    depth_mats[i].to_cv8u().to_file(depth_paths[i]+"/"+str(img_nr)+".png")
-                                for i in range(len(depth_mats_colored)):
-                                    depth_mats_colored[i].to_cv8u().to_file(depth_colored_paths[i]+"/"+str(img_nr)+".png")
-                                #depth for each step 
-                                for i in range(len(depth_for_each_step_mats)):
-                                    depth_for_each_step_mats[i].to_cv8u().to_file(depth_for_each_step_paths[i]+"/"+str(img_nr)+".png")
-                                for i in range(len(depth_for_each_step_mats_colored)):
-                                    depth_for_each_step_mats_colored[i].to_cv8u().to_file(depth_for_each_step_colored_paths[i]+"/"+str(img_nr)+".png")
-                                normal_mat.to_cv8u().to_file(normal_path+"/"+str(img_nr)+".png")
-                                if confidence_map!=None:
-                                    confidence_mat.to_cv8u().to_file(confidence_path+"/"+str(img_nr)+".png")
-                                    confidence_colored_mat.to_cv8u().to_file(confidence_colored_path+"/"+str(img_nr)+".png")
+                                if write_to_disk:
+                                    if(not os.path.exists(path)):
+                                        print("path does not exist, are you sure you are on the correct machine", path)
+                                        exit(1)
+                                    path=os.path.join(path,str(scene_idx))
+                                    rgb_path=os.path.join(path,"rgb")
+                                    gt_path=os.path.join(path,"gt")
+                                    ####paths for depth--------------------------------------------------------------------
+                                    depth_paths=[]
+                                    depth_colored_paths=[]
+                                    for i in range(len(depth_for_each_res)):
+                                        depth_paths.append( os.path.join(path,"depth_for_each_res/depth_"+str(i)) )
+                                        depth_colored_paths.append( os.path.join(path,"depth_for_each_res/depth_colored_"+str(i)) )
+                                    #paths for depth for each step --------------------------------------------------------------
+                                    depth_for_each_step_paths=[]
+                                    depth_for_each_step_colored_paths=[]
+                                    for i in range(len(depth_for_each_step)):
+                                        depth_for_each_step_paths.append( os.path.join(path,"depth_for_each_step/depth_"+str(i)) )
+                                        depth_for_each_step_colored_paths.append( os.path.join(path,"depth_for_each_step/depth_colored_"+str(i)) )
+                                    normal_path=os.path.join(path,"normal")
+                                    confidence_path=os.path.join(path,"confidence")
+                                    confidence_colored_path=os.path.join(path,"confidence_colored")
+                                    #make the paths
+                                    os.makedirs(rgb_path, exist_ok=True)
+                                    os.makedirs(gt_path, exist_ok=True)
+                                    for i in range(len(depth_for_each_res)):
+                                        os.makedirs(depth_paths[i], exist_ok=True)
+                                        os.makedirs(depth_colored_paths[i], exist_ok=True)
+                                    for i in range(len(depth_for_each_step)):
+                                        os.makedirs(depth_for_each_step_paths[i], exist_ok=True)
+                                        os.makedirs(depth_for_each_step_colored_paths[i], exist_ok=True)
+                                    os.makedirs(normal_path, exist_ok=True)
+                                    os.makedirs(confidence_path, exist_ok=True)
+                                    os.makedirs(confidence_colored_path, exist_ok=True)
+                                    #write
+                                    rgb_mat.to_cv8u().to_file(rgb_path+"/"+str(img_nr)+".png")
+                                    gt_mat.to_cv8u().to_file(gt_path+"/"+str(img_nr)+".png")
+                                    #depth for each res
+                                    for i in range(len(depth_mats)):
+                                        depth_mats[i].to_cv8u().to_file(depth_paths[i]+"/"+str(img_nr)+".png")
+                                    for i in range(len(depth_mats_colored)):
+                                        depth_mats_colored[i].to_cv8u().to_file(depth_colored_paths[i]+"/"+str(img_nr)+".png")
+                                    #depth for each step 
+                                    for i in range(len(depth_for_each_step_mats)):
+                                        depth_for_each_step_mats[i].to_cv8u().to_file(depth_for_each_step_paths[i]+"/"+str(img_nr)+".png")
+                                    for i in range(len(depth_for_each_step_mats_colored)):
+                                        depth_for_each_step_mats_colored[i].to_cv8u().to_file(depth_for_each_step_colored_paths[i]+"/"+str(img_nr)+".png")
+                                    normal_mat.to_cv8u().to_file(normal_path+"/"+str(img_nr)+".png")
+                                    if confidence_map!=None:
+                                        confidence_mat.to_cv8u().to_file(confidence_path+"/"+str(img_nr)+".png")
+                                        confidence_colored_mat.to_cv8u().to_file(confidence_colored_path+"/"+str(img_nr)+".png")
 
 
                                 img_nr+=1
