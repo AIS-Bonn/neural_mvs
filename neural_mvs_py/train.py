@@ -83,7 +83,7 @@ def run():
     # use_ray_compression=False
     # do_superres=True
     # predict_occlusion_map=False
-    predict_confidence_map=False
+    predict_confidence_map=True
     multi_res_loss=True
 
 

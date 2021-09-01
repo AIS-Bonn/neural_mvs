@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3.6
 
 import torch
@@ -15,6 +14,8 @@ import random
 from easypbr  import *
 from dataloaders import *
 
+import cv2
+
 config_file="evaluate_confidence.cfg"
 
 torch.manual_seed(0)
@@ -24,24 +25,72 @@ random.seed(0)
 torch.set_printoptions(edgeitems=3)
 
 # #initialize the parameters used for training
-train_params=TrainParams.create(config_file)    
-model_params=ModelParams.create(config_file)    
+# train_params=TrainParams.create(config_file)    
+# model_params=ModelParams.create(config_file)    
+
+
+def map_range( input_val, input_start, input_end,  output_start,  output_end):
+    # input_clamped=torch.clamp(input_val, input_start, input_end)
+    # input_clamped=max(input_start, min(input_end, input_val))
+    input_clamped=torch.clamp(input_val, input_start, input_end)
+    return output_start + ((output_end - output_start) / (input_end - input_start)) * (input_clamped - input_start)
 
 
 
 def run():
     config_path=os.path.join( os.path.dirname( os.path.realpath(__file__) ) , '../config', config_file)
-    if train_params.with_viewer():
-        view=Viewer.create(config_path)
+    # if train_params.with_viewer():
+        # view=Viewer.create(config_path)
 
 
     first_time=True
-    
+
+    confidence_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_with_confidence/confidence/1.png" )
+    confidence_colored_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_with_confidence/confidence_colored/1.png" )
+    pred_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_overfit/0/rgb/1.png" )
+    gt_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_overfit/0/gt/1.png" )
+
+    # diff=gt_mat-pred_mat
+    #diff
+    gt_tensor=torch.from_numpy(gt_mat).float()/255
+    pred_tensor=torch.from_numpy(pred_mat).float()/255
+    print("pred_tensor", pred_tensor.dtype)
+    diff_tensor=(gt_tensor-pred_tensor) #H,W,3
+    diff_tensor=diff_tensor.norm(dim=2, keepdim=True)
+    print("diff tensor has shape", diff_tensor.shape)
+    print("diff_tensor min max is", diff_tensor.min(), " ", diff_tensor.max() )
+    # diff_tensor_max=diff_tensor.max()
+    # diff_tensor=diff_tensor_max-diff_tensor
+    diff_tensor=map_range(diff_tensor,0, 1.4, 0.0, 1.0)
+    diff_tensor=diff_tensor.max()-diff_tensor
+    diff_tensor=diff_tensor**12
+    diff_tensor=diff_tensor.max()-diff_tensor
+    # diff_tensor=map_range(diff_tensor,0, 0.3, 0.0, 1.0)
+    diff_tensor=diff_tensor*255
+    diff_tensor=diff_tensor.to(torch.uint8)
+    print("diff_tensor", diff_tensor.dtype)
+    print("diff_tensor min max is", diff_tensor.min(), " ", diff_tensor.max() )
+    # diff_tensor=map_range(diff_tensor,0, 1.0, 1.0, 0.0)
+
+    #color
+    diff_mat=diff_tensor.numpy()
+    # diff_color = cv2.applyColorMap(diff_mat, cv2.COLORMAP_JET)
+    diff_color = cv2.applyColorMap(diff_mat, cv2.COLORMAP_COOL)
+    # diff_color = cv2.applyColorMap(diff_mat, cv2.COLORMAP_SUMMER)
 
 
-    while True:
 
-        view.update()
+    cv2.imwrite("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/confidence_evaluation/confidence.png", confidence_mat)
+    cv2.imwrite("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/confidence_evaluation/gt.png", gt_mat)
+    cv2.imwrite("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/confidence_evaluation/pred.png", pred_mat)
+    cv2.imwrite("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/confidence_evaluation/confidence_colored.png", confidence_colored_mat)
+    cv2.imwrite("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/confidence_evaluation/diff_color.png", diff_color)
+
+
+
+    # while True:
+
+        # view.update()
 
 
 def main():
