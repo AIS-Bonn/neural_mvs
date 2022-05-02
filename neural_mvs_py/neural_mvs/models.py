@@ -868,7 +868,7 @@ class SpatialEncoderDense2D(torch.nn.Module):
 
 
 class UNet(torch.nn.Module):
-    def __init__(self, nr_channels_start, nr_channels_output, nr_stages, max_nr_channels=999990, block_type=WNReluConv ):
+    def __init__(self, nr_channels_start, nr_channels_output, nr_stages, max_nr_channels=999990, block_type=WNConvActiv ):
         super(UNet, self).__init__()
 
 
@@ -895,7 +895,8 @@ class UNet(torch.nn.Module):
             print("down adding resnet with ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+                TwoBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -905,14 +906,15 @@ class UNet(torch.nn.Module):
             if after_coarsening_nr_channels> max_nr_channels:
                 after_coarsening_nr_channels=max_nr_channels
             print("down adding coarsen with ", after_coarsening_nr_channels)
-            self.coarsen_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  )
+            self.coarsen_list.append(  block_type(in_channels=cur_nr_channels, out_channels=after_coarsening_nr_channels, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )  )
             cur_nr_channels= after_coarsening_nr_channels
 
 
         print("adding bottleneck ", cur_nr_channels)
         self.bottleneck=nn.Sequential(
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+                TwoBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -925,8 +927,9 @@ class UNet(torch.nn.Module):
             print("up adding finefy with ", after_finefy_nr_channels)
             self.squeeze_list.append(  
                 torch.nn.Sequential(
-                    torch.nn.PixelShuffle(2), #upscales it but reduced the nr of channels by 4
-                    block_type(in_channels=cur_nr_channels//4, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  
+                    # torch.nn.PixelShuffle(2), #upscales it but reduced the nr of channels by 4
+                    # block_type(in_channels=cur_nr_channels//4, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  
+                    block_type(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=4, stride=2, padding=1, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )  
                 )
                 
                 )
@@ -937,7 +940,8 @@ class UNet(torch.nn.Module):
             self.up_stages_list.append( nn.Sequential(
                 ##last conv should have a bias because it's not followed by a GN
                 # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
-                ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+                TwoBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
 
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
                 # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
@@ -957,10 +961,14 @@ class UNet(torch.nn.Module):
 
         # print("last conv is ", cur_nr_channels)
         # self.last_conv2=PacConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
-        self.last_conv = torch.nn.Conv2d(cur_nr_channels, nr_channels_output, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True).cuda() 
+        self.last_conv = Conv2dWN(cur_nr_channels, nr_channels_output, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True).cuda() 
 
         self.relu=torch.nn.ReLU(inplace=False)
         self.concat_coord=ConcatCoord() 
+
+
+        apply_weight_init_fn(self, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.last_conv, negative_slope=1.0)
 
     # @profile
     # @profile_every(1)
@@ -4301,6 +4309,11 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
         self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
         self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+
+
+        apply_weight_init_fn(self.conv1, leaky_relu_init, negative_slope=0.0)
+        apply_weight_init_fn(self.conv2, leaky_relu_init, negative_slope=0.0) #conv2 is followed by a relu
+        leaky_relu_init(self.out_layer, negative_slope=1.0)
       
 
         self.compress_feat = torch.nn.ModuleList([])
@@ -4338,11 +4351,13 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             WNReluConv( 32*3, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
+        apply_weight_init_fn(self.base_fc, leaky_relu_init, negative_slope=0.0)
 
         self.vis_fc = nn.Sequential(
             WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
             WNReluConv( 8, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
+        apply_weight_init_fn(self.base_fc, leaky_relu_init, negative_slope=0.0)
 
 
         #activ
@@ -4445,6 +4460,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
             # print("frames_features", frames_features.shape)
             if self.compress_feat[res_iter]==None:
                 self.compress_feat[res_iter]=WNReluConv(in_channels=frames_features.shape[1], out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+                apply_weight_init_fn(self.compress_feat[res_iter], leaky_relu_init, negative_slope=0.0)
 
             frames_features = self.compress_feat[res_iter](frames_features)
             # if res_iter==0:
@@ -5942,54 +5958,26 @@ class Net3_SRN(torch.nn.Module):
 
         # self.do_superres=do_superres
         # if do_superres:
-        edsr_args=EDSR_args()
-        # edsr_args.n_in_channels=67
-        # edsr_args.n_in_channels=32*3
-        # edsr_args.n_in_channels=70
-        # edsr_args.n_in_channels=134
-        edsr_args.n_in_channels=64
-        edsr_args.n_out_channels=8
-        edsr_args.n_resblocks=4
-        edsr_args.n_feats=32
-        edsr_args.scale=4
+        # edsr_args=EDSR_args()
+        # edsr_args.n_in_channels=64
+        # edsr_args.n_out_channels=8
+        # edsr_args.n_resblocks=4
+        # edsr_args.n_feats=32
+        # edsr_args.scale=4
         # self.super_res=EDSR(edsr_args)
         # self.super_res=SuperRes(edsr_args)
         out_nr=3
         if self.predict_confidence_map:
             out_nr=4
         self.super_res=UNet( nr_channels_start=16, nr_channels_output=out_nr, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
-        # self.super_res=UNet( nr_channels_start=16, nr_channels_output=3, nr_stages=1, max_nr_channels=32, block_type=WNGatedConvRelu)
-        # self.super_res=MetaSequential( 
-        #     WNReluConv( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
-        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
-        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNReluConv  ),
-        #     WNReluConv( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
-        # )
-        # self.super_res=MetaSequential( 
-        #     WNGatedConvRelu( 9, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
-        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
-        #     ResnetBlock2D(16, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=WNGatedConvRelu  ),
-        #     WNGatedConvRelu( 16, 3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
-        # )
 
-        # self.upscale=MetaSequential( 
-        #     WNReluConv( 64, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-        #     WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-        #     WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
-        # )
-        # self.upscale=MetaSequential( 
-        #     WNReluConv( 32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-        #     WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-        #     WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
-        # )
+      
         self.upscale=MetaSequential( 
             WNReluConv( 32, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-            # WNReluConv(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-            # WNReluConv(in_channels=16, out_channels=8, kernel_size=2, stride=2, padding=0, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
         )
+        apply_weight_init_fn(self.upscale, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.upscale[-1], negative_slope=1.0)
 
         # self.compute_blending_weights=UNet( nr_channels_start=16, nr_channels_output=1, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
 
@@ -6022,18 +6010,24 @@ class Net3_SRN(torch.nn.Module):
             torch.nn.ReLU(),
             WNReluConv( 16, 8+3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
             )
+        apply_weight_init_fn(self.ray_dir_fc, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.ray_dir_fc[-1], negative_slope=1.0)
 
         self.base_fc = nn.Sequential(
             WNReluConv( (8+3)*3, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             torch.nn.ReLU(),
             WNReluConv( 32, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
+        apply_weight_init_fn(self.base_fc, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.base_fc[-1], negative_slope=1.0)
 
         self.vis_fc = nn.Sequential(
             WNReluConv( 16, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             torch.nn.ReLU(),
             WNReluConv( 16, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
                                      )
+        apply_weight_init_fn(self.vis_fc, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.vis_fc[-1], negative_slope=1.0)
         
         # self.vis_fc2 = nn.Sequential(
         #     WNReluConv( 32, 32, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
@@ -6061,7 +6055,17 @@ class Net3_SRN(torch.nn.Module):
         #pass through unet 
         TIME_START("unet")
         frames_features, multi_res_features=self.unet( rgb_close_batch )
+        frames_features=torch.nn.Mish()(frames_features) #the multires features are also obtained after a relu, so in order to maintain the same gradient flow we also apply a mish to these
         # frames_features=torch.cat([frames_features,rgb_close_batch],1)
+
+        # print("rgb_close_batch min max", rgb_close_batch.min(), rgb_close_batch.max())
+        # print("frames_features min max", frames_features.min(), frames_features.max())
+        # print("frames_features mean std", frames_features.mean(), frames_features.std())
+        # for i in range(len(multi_res_features)):
+            # print("multiresi", i)
+            # print("multi_res_features min max", multi_res_features[i].min(), multi_res_features[i].max())
+
+        # exit(1)
 
         # print("frame features is ", frames_features.shape) 
         # for f in multi_res_features:
@@ -6216,102 +6220,6 @@ class Net3_SRN(torch.nn.Module):
             frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
             frustum_mesh.m_force_vis_update=True
             Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
-
-
-
-
-
-
-
-
-        #using both mean and var of HR and also mean and var of the upscaled
-        # TIME_START("superres")
-        # mean_var_lr = fused_mean_variance(sliced_feat_batched_img, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True) # 64 channels, we trasposed conv them into something like 8 channels upressed
-        # mean_var_up = self.upscale(mean_var_lr)
-        # # print("mean_var_hr", mean_var_hr.shape)
-        # # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
-
-        # full_res_height=rgb_close_fullres_batch.shape[2]
-        # full_res_width=rgb_close_fullres_batch.shape[3]
-        # mean_var_up = torch.nn.functional.interpolate(mean_var_up,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
-        # #slice also from the high res images and concat that too 
-        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2)
-        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        # sliced_feat_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        # # sliced_feat_HR = sliced_feat_HR*weights.view(-1,1,1,1)
-        # sliced_feat_HR_lin = sliced_feat_HR.view(1,-1,full_res_height,full_res_width)
-        # mean_var_HR = fused_mean_variance(sliced_feat_HR, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
-
-        # input_superres = torch.cat([ sliced_feat_HR_lin, mean_var_HR, mean_var_up   ],1) 
-      
-        # rgb_pred, multi_res_features=self.super_res(input_superres )
-        # TIME_END("superres")
-
-
-
-        #make it more like ibr net---------------------------------------------------
-        # TIME_START("superres")
-
-        # sliced_feat_LR= sliced_feat_batched_img
-        # sliced_feat_HR = self.upscale(sliced_feat_LR)
-        # # print("mean_var_hr", mean_var_hr.shape)
-        # # print("rgb_close_fullres_batch", rgb_close_fullres_batch.shape)
-        # full_res_height=rgb_close_fullres_batch.shape[2]
-        # full_res_width=rgb_close_fullres_batch.shape[3]
-        # sliced_feat_HR = torch.nn.functional.interpolate(sliced_feat_HR,size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
-        # #slice also from the high res images and concat that too 
-        # uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2) ####for upsamplign the uv, make some conv layers
-        # uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-        # uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
-        # uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        # sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="border"  ) #sliced features is N,C,H,W
-        # rgb_feat=torch.cat([sliced_color_HR, sliced_feat_HR],1)
-        # print("rgb_feat is ", rgb_feat.shape)
-
-        # #get the ray_diff
-        # ray_dirs_HR = torch.nn.functional.interpolate(ray_dirs, size=(full_res_height, full_res_width ), mode='bilinear') 
-        # ray_dirs_close_batch_HR = torch.nn.functional.interpolate(ray_dirs_close_batch, size=(full_res_height, full_res_width ), mode='bilinear') 
-        # ray_diff = compute_angle(full_res_height, full_res_width, ray_dirs_HR, ray_dirs_close_batch_HR)
-        # direction_feat = self.ray_dir_fc(ray_diff)
-        # print("direction_feat",direction_feat.shape)
-
-        # #RGB_feat + direction_Feat
-        # rgb_feat = rgb_feat + direction_feat
-        # mean_var_HR = fused_mean_variance(rgb_feat, weights.view(-1,1,1,1), dim_reduce=0, dim_concat=1, use_weights=True)
-        # globalfeat= mean_var_HR
-        # print("globalfeat", globalfeat.shape)
-
-        # #concat each rgb_feat with the mean and var
-        # x = torch.cat([globalfeat.expand(nr_nearby_frames, -1, -1, -1), rgb_feat], dim=1)  # N,C,H,W
-        # print("x before is ", x.shape)
-        # x = self.base_fc(x)
-        # print("x is ", x.shape)
-
-        # #computation 
-        # x_vis = self.vis_fc( x * weights.view(-1,1,1,1) )
-        # x_res, vis = torch.split(x_vis, [x_vis.shape[1]-1, 1], dim=1)
-        # print("x res", x_res.shape, "vis si ", vis.shape)
-        # vis = F.sigmoid(vis) 
-        # x = x + x_res
-        # vis = self.vis_fc2(x * vis) 
-
-        # #RGB computation
-        # x = torch.cat([x, vis, ray_diff], dim=1)
-        # print("x before rgbfc ", x.shape)
-        # x = self.rgb_fc(x)
-        # # x = x.masked_fill(mask == 0, -1e9)
-        # blending_weights_valid = F.softmax(x, dim=0)  # color blending
-        # print("blending_weights_valid", blending_weights_valid.shape)
-        # print("sliced_color_HR", sliced_color_HR.shape)
-        # rgb_pred = torch.sum(sliced_color_HR*blending_weights_valid, dim=0, keepdim=True)
-        # print("rgb_pred", rgb_pred.shape)
-        # # out = torch.cat([rgb_out, sigma_out], dim=-1)
-        # TIME_END("superres")
-        #------------------------------------------------------------------------------------------------------
-
-
 
 
 

@@ -78,7 +78,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s2_penograd"
+    experiment_name="s3_unet_correct_weightinit"
 
 
     # use_ray_compression=False
