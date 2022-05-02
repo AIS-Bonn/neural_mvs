@@ -4287,7 +4287,8 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         super(DifferentiableRayMarcherHierarchical, self).__init__()
 
         num_encodings=8
-        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        self.learned_pe=PositionalEncoding(in_channels=3, num_encoding_functions=num_encodings)
         # cur_nr_channels = in_channels + 3*num_encodings*2
 
         #model 
@@ -5904,10 +5905,12 @@ class Net3_SRN(torch.nn.Module):
         # self.unet=FeaturePyramid( nr_channels_start=16, nr_channels_output=32, nr_stages=5)
 
         num_encoding_directions=4
-        self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        # self.learned_pe_dirs=LearnedPE(in_channels=3, num_encoding_functions=num_encoding_directions, logsampling=True)
+        self.learned_pe_dirs=PositionalEncoding(in_channels=3, num_encoding_functions=num_encoding_directions)
         dirs_channels=3+ 3*num_encoding_directions*2
         num_encodings=8
-        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        # self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
+        self.learned_pe=PositionalEncoding(in_channels=3, num_encoding_functions=num_encodings)
 
         # num_encoding_directions=2
         # self.learned_pe_dirs=LearnedPE(in_channels=4, num_encoding_functions=num_encoding_directions, logsampling=True)

@@ -129,6 +129,7 @@ PYBIND11_MODULE(neuralmvs, m) {
     .def("dataset_name",  &TrainParams::dataset_name )
     .def("with_viewer",  &TrainParams::with_viewer )
     .def("with_visdom",  &TrainParams::with_visdom )
+    .def("with_tensorboard",  &TrainParams::with_tensorboard )
     .def("with_debug_output",  &TrainParams::with_debug_output )
     .def("with_error_checking",  &TrainParams::with_error_checking )
     .def("batch_size",  &TrainParams::batch_size )

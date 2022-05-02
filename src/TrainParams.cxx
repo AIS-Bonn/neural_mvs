@@ -28,6 +28,7 @@ void TrainParams::init_params(const std::string config_file){
     m_dataset_name=(std::string)train_config["dataset_name"];
     m_with_viewer = train_config["with_viewer"];
     m_with_visdom = train_config["with_visdom"];
+    m_with_tensorboard = train_config["with_tensorboard"];
     m_with_debug_output = train_config["with_debug_output"];
     m_with_error_checking = train_config["with_error_checking"];
     m_batch_size = train_config["batch_size"];
@@ -52,6 +53,9 @@ bool TrainParams::with_viewer(){
 }
 bool TrainParams::with_visdom(){
     return m_with_visdom;
+}
+bool TrainParams::with_tensorboard(){
+    return m_with_tensorboard;
 }
 bool TrainParams::with_debug_output(){
     return m_with_debug_output;

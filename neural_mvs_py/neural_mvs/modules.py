@@ -1889,6 +1889,63 @@ class ConcatCoord(torch.nn.Module):
 
         return x_coord
 
+class PositionalEncoding(torch.nn.Module):
+    def __init__(self, in_channels, num_encoding_functions):
+        super(PositionalEncoding, self).__init__()
+        self.in_channels=in_channels
+        self.num_encoding_functions=num_encoding_functions
+
+        out_channels=in_channels*self.num_encoding_functions*2
+
+        self.conv= torch.nn.Linear(in_channels, int(out_channels/2), bias=False).cuda()  #in the case we set the weight ourselves
+        self.init_weights()
+
+
+        #we dont train because that causes it to overfit to the input views and not generalize the specular effects to novel views
+        self.conv.weight.requires_grad = False
+
+    def init_weights(self):
+        with torch.no_grad():
+            num_input = self.in_channels
+            self.conv.weight.uniform_(-np.sqrt(6 / num_input) , np.sqrt(6 / num_input) )
+            # print("weight is ", self.conv.weight.shape) #60x3
+
+            #we make the same as the positonal encoding, which is mutiplying each coordinate with this linespaced frequencies
+            lin=2.0 ** torch.linspace(
+                0.0,
+                self.num_encoding_functions - 1,
+                self.num_encoding_functions,
+                dtype=torch.float32,
+                device=torch.device("cuda"),
+            )
+            lin_size=lin.shape[0]
+            weight=torch.zeros([self.in_channels, self.num_encoding_functions*self.in_channels], dtype=torch.float32, device=torch.device("cuda") )
+            for i in range(self.in_channels):
+                weight[i:i+1,   i*lin_size:i*lin_size+lin_size ] = lin
+
+            weight=weight.t().contiguous()
+
+            #set the new weights =
+            self.conv.weight=torch.nn.Parameter(weight)
+            # self.conv.weight.requires_grad=False
+            # print("weight is", weight.shape)
+            # print("bias is", self.conv.bias.shape)
+            # print("weight is", weight)
+
+            self.weights_initialized=True
+
+
+    def forward(self, x):
+
+        with torch.no_grad():
+
+            x_proj = self.conv(x)
+
+            # if self.only_sin:
+                # return torch.cat([x, torch.sin(x_proj) ], -1)
+            # else:
+            return torch.cat([torch.sin(x_proj), torch.cos(x_proj), x], -1)
+
 class LearnedPE(MetaModule):
     def __init__(self, in_channels, num_encoding_functions, logsampling ):
         super(LearnedPE, self).__init__()

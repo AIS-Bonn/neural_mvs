@@ -1,5 +1,7 @@
 # IDEA 
 
+tensorboard --logdir=tensorboard_logs --port=6006
+
 Photoneo doesnt work so we will probably just have a bunch of 2D images. 
 So we will probably use some neural MVE like in Yairv: Multiview Neural Surface Reconstruction with Implicit Lighting and Material
 Questions: 

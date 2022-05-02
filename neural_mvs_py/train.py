@@ -22,6 +22,7 @@ from neural_mvs.MS_SSIM_L1_loss import *
 from callbacks.callback import *
 from callbacks.viewer_callback import *
 from callbacks.visdom_callback import *
+from callbacks.tensorboard_callback import *
 from callbacks.state_callback import *
 from callbacks.phase import *
 
@@ -77,7 +78,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s_"
+    experiment_name="s2_penograd"
 
 
     # use_ray_compression=False
@@ -93,6 +94,9 @@ def run():
         cb_list.append(VisdomCallback(experiment_name))
     if(train_params.with_viewer()):
         cb_list.append(ViewerCallback())
+    if(train_params.with_tensorboard()):
+        tensorboard_callback=TensorboardCallback(experiment_name)
+        cb_list.append(tensorboard_callback)
     cb_list.append(StateCallback())
     cb = CallbacksGroup(cb_list)
 
@@ -438,7 +442,7 @@ def run():
                                 # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                                 optimizer.zero_grad()
 
-                            cb.after_forward_pass(loss=psnr_index.item(), psnr=psnr_index.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                            cb.after_forward_pass(loss=loss.item(), psnr=psnr_index.item(), loss_rgb=rgb_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
 
 
                         #backward

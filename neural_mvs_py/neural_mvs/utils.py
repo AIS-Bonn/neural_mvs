@@ -594,7 +594,7 @@ def compute_uv_batched(R_batched, t_batched, K_batched, height, width, points_3D
     points_3D_cam=torch.matmul(points3d_world_for_uv, R_batched.transpose(1,2) )  + t_batched
     points_screen = torch.matmul(points_3D_cam, K_batched.transpose(1,2) )  
     points_2d = points_screen[:, :, 0:2] / ( points_screen[:, :, 2:3] +0.0001 )
-    points_2d[:,:,1] = height- points_2d[:,:,1] 
+    # points_2d[:,:,1] = height- points_2d[:,:,1] 
 
     mask = (points_2d[..., 0] <= width - 1.) & \
                (points_2d[..., 0] >= 0) & \
