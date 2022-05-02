@@ -4304,11 +4304,11 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
         # self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=5,  bias=True ).cuda()
         self.out_layer = torch.nn.Sequential(
-            WNReluConv(in_channels=self.lstm_hidden_size, out_channels=5, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False ),
+            WNConvActiv(in_channels=self.lstm_hidden_size, out_channels=5, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False ),
         )
 
-        self.conv1= WNReluConv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False )
-        self.conv2= WNReluConv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+        self.conv1= WNConvActiv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )
+        self.conv2= WNConvActiv(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )
 
 
         apply_weight_init_fn(self.conv1, leaky_relu_init, negative_slope=0.0)
@@ -4348,16 +4348,19 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
 
         self.base_fc = nn.Sequential(
-            WNReluConv( 32*3, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNConvActiv( 32*3, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
+            WNConvActiv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
                                      )
         apply_weight_init_fn(self.base_fc, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.base_fc[-1], negative_slope=1.0)
+        
 
         self.vis_fc = nn.Sequential(
-            WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-            WNReluConv( 8, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNConvActiv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True,  is_first_layer=False ).cuda(),
+            WNConvActiv( 8, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
                                      )
-        apply_weight_init_fn(self.base_fc, leaky_relu_init, negative_slope=0.0)
+        apply_weight_init_fn(self.vis_fc, leaky_relu_init, negative_slope=0.0)
+        leaky_relu_init(self.vis_fc[-1], negative_slope=1.0)
 
 
         #activ
@@ -4426,7 +4429,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                         depth_per_pixel= torch.ones([1, 1, frame_subsampled.height, frame_subsampled.width], dtype=torch.float32, device=torch.device("cuda")) 
                         depth_per_pixel.fill_(dataset_params.raymarch_depth_min)
             else: 
-                ## if any other level above the coarsest one, then we upsample the depth using nerest neighbour
+                ## if any other level above the coarsest one, then we upsample the depth
                 depth_per_pixel =depth
                 depth_per_pixel = torch.nn.functional.interpolate(depth_per_pixel ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bicubic')
 
@@ -4459,7 +4462,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 frames_features= torch.nn.functional.interpolate(frames_features ,size=(frame_subsampled.height, frame_subsampled.width ), mode='bilinear')
             # print("frames_features", frames_features.shape)
             if self.compress_feat[res_iter]==None:
-                self.compress_feat[res_iter]=WNReluConv(in_channels=frames_features.shape[1], out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.GELU(), is_first_layer=False )
+                self.compress_feat[res_iter]=WNConvActiv(in_channels=frames_features.shape[1], out_channels=32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )
                 apply_weight_init_fn(self.compress_feat[res_iter], leaky_relu_init, negative_slope=0.0)
 
             frames_features = self.compress_feat[res_iter](frames_features)
@@ -4527,7 +4530,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 img_features_aggregated=torch.cat([pos_encoded,img_features_aggregated],1)
                 img_features_aggregated=self.conv1(img_features_aggregated)
                 img_features_aggregated=self.conv2(img_features_aggregated)
-                img_features_aggregated=torch.relu(img_features_aggregated)
+                # img_features_aggregated=torch.relu(img_features_aggregated)
                 feat=img_features_aggregated
                 TIME_END("raymarch_fuse")
                 
@@ -4543,7 +4546,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 #run through the lstm
                 state = self.lstm(nchw2lin(feat), states[-1])
                 if state[0].requires_grad:
-                    state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
+                    state[0].register_hook(lambda x: x.clamp(min=-100, max=100))
 
                 # signed_distance= self.out_layer(state[0])
 
@@ -5973,8 +5976,8 @@ class Net3_SRN(torch.nn.Module):
 
       
         self.upscale=MetaSequential( 
-            WNReluConv( 32, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            WNReluConv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNConvActiv( 32, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
+            WNConvActiv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
         )
         apply_weight_init_fn(self.upscale, leaky_relu_init, negative_slope=0.0)
         leaky_relu_init(self.upscale[-1], negative_slope=1.0)
@@ -6006,25 +6009,22 @@ class Net3_SRN(torch.nn.Module):
 
         #ibrnet things 
         self.ray_dir_fc = nn.Sequential( 
-            WNReluConv( 4, 16, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            torch.nn.ReLU(),
-            WNReluConv( 16, 8+3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNConvActiv( 4, 16, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True,is_first_layer=False ).cuda(),
+            WNConvActiv( 16, 8+3, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
             )
         apply_weight_init_fn(self.ray_dir_fc, leaky_relu_init, negative_slope=0.0)
         leaky_relu_init(self.ray_dir_fc[-1], negative_slope=1.0)
 
         self.base_fc = nn.Sequential(
-            WNReluConv( (8+3)*3, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            torch.nn.ReLU(),
-            WNReluConv( 32, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNConvActiv( (8+3)*3, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
+            WNConvActiv( 32, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
                                      )
         apply_weight_init_fn(self.base_fc, leaky_relu_init, negative_slope=0.0)
         leaky_relu_init(self.base_fc[-1], negative_slope=1.0)
 
         self.vis_fc = nn.Sequential(
-            WNReluConv( 16, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-            torch.nn.ReLU(),
-            WNReluConv( 16, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
+            WNConvActiv( 16, 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
+            WNConvActiv( 16, 1, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
                                      )
         apply_weight_init_fn(self.vis_fc, leaky_relu_init, negative_slope=0.0)
         leaky_relu_init(self.vis_fc[-1], negative_slope=1.0)
@@ -6127,10 +6127,12 @@ class Net3_SRN(torch.nn.Module):
 
                 if self.rgb_pred_per_res[i]==None:
                     self.rgb_pred_per_res[i]=torch.nn.Sequential(
-                        WNReluConv( mean_var.shape[1], 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
-                        WNReluConv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda(),
-                        WNReluConv( 8, 3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ).cuda()
+                        WNConvActiv( mean_var.shape[1], 16, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
+                        WNConvActiv( 16, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
+                        WNConvActiv( 8, 3, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda()
                     )
+                    apply_weight_init_fn(self.rgb_pred_per_res[i], leaky_relu_init, negative_slope=0.0)
+                    leaky_relu_init(self.rgb_pred_per_res[i][-1], negative_slope=1.0)
                 rgb_pred_LR=self.rgb_pred_per_res[i](mean_var)
 
                 weight= 1/(4*(i+1) ) #the lower the resolution the lower the weight, so half of resolution has a 1/4 of the weight and quarter res has 1/8 of res because it has 1/8 of pixels

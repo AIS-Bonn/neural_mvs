@@ -33,6 +33,7 @@ from optimizers.over9000.ranger import *
 from optimizers.over9000.rangerlars import *
 from optimizers.over9000.apollo import *
 from optimizers.over9000.lamb import *
+from optimizers.over9000.radam import *
 from optimizers.adahessian import *
 import optimizers.gradient_centralization.ranger2020 as GC_Ranger #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
 import optimizers.gradient_centralization.Adam as GC_Adam
@@ -78,7 +79,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s3_unet_correct_weightinit"
+    experiment_name="s14_more_correct_weightinit_lr3em4_radam_lstmclamp100_fixeddirs_noclip_wd3em4"
 
 
     # use_ray_compression=False
@@ -433,7 +434,9 @@ def run():
                             if first_time:
                                 first_time=False
                               
-                                optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
+                                optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
                                 # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for nerf synthetic when we overfit
@@ -460,12 +463,12 @@ def run():
                           
 
                             #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
-                            clip_percentile=10
-                            obs_grad_norm = get_grad_norm(model)
+                            # clip_percentile=10
+                            # obs_grad_norm = get_grad_norm(model)
                             # print("grad norm", obs_grad_norm)
-                            grad_history.append(obs_grad_norm)
-                            clip_value = np.percentile(grad_history, clip_percentile)
-                            torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+                            # grad_history.append(obs_grad_norm)
+                            # clip_value = np.percentile(grad_history, clip_percentile)
+                            # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
                             # print("clip_value", clip_value)
 
                             # model.summary()
