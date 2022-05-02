@@ -61,6 +61,9 @@ std::vector<cv::KeyPoint>& target_keypoints,  const int img_size, std::vector<bo
     void debug_by_projecting(const easy_pbr::Frame& frame, std::shared_ptr<easy_pbr::Mesh> mesh, std::vector<cv::KeyPoint>& keypoints, const std::string name);
 
     static Eigen::Vector3d stereographic_projection(const Eigen::Vector3d& point3d, const Eigen::Vector3d& sphere_center, const double sphere_radius);
+    static easy_pbr::MeshSharedPtr create_normalized_sphere();
 
+
+    static easy_pbr::MeshSharedPtr m_sphere_normalized;
    
 };

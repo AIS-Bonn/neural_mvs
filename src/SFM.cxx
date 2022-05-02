@@ -184,11 +184,20 @@ struct SphereFitError {
 
 
 
+//initialize static members
+// Eigen::Vector3d sphere_center=Eigen::Vector3d::Zero();
+easy_pbr::MeshSharedPtr SFM::m_sphere_normalized= SFM::create_normalized_sphere();
+// easy_pbr::MeshSharedPtr SFM::m_sphere_normalized->create_sphere(sphere_center, 1.0);
+
 
 
 SFM::SFM()
     {
 
+    // m_sphere_normalized= easy_pbr::Mesh::create();
+    // Eigen::Vector3d sphere_center;
+    // sphere_center.setZero();
+    // m_sphere_normalized->create_sphere(sphere_center, 1.0);
 
 }
 
@@ -889,8 +898,12 @@ easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::
     // double sphere_radius = std::get<1>(sphere_params);
 
     // make sphere and check that it looks ok
-    auto sphere= easy_pbr::Mesh::create();
-    sphere->create_sphere(sphere_center, sphere_radius);
+    // auto sphere= easy_pbr::Mesh::create();
+    auto sphere=std::make_shared<easy_pbr::Mesh>(  m_sphere_normalized->clone() );
+    // sphere->create_sphere(sphere_center, sphere_radius);
+    for (int i = 0; i < sphere->V.rows(); i++) {
+        sphere->V.row(i) = Eigen::Vector3d( sphere->V.row(i))*sphere_radius+sphere_center;
+    }
     sphere->m_vis.m_show_mesh=false;
     sphere->m_vis.m_show_points=true;
     easy_pbr::Scene::show(sphere,"sphere");
@@ -1147,6 +1160,17 @@ Eigen::Vector3d SFM::compute_barycentric_coordinates_of_closest_point_inside_tri
     else{
         return Eigen::Vector3d( u, v, w );
     }
+
+}
+
+
+easy_pbr::MeshSharedPtr SFM::create_normalized_sphere(){
+
+    auto sphere= easy_pbr::Mesh::create();
+    Eigen::Vector3d sphere_center=Eigen::Vector3d::Zero();
+    sphere->create_sphere(sphere_center, 1.0);
+
+    return sphere;
 
 }
 
