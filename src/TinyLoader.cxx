@@ -153,7 +153,7 @@ void TinyLoader::read_imgs(){
 }
 
 easy_pbr::Frame TinyLoader::get_frame(const int idx){
-    CHECK(idx<m_frames.size()) << "Trying to acces frame with idx " << idx << " but we only have stored " << m_frames.size() << " frames";
+    CHECK(idx<(int)m_frames.size()) << "Trying to acces frame with idx " << idx << " but we only have stored " << m_frames.size() << " frames";
     return m_frames[idx];
 }
 

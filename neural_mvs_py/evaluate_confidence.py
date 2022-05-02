@@ -45,10 +45,16 @@ def run():
 
     first_time=True
 
-    confidence_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_with_confidence/confidence/1.png" )
-    confidence_colored_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_with_confidence/confidence_colored/1.png" )
-    pred_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_overfit/0/rgb/1.png" )
-    gt_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_overfit/0/gt/1.png" )
+    #flower
+    # confidence_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_with_confidence/confidence/1.png" )
+    # confidence_colored_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_with_confidence/confidence_colored/1.png" )
+    # pred_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_overfit/0/rgb/1.png" )
+    # gt_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_flower_overfit/0/gt/1.png" )
+    #orchids
+    confidence_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_orchides_overfit_with_confidence_3/0/confidence/1.png" )
+    confidence_colored_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_orchides_overfit_with_confidence_3/0/confidence_colored/1.png" )
+    pred_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_orchides_overfit_with_confidence_3/0/rgb/1.png" )
+    gt_mat = cv2.imread("/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/recordings/from_other_comps/llff_orchides_overfit_with_confidence_3/0/gt/1.png" )
 
     # diff=gt_mat-pred_mat
     #diff
@@ -63,7 +69,7 @@ def run():
     # diff_tensor=diff_tensor_max-diff_tensor
     diff_tensor=map_range(diff_tensor,0, 1.4, 0.0, 1.0)
     diff_tensor=diff_tensor.max()-diff_tensor
-    diff_tensor=diff_tensor**12
+    diff_tensor=diff_tensor**5
     diff_tensor=diff_tensor.max()-diff_tensor
     # diff_tensor=map_range(diff_tensor,0, 0.3, 0.0, 1.0)
     diff_tensor=diff_tensor*255

@@ -21,7 +21,7 @@
 #include "easy_pbr/Mesh.h"
 #include "easy_pbr/MeshGL.h"
 #include "easy_pbr/Gui.h"
-#include "UtilsGL.h"
+#include "easy_gl/UtilsGL.h"
 
 
 // //ceres 

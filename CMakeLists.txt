@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR) # we need at least 3.11 because we use the FetchContent feature to manage dependencies and at least 3.14 because we use FetchContent_MakeAvailable
+# cmake_minimum_required(VERSION 2.8 FATAL_ERROR) # we need at least 3.11 because we use the FetchContent feature to manage dependencies and at least 3.14 because we use FetchContent_MakeAvailable
+cmake_minimum_required(VERSION 2.8...3.22)
 
 project(neural_mvs)
 
@@ -7,9 +8,9 @@ project(neural_mvs)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -Wall -O3") 
-set(PYTORCH_PATH "/opt/pytorch")
+# set(PYTORCH_PATH "/opt/pytorch")
 # set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "/opt/ros/melodic/\;${PYTORCH_PATH}"
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${PYTORCH_PATH}")
+# set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${PYTORCH_PATH}")
 set(CMAKE_CXX_STANDARD 17) #we need c++17 because this solves alignment issues with eigen http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1409
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -57,8 +58,8 @@ option(LIBIGL_WITH_XML               "Use XML"            OFF)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs features2d )
 find_package(EasyPBR REQUIRED)
-find_package(DataLoaders REQUIRED)
-find_package(Torch REQUIRED)
+# find_package(DataLoaders REQUIRED)
+# find_package(Torch REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(Ceres REQUIRED)
 #libigl
@@ -71,6 +72,14 @@ mark_as_advanced(LIBIGL_INCLUDE_DIR)
 list(APPEND CMAKE_MODULE_PATH "${LIBIGL_INCLUDE_DIR}/../cmake")
 include(libigl)
 # find_package(LIBIGL REQUIRED)
+#compile with pytorch
+# get and append paths for finding dep
+execute_process( #do it like this https://github.com/facebookresearch/hanabi_SAD/blob/6e4ed590f5912fcb99633f4c224778a3ba78879b/rela/CMakeLists.txt#L10
+  COMMAND python -c "import torch; import os; print(os.path.dirname(torch.__file__), end='')"
+  OUTPUT_VARIABLE TorchPath
+)
+list(APPEND CMAKE_PREFIX_PATH ${TorchPath})
+find_package(Torch REQUIRED)
 
 # add_subdirectory(${PROJECT_SOURCE_DIR}/deps/pybind11)
 # find_package(catkin REQUIRED COMPONENTS roscpp std_msgs cv_bridge pcl_ros image_transport )
