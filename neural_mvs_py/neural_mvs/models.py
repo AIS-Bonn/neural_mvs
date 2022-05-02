@@ -27,24 +27,24 @@ from neural_mvs.utils import *
 import resize_right.resize_right as resize_right
 
 #models from https://github.com/xiaoyufenfei/Efficient-Segmentation-Networks
-from segnet.model.SQNet import SQNet
-from segnet.model.LinkNet import LinkNet
-from segnet.model.LinkNet import LinkNetImprove
-from segnet.model.SegNet import SegNet
+# from segnet.model.SQNet import SQNet
+# from segnet.model.LinkNet import LinkNet
+# from segnet.model.LinkNet import LinkNetImprove
+# from segnet.model.SegNet import SegNet
 import segnet.model.UNet as UNet_efficient
-from segnet.model.ENet import ENet
-from segnet.model.ERFNet import ERFNet
-from segnet.model.CGNet import CGNet
-from segnet.model.EDANet import EDANet
-from segnet.model.ESNet import ESNet
-from segnet.model.ESPNet import ESPNet
-from segnet.model.LEDNet import LEDNet
-# from segnet.model.ESPNet_v2.SegmentationModel import EESPNet_Seg
-from segnet.model.ContextNet import ContextNet
-from segnet.model.FastSCNN import FastSCNN
-from segnet.model.DABNet import DABNet
-from segnet.model.FSSNet import FSSNet
-from segnet.model.FPENet import FPENet
+# from segnet.model.ENet import ENet
+# from segnet.model.ERFNet import ERFNet
+# from segnet.model.CGNet import CGNet
+# from segnet.model.EDANet import EDANet
+# from segnet.model.ESNet import ESNet
+# from segnet.model.ESPNet import ESPNet
+# from segnet.model.LEDNet import LEDNet
+# # from segnet.model.ESPNet_v2.SegmentationModel import EESPNet_Seg
+# from segnet.model.ContextNet import ContextNet
+# from segnet.model.FastSCNN import FastSCNN
+# from segnet.model.DABNet import DABNet
+# from segnet.model.FSSNet import FSSNet
+# from segnet.model.FPENet import FPENet
 
 #superres 
 from super_res.edsr.edsr import EDSR

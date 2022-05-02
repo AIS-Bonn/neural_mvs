@@ -401,9 +401,9 @@ class FramePY():
             self.subsampled_frames=[]
             for i in range(5):
                 if i==0:
-                    frame_subsampled=frame.subsample(2)
+                    frame_subsampled=frame.subsample(2.0)
                 else:
-                    frame_subsampled=frame_subsampled.subsample(2)
+                    frame_subsampled=frame_subsampled.subsample(2.0)
                 self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
             #every subsampled frame should have also as subsampled frames the ones that don't include it
             i=1
@@ -454,9 +454,9 @@ class FramePY():
             self.subsampled_frames=[]
             for i in range(5):
                 if i==0:
-                    frame_subsampled=self.frame.subsample(2)
+                    frame_subsampled=self.frame.subsample(2.0)
                 else:
-                    frame_subsampled=frame_subsampled.subsample(2)
+                    frame_subsampled=frame_subsampled.subsample(2.0)
                 self.subsampled_frames.append(FramePY(frame_subsampled, create_subsamples=False))
             #every subsampled frame should have also as subsampled frames the ones that don't include it
             i=1
