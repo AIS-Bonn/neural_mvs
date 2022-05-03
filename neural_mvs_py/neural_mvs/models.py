@@ -4548,8 +4548,6 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 if state[0].requires_grad:
                     state[0].register_hook(lambda x: x.clamp(min=-100, max=100))
 
-                input_out_layer= lin2nchw(state[0], frame_subsampled.height, frame_subsampled.width)
-                signed_distance= self.out_layer(input_out_layer)
 
                 #Doing it like SMD-net 
                 sdf_like_smd=False
@@ -4574,6 +4572,9 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                     mask = (pi0 / sigma0  >   pi1 / sigma1).float()
                     disp = mu0 * mask + mu1 * (1. - mask)
                     signed_distance = disp
+                else:
+                    input_out_layer= lin2nchw(state[0], frame_subsampled.height, frame_subsampled.width)
+                    signed_distance= self.out_layer(input_out_layer)
 
 
                 TIME_END("raymarch_lstm")
@@ -5975,7 +5976,7 @@ class Net3_SRN(torch.nn.Module):
         out_nr=3
         if self.predict_confidence_map:
             out_nr=4
-        self.super_res=UNet( nr_channels_start=16, nr_channels_output=out_nr, nr_stages=1, max_nr_channels=32, block_type=WNReluConv)
+        self.super_res=UNet( nr_channels_start=16, nr_channels_output=out_nr, nr_stages=1, max_nr_channels=32)
 
       
         self.upscale=MetaSequential( 
@@ -6281,23 +6282,31 @@ class Net3_SRN(torch.nn.Module):
         # vis = F.softmax(vis, dim=0)  
         # print("x res", x_res.shape, "vis si ", vis.shape)
 
+        # print("rgb_feat",rgb_feat.shape)
         #get weighted mean and var from both colors and feat
         rgb_feat_mean_var =  fused_mean_variance(rgb_feat, vis, dim_reduce=0, dim_concat=1, use_weights=True)
         input_superres = rgb_feat_mean_var
 
         use_pos_and_dirs=False
         if use_pos_and_dirs:
-            # pos_encoded_linear=self.learned_pe(  nchw2lin(point3d) ) 
-            # pos_encoded=lin2nchw(pos_encoded_linear, full_res_height, full_res_width).contiguous()
-            ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
-            dirs_encoded_linear=self.learned_pe_dirs(  nchw2lin(ray_dirs_fullres) ) 
-            dirs_encoded=lin2nchw(dirs_encoded_linear, full_res_height, full_res_width).contiguous()
-            # input_superres = torch.cat([input_superres,pos_encoded,dirs_encoded],1)
-            input_superres = torch.cat([input_superres,dirs_encoded],1)
+            pos_encoded_linear=self.learned_pe(  nchw2lin(point3d) ) 
+            pos_encoded=lin2nchw(pos_encoded_linear, full_res_height, full_res_width).contiguous()
+
+            # ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
+            # dirs_encoded_linear=self.learned_pe_dirs(  nchw2lin(ray_dirs_fullres) ) 
+            # dirs_encoded=lin2nchw(dirs_encoded_linear, full_res_height, full_res_width).contiguous()
+            # # input_superres = torch.cat([input_superres,pos_encoded,dirs_encoded],1)
+            # input_superres = torch.cat([input_superres,dirs_encoded],1)
+
+
+            input_superres = torch.cat([input_superres,pos_encoded],1)
 
         # input_superres=torch.cat([mean_var_HR, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
+        # print("input_superres", input_superres.shape)
         input_superres=torch.cat([input_superres, sliced_color_HR.view(1,-1,full_res_height, full_res_width)],1)
+        # print("input_superres", input_superres.shape)
         rgb_pred, multi_res_features=self.super_res(input_superres )
+        # exit(1)
 
         confidence_map=None 
         if self.predict_confidence_map:

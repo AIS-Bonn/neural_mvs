@@ -79,7 +79,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s25_from14but_nosmd"
+    experiment_name="s31_from14_butnosmd_lastunetwnconvactiv"
 
 
     # use_ray_compression=False
