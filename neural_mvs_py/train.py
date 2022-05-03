@@ -79,7 +79,7 @@ def run():
 
     first_time=True
     # experiment_name="13lhighlr"
-    experiment_name="s14_more_correct_weightinit_lr3em4_radam_lstmclamp100_fixeddirs_noclip_wd3em4"
+    experiment_name="s25_from14but_nosmd"
 
 
     # use_ray_compression=False
