@@ -4304,7 +4304,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
         self.lstm=None #Create this later, the volumentric feature can maybe change and therefore the features that get as input to the lstm will be different
         # self.out_layer = BlockNerf(activ=None, in_channels=self.lstm_hidden_size, out_channels=5,  bias=True ).cuda()
         self.out_layer = torch.nn.Sequential(
-            WNConvActiv(in_channels=self.lstm_hidden_size, out_channels=1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=False, activ=None, is_first_layer=False ),
+            WNConvActiv(in_channels=self.lstm_hidden_size, out_channels=1, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ),
         )
 
         self.conv1= WNConvActiv(in_channels=3+3*num_encodings*2+ 64, out_channels=64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )
