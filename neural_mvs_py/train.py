@@ -86,7 +86,7 @@ def run():
     phases[1].frames=frames_test
     #model 
     model=None
-    model=Net3_SRN(model_params, predict_confidence_map, multi_res_loss).to("cuda")
+    model=Net(model_params, predict_confidence_map, multi_res_loss).to("cuda")
     model.train()
 
     scheduler=None
@@ -298,6 +298,9 @@ def run():
                                 normal_vis=(normal_img+1.0)*0.5
                                 Gui.show(tensor2mat(normal_vis), "normal")
 
+                                normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
+                                normal=normal.view(-1,3)
+                               
 
                                 #show things
                                 points3d_mesh=show_3D_points( nchw2lin(point3d), color=rgb_pred)
@@ -345,7 +348,6 @@ def run():
                 scheduler.step(phase.scores.avg_psnr())
             cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
             cb.phase_ended(phase=phase) 
-               
 
 
 def main():
