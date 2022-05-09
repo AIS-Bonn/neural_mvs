@@ -192,6 +192,18 @@ def run():
                         frustum_mesh.m_vis.m_line_width=3
                         frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
                         Scene.show(frustum_mesh, "frustum_activ" )
+                        
+
+                        #show the curstums of the close frames
+                        for i in range(len(frames_close)):
+                            frustum_mesh=frames_close[i].frame.create_frustum_mesh(dataset_params.frustum_size)
+                            frustum_mesh.m_vis.m_line_width= (weights[i])*15
+                            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
+                            frustum_mesh.m_force_vis_update=True
+                            Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
+
+
+
 
 
 
