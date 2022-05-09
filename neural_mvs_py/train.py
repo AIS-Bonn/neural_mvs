@@ -1,14 +1,8 @@
 #!/usr/bin/env python3.6
 
 import torch
-import torch.nn.functional as F
-import torch.autograd.profiler as profiler
 
-import sys
-import os
 import numpy as np
-from tqdm import tqdm
-import time
 import random
 
 from easypbr  import *
@@ -17,7 +11,6 @@ from neuralmvs import *
 from neural_mvs.models import *
 from neural_mvs.modules import *
 from neural_mvs.utils import *
-from neural_mvs.MS_SSIM_L1_loss import *
 
 from callbacks.callback import *
 from callbacks.viewer_callback import *
@@ -26,35 +19,17 @@ from callbacks.tensorboard_callback import *
 from callbacks.state_callback import *
 from callbacks.phase import *
 
-# from optimizers.over9000.radam import *
-from optimizers.over9000.lookahead import *
-from optimizers.over9000.novograd import *
-from optimizers.over9000.ranger import *
-from optimizers.over9000.rangerlars import *
-from optimizers.over9000.apollo import *
-from optimizers.over9000.lamb import *
 from optimizers.over9000.radam import *
-from optimizers.adahessian import *
-import optimizers.gradient_centralization.ranger2020 as GC_Ranger #incorporated also gradient centralization but it seems to converge slower than the Ranger from over9000
-import optimizers.gradient_centralization.Adam as GC_Adam
-import optimizers.gradient_centralization.RAdam as GC_RAdam
+
 
 import piq
 
-from neural_mvs.smooth_loss import *
-from neural_mvs.ssim import * #https://github.com/VainF/pytorch-msssim
-import neural_mvs.warmup_scheduler as warmup  #https://github.com/Tony-Y/pytorch_warmup
-# from torchsummary.torchsummary import *
-import torchvision.transforms.functional as TF
 
 #debug 
 from easypbr import Gui
 from easypbr import Scene
-# from neural_mvs.modules import *
 
 
-#lnet 
-# from deps.lnets.lnets.utils.math.autodiff import *
 
 
 config_file="train.cfg"
@@ -62,8 +37,6 @@ config_file="train.cfg"
 torch.manual_seed(0)
 random.seed(0)
 torch.backends.cudnn.benchmark = True
-# torch.autograd.set_detect_anomaly(True)
-torch.set_printoptions(edgeitems=3)
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
@@ -78,13 +51,9 @@ def run():
 
 
     first_time=True
-    # experiment_name="13lhighlr"
-    experiment_name="s33_from14_butnosmd_lastunetwnconvactiv_outlayernorm"
+    experiment_name="s35_from14_butnosmd_lastunetwnconvactiv_outlayernorm"
 
 
-    # use_ray_compression=False
-    # do_superres=True
-    # predict_occlusion_map=False
     predict_confidence_map=True
     multi_res_loss=True
 
@@ -96,8 +65,7 @@ def run():
     if(train_params.with_viewer()):
         cb_list.append(ViewerCallback())
     if(train_params.with_tensorboard()):
-        tensorboard_callback=TensorboardCallback(experiment_name)
-        cb_list.append(tensorboard_callback)
+        cb_list.append(TensorboardCallback(experiment_name))
     cb_list.append(StateCallback())
     cb = CallbacksGroup(cb_list)
 
@@ -108,76 +76,29 @@ def run():
     dataset_params = compute_dataset_params(loader_train, frames_train)
    
 
-    ####dirty way to train on DTU for the overfitting experiment
-    # loader_train=DataLoaderDTU(config_path)
-    # loader_train.set_mode_validation() ###We use the validation as test becuase there is no actualy test set
-    # loader_train.start()
-    #########
-
-
-
+  
     #create phases
     phases= [
         Phase('train', loader_train, grad=True),
         Phase('test', loader_test, grad=False)
     ]
+    phases[0].frames=frames_train 
+    phases[1].frames=frames_test
     #model 
     model=None
     model=Net3_SRN(model_params, predict_confidence_map, multi_res_loss).to("cuda")
     model.train()
 
     scheduler=None
-    smooth = InverseDepthSmoothnessLoss()
-    ssim_l1_criterion = MS_SSIM_L1_LOSS(compensation=1.0)
     frame_weights_computer= FrameWeightComputer()
 
-    show_every=1
-    factor_subsample_close_frames=0 #0 means that we use the full resoslution fot he image, anything above 0 means that we will subsample the RGB_closeframes from which we compute the features
-    factor_subsample_depth_pred=0
-    use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit aorund the object
+    show_every=10
+    use_novel_orbit_frame=False #for testing we can either use the frames from the loader or create new ones that orbit around the object
     eval_every_x_epoch=30
-    # eval_every_x_epoch=1
-    do_sfm = False
 
 
-    #get all the frames train in am array, becuase it's faster to have everything already on the gpu
-    phases[0].frames=frames_train 
-    phases[1].frames=frames_test
-    #Show only the visdom for the testin
-    phases[0].show_visdom=False
-    phases[1].show_visdom=True
-  
-
-    grad_history = []
     max_test_psnr=0.0
 
-    if do_sfm:
-        #get keypoints
-        sfm=SFM.create()
-        selected_frame_idx=np.arange(10) #For colmap
-        # selected_frame_idx=[10]
-        frames_query_selected=[]
-        frames_target_selected=[]
-        frames_all_selected=[]
-        meshes_for_query_frames=[]
-        for i in range(loader_train.nr_samples()):
-        # for i in range(1 ):
-            # frame_0=loader_train.get_frame_at_idx(i+3) 
-            if i in selected_frame_idx:
-                frame_query=frames_train[i].frame
-                # frame_target=loader_train.get_closest_frame(frame_query)
-                frame_target=loader_train.get_close_frames(frame_query, 1, True)[0]
-                mesh_sparse, keypoints_distances_eigen, keypoints_indices_eigen=sfm.compute_3D_keypoints_from_frames(frame_query, frame_target  )
-                meshes_for_query_frames.append(mesh_sparse)
-
-        #fuse all the meshes into one
-        mesh_full=Mesh()
-        for mesh in meshes_for_query_frames:
-            mesh_full.add(mesh)
-        mesh_full.m_vis.m_show_points=True
-        mesh_full.m_vis.set_color_pervertcolor()
-        Scene.show(mesh_full, "mesh_full" )
-    # print("scene scale is ", Scene.get_scale())
 
 
     while True:
@@ -188,10 +109,9 @@ def run():
             model.train(phase.grad)
             is_training=phase.grad
 
-            if phase.loader.has_data(): # the nerf will always return true because it preloads all data, the shapenetimg dataset will return true when the scene it actually loaded
+            if phase.loader.has_data(): # the nerf loader will always return true because it preloads all data
              
-                nr_frames=0
-                nr_scenes=1 #if we use something like dtu we just train on on1 scene and one sample at a time but when trainign we iterate throguh all the scens and all the frames
+                nr_scenes=1 
                 nr_frames=phase.loader.nr_samples()
                 if use_novel_orbit_frame and not is_training:
                     nr_frames=360
@@ -199,13 +119,9 @@ def run():
                     if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                         if is_training:
                             nr_scenes=phase.loader.nr_scenes()
-                            nr_frames=1
+                            nr_frames=1 #train on only a random frame from each scene
                         else: #when we evaluate we evalaute over everything
                             nr_scenes= phase.loader.nr_scenes()
-                            nr_frames=phase.loader.nr_samples()
-                    else: 
-                        nr_frames=phase.loader.nr_samples()
-                # for i in range(phase.loader.nr_samples()):
 
                 #if we are evalauting, we evaluate every once in a while so most of the time we just skip this
                 if not is_training and phase.epoch_nr%eval_every_x_epoch!=0:
@@ -231,16 +147,12 @@ def run():
                         ##PREPARE data 
                         with torch.set_grad_enabled(False):
 
-                            # print("frame rgb path is ", frame.frame.rgb_path)
 
                             frame.load_images()
-                            #get a subsampled frame if necessary
-                            frame_full_res=frame
-                            # print("frame_full_res has size ", frame_full_res.height, " ", frame_full_res.width)
-                            if factor_subsample_depth_pred!=0:
-                                frame=frame.subsampled_frames[factor_subsample_depth_pred-1]
 
-                            discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing, even if they have the same idx there are from different sets ( test set and train set)
+                           
+
+                            discard_same_idx=is_training # if we are training we don't select the frame with the same idx, if we are testing even if they have the same idx there are from different sets ( test set and train set)
                             if isinstance(loader_train, DataLoaderShapeNetImg) or isinstance(loader_train, DataLoaderSRN) or isinstance(loader_train, DataLoaderDTU):
                                 discard_same_idx=True
                             frames_to_consider_for_neighbourhood=frames_train
@@ -248,13 +160,11 @@ def run():
                                 frames_to_consider_for_neighbourhood=phase.frames
                             do_close_computation_with_delaunay=True
                             if not do_close_computation_with_delaunay:
-                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 8, discard_same_idx) #the neighbour are only from the training set
+                                frames_close=get_close_frames(loader_train, frame, frames_to_consider_for_neighbourhood, 8, discard_same_idx) 
                                 weights= frame_weights_computer(frame, frames_close)
                             else:
                                 frames_close, weights=get_close_frames_barycentric(frame, frames_to_consider_for_neighbourhood, discard_same_idx, dataset_params.sphere_center, dataset_params.sphere_radius, dataset_params.triangulation_type)
                                 weights= torch.from_numpy(weights.copy()).to("cuda").float() 
-                            frames_close_full_res = frames_close
-                            # print("weights",weights)
 
                             #load the image data for this frames that we selected
                             for i in range(len(frames_close)):
@@ -266,13 +176,6 @@ def run():
                                 rgb_close_fulres_batch_list.append(rgb_close_frame)
                             rgb_close_fullres_batch=torch.cat(rgb_close_fulres_batch_list,0)
 
-                            #the frames close may need to be subsampled
-                            if factor_subsample_close_frames!=0:
-                                frames_close_subsampled=[]
-                                for frame_close in frames_close:
-                                    frame_subsampled= frame_close.subsampled_frames[factor_subsample_close_frames-1]
-                                    frames_close_subsampled.append(frame_subsampled)
-                                frames_close= frames_close_subsampled
 
                             #load the image data for this frames that we selected
                             for i in range(len(frames_close)):
@@ -280,66 +183,10 @@ def run():
 
 
                             #prepare rgb data and rest of things
-                            rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame_full_res, frames_close_full_res, frame, frames_close)
-                            # print("rgb_gt", rgb_gt.shape)
-
-                            # #if we were to use antialias pooling 
-                            # # if self.anti_alias_pooling:
-                            # ray_diff_lin=nchw2nXc(ray_diff)
-                            # # print("ray_diff",ray_diff.shape)
-                            # # print("ray_diff_lin",ray_diff_lin.shape)
-                            # _, dot_prod = torch.split(ray_diff_lin, [3, 1], dim=-1)
-                            # # print("dot_prod",dot_prod.shape)
-                            # # print("dot_prod min max is ", dot_prod.min(), " ", dot_prod.max())
-                            # exp_dot_prod = torch.exp(0.2 * (dot_prod - 1))
-                            # weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=0, keepdim=True)[0]) 
-                            # weight = weight / (torch.sum(weight, dim=0, keepdim=True) + 1e-8)
-                            # weight=nXc2nchw(weight, frame_full_res.height, frame_full_res.width)
-                            # # print("weight ", weight.shape)
-                            # # print("weight min max is ", weight.min(), " weight max is ", weight.max())
-                            # # print("weight", weight)
-                            # weights=weight
-                            # w0=tensor2mat(weight[0:1,:,:,:])
-                            # w1=tensor2mat(weight[1:2,:,:,:])
-                            # w2=tensor2mat(weight[2:3,:,:,:])
-                            # Gui.show(w0,"w0")
-                            # Gui.show(w1,"w1")
-                            # Gui.show(w2,"w2")
-                            # # ray_diff_only=ray_diff[0:1, 0:3, :, :]
-                            # # Gui.show(tensor2mat(ray_diff_only), "ray_diff_only")
-                            # weight_debug = weight.view(1,3,frame_full_res.height, frame_full_res.width)
-                            # Gui.show(tensor2mat(weight_debug),"weight_debug")
-                            # dot_debug= ray_diff[:,3:4, :, :].view(1,3,frame_full_res.height, frame_full_res.width)
-                            # # print("dot_debug", dot_debug.min(), " ", dot_debug.max())
-                            # Gui.show(tensor2mat(dot_debug),"dot_debug")
-
-                        #random crop of  uv_tensor, ray_dirs and rgb_gt_selected https://discuss.pytorch.org/t/cropping-batches-at-the-same-position/24550/5
-                        # TIME_START("crop")
-                        # if rand_true(0.5) and is_training:
-                        # # if False:
-                        #     max_size= min(frame.height, frame.width )
-                        #     max_size=random.randint(max_size//4, max_size)
-                        #     crop_indices = torchvision.transforms.RandomCrop.get_params( ray_dirs, output_size=(max_size, max_size))
-                        #     i, j, h, w = crop_indices
-                        #     #crop all the required tensors
-                        #     rgb_gt= TF.crop(rgb_gt, i, j, h, w)
-                        #     ray_dirs= TF.crop(ray_dirs, i, j, h, w)
-                        #     rgb_close_batch= TF.crop(rgb_close_batch, i, j, h, w)
-                        #     ray_dirs_close_batch= TF.crop(ray_dirs_close_batch, i, j, h, w)
-                        #     rgb_gt_fullres= TF.crop(rgb_gt_fullres, i*4, j*4, h*4, w*4)
-
-                        #     #in order to make the unet access pixels that are further apart or closer apart, we upscale the cropped image to the full size
-                        #     rgb_gt = torch.nn.functional.interpolate(rgb_gt,size=(frame.height, frame.width), mode='bilinear')
-                        #     ray_dirs = torch.nn.functional.interpolate(ray_dirs,size=(frame.height, frame.width), mode='bilinear')
-                        #     rgb_close_batch = torch.nn.functional.interpolate(rgb_close_batch,size=(frame.height, frame.width), mode='bilinear')
-                        #     ray_dirs_close_batch = torch.nn.functional.interpolate(ray_dirs_close_batch,size=(frame.height, frame.width), mode='bilinear')
-                        #     rgb_gt_fullres = torch.nn.functional.interpolate(rgb_gt_fullres,size=(frame_full_res.height, frame_full_res.width), mode='bilinear')
-                        # TIME_END("crop")
+                            rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff = prepare_data(frame, frames_close)
 
 
 
-                        #VIEW gt 
-                      
                         #view current active frame
                         frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
                         frustum_mesh.m_vis.m_line_width=3
@@ -348,59 +195,34 @@ def run():
 
 
 
-
-                        #forward attempt 2 using a network with differetnaible ray march
+                        #forward 
                         with torch.set_grad_enabled(is_training):
 
 
                             TIME_START("forward")
-                            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
+                            rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame, frames_close, weights, novel=not phase.grad)
                             TIME_END("forward")
 
 
-                            # if first_time:
-                            #     #TODO load checkpoint
-                            #     # now that all the parameters are created we can fill them with a model from a file
-                            #     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/lego/model_e_31_score_25.798268527984618.pt" ))
-                            #     # model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
-                            #     model.load_state_dict(torch.load( "/media/rosu/Data/phd/c_ws/src/phenorob/neural_mvs/saved_models/dtu/model_e_38_score_0.pt" ))
-                            #     #rerun 
-                            #     rgb_pred, depth_pred, point3d, new_loss, depth_for_each_res, confidence_map, depth_for_each_step=model(dataset_params, frame, ray_dirs, rgb_close_batch, rgb_close_fullres_batch, ray_dirs_close_batch, ray_diff, frame_full_res, frames_close, weights, novel=not phase.grad)
-
-
-
-                            # print("rgb_pred", rgb_pred.shape)
-                          
-                            #sometimes the refined one doesnt upsample nicely to the full res 
-                            # if rgb_refined.shape!=rgb_gt_fullres:
-                            ###TODO do not upsample here but rather upsample the feature maps in the unet of rgb_refiner
-                                # rgb_refined=torch.nn.functional.interpolate(rgb_refined,size=(rgb_gt_fullres.shape[2], rgb_gt_fullres.shape[3]), mode='bilinear')
-                            rgb_lowres=torch.nn.functional.interpolate(rgb_pred,size=(frame.height, frame.width), mode='bilinear')
 
                             if predict_confidence_map:
-                                rgb_pred_with_confidence_blending=confidence_map*rgb_pred + (1-confidence_map)*rgb_gt_fullres
+                                rgb_pred_with_confidence_blending=confidence_map*rgb_pred + (1-confidence_map)*rgb_gt
 
                          
                         
                             #loss
                             loss=0
                             if predict_confidence_map:
-                                rgb_loss_l1= ((rgb_gt_fullres- rgb_pred_with_confidence_blending).abs()).mean()
-                                #loss to pus the conidence to be close to 1.0
+                                rgb_loss_l1= ((rgb_gt- rgb_pred_with_confidence_blending).abs()).mean()
+                                #loss for the conidence to be close to 1.0
                                 loss_mask=((1.0-confidence_map)**2).mean()
                                 loss+=loss_mask*0.1
                             else:
-                                rgb_loss_l1= ((rgb_gt_fullres- rgb_pred).abs()).mean()
-                            psnr_index = piq.psnr(rgb_gt_fullres, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
+                                rgb_loss_l1= ((rgb_gt- rgb_pred).abs()).mean()
+                            psnr_index = piq.psnr(rgb_gt, torch.clamp(rgb_pred,0.0,1.0), data_range=1.0 )
                             loss+=rgb_loss_l1
-                            # loss+=new_loss*0.1
-                            # weight_multi_res_los=map_range( torch.tensor(phase.epoch_nr), 0, 100, 1.0, 0.0)
-                            # loss+=new_loss*weight_multi_res_los
                             loss+=new_loss
 
-                            # if not is_training and psnr_index.item()>max_test_psnr:
-                                # max_test_psnr=psnr_index.detach().item()
-                                
                           
                             #at the beggining we just optimize so that the lstm predicts the center of the sphere 
                             weight=map_range( torch.tensor(phase.iter_nr), 0, 1000, 0.0, 1.0)
@@ -415,17 +237,7 @@ def run():
 
                             #loss that pushes the points to be in the middle of the space 
                             if phase.iter_nr<1000:
-                                # point3d= point3d
-                                # print("point3d).norm(dim=1) is ", point3d.norm(dim=1,keepdim=True)  )
-                                # print("dataset_params.estimated_scene_center", dataset_params.estimated_scene_center)
-                                # loss+=( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,3,1,1).cuda()-point3d).norm(dim=1)).mean()*0.2
-                                # mean_point_dist_from_world_center= point3d.norm(dim=1,keepdim=True).mean()
-                                # print("mean final dist", mean_final_dist)
-                                # loss+= (( ( torch.from_numpy(dataset_params.estimated_scene_center).view(1,1,1,1).cuda()-point3d).norm(dim=1,keepdim=True))**2).mean()*0.2
-                                # loss+= (mean_final_dist- dataset_params.estimated_scene_center)**2 *0.1
-                                # loss+= (torch.abs(point3d -  torch.from_numpy(dataset_params.estimated_scene_center).cuda().view(1,3,1,1) )).mean() *0.2
                                 loss+= (torch.abs( point3d.norm(dim=1,keepdim=True) -  dataset_params.estimated_scene_dist_from_origin )).mean() *0.2
-                                # print("loss is ",loss)
 
 
                         
@@ -434,15 +246,8 @@ def run():
                             if first_time:
                                 first_time=False
                               
-                                # optimizer=GC_Adam.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                # optimizer=torch.optim.AdamW( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
                                 optimizer=RAdam( model.parameters(), lr=train_params.lr(), weight_decay=train_params.weight_decay() )
-                                # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1)
-                                # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=10000)
-                                # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=100) #for nerf synthetic when we overfit
                                 scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=500) #for LLFF when we overfit
-                                # scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=1000) #for DTU
-                                # warmup_scheduler = warmup.LinearWarmup(optimizer, warmup_period=3000)
                                 optimizer.zero_grad()
 
                             cb.after_forward_pass(loss=loss.item(), psnr=psnr_index.item(), loss_rgb=rgb_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
@@ -450,37 +255,18 @@ def run():
 
                         #backward
                         if is_training:
-                            if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
-                                scheduler.step(phase.iter_nr /10000  ) #go to zero every 10k iters
-                            # warmup_scheduler.dampen()
                             optimizer.zero_grad()
                             cb.before_backward_pass()
                             TIME_START("backward")
                             loss.backward()
-                            # loss.backward(create_graph=True) #IS NEEDED BY ADAHESIAN but it doesnt work becasue grid sampler doesnt have a second derrivative
                             TIME_END("backward")
                             cb.after_backward_pass()
                           
-
-                            #try something autoclip https://github.com/pseeth/autoclip/blob/master/autoclip.py 
-                            # clip_percentile=10
-                            # obs_grad_norm = get_grad_norm(model)
-                            # print("grad norm", obs_grad_norm)
-                            # grad_history.append(obs_grad_norm)
-                            # clip_value = np.percentile(grad_history, clip_percentile)
-                            # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
-                            # print("clip_value", clip_value)
-
-                            # model.summary()
-                            # exit()
+                         
 
                             optimizer.step()
 
-                       # Profiler.print_all_stats()
-
-                     
-                        # if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                            # scheduler.step(max_test_psnr)
+                 
 
                         TIME_END("all")
 
@@ -491,7 +277,7 @@ def run():
                                 #VIEW pred
                                 if phase.iter_nr%show_every==0:
                                     #view diff 
-                                    diff=( rgb_gt_fullres-rgb_pred)**2*10
+                                    diff=( rgb_gt-rgb_pred)**2*10
                                     Gui.show(tensor2mat(diff),"diff_"+phase.name)
                                     Gui.show( tensor2mat(rgb_pred) ,"rgb_pred_"+phase.name)
                                     if predict_confidence_map:
@@ -499,7 +285,6 @@ def run():
                                  
                                     #view gt
                                     Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
-                                    Gui.show(tensor2mat(rgb_gt_fullres),"rgb_fullres_gt_"+phase.name)
                               
                                     Gui.show(tensor2mat(rgb_close_batch[0:1, :,:,:] ),"rgbclose" )
 
@@ -507,25 +292,15 @@ def run():
                                 #VIEW 3d points   at the end of the ray march
                                 camera_center=torch.from_numpy( frame.frame.pos_in_world() ).to("cuda")
                                 camera_center=camera_center.view(1,3)
-                                # points3D = camera_center + depth_pred.view(-1,1)*ray_dirs
                                 
                                 #view normal
-                                # points3D_img=points3D.view(1, frame.height, frame.width, 3)
-                                # points3D_img=points3D_img.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
                                 normal_img=compute_normal(point3d)
                                 normal_vis=(normal_img+1.0)*0.5
                                 Gui.show(tensor2mat(normal_vis), "normal")
 
-                                #mask based on grazing angle between normal and view angle
-                                normal=normal_img.permute(0,2,3,1) # from n,c,h,w to N,H,W,C
-                                normal=normal.view(-1,3)
-                                # dot_view_normal= (ray_dirs * normal).sum(dim=1,keepdim=True)
-                                # dot_view_normal_mask= dot_view_normal>-0.1 #ideally the dot will be -1, if it goes to 0.0 it's bad and 1.0 is even worse
-                                # dot_view_normal_mask=dot_view_normal_mask.repeat(1,3) #repeat 3 times for rgb
-                                # points3D[dot_view_normal_mask]=0.0
 
                                 #show things
-                                points3d_mesh=show_3D_points( nchw2lin(point3d), color=rgb_lowres)
+                                points3d_mesh=show_3D_points( nchw2lin(point3d), color=rgb_pred)
                                 points3d_mesh.NV= normal.detach().cpu().numpy()
                                 Scene.show(points3d_mesh, "points3d_mesh")
 
@@ -566,21 +341,11 @@ def run():
 
 
             # finished all the images 
-            # pbar.close()
-            if True: #if we reached this point we already read all the images so there is no need to check if the loader is finished 
-                if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step(phase.scores.avg_psnr())
-                cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
-                cb.phase_ended(phase=phase) 
-                # phase.epoch_nr+=1
-                # loader_test.reset()
-                # random.shuffle(frames_for_encoding)
-                # random.shuffle(frames_for_training)
-                # time.sleep(0.1) #give the loaders a bit of time to load
-
-
-                # if train_params.with_viewer():
-                    # view.update()
+            if not is_training and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(phase.scores.avg_psnr())
+            cb.epoch_ended(phase=phase, model=model, save_checkpoint=train_params.save_checkpoint(), checkpoint_path=train_params.checkpoint_path(), save_every_x_epoch=train_params.save_every_x_epoch() ) 
+            cb.phase_ended(phase=phase) 
+               
 
 
 def main():

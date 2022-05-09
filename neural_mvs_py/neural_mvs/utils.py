@@ -158,10 +158,41 @@ def compute_dataset_params(loader, frames):
     return params
 
 
-def prepare_data(frame_full_res, frames_close_full_res, frame, frames_close):
+# def prepare_data(frame_full_res, frames_close_full_res, frame, frames_close):
+#     rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
+#     rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
+#     # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
+#     ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
+#     rgb_close_batch_list=[]
+#     for frame_close in frames_close:
+#         rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+#         rgb_close_batch_list.append(rgb_close_frame)
+#     rgb_close_batch=torch.cat(rgb_close_batch_list,0)
+#     #make also a batch fo directions
+#     raydirs_close_batch_list=[]
+#     for frame_close in frames_close:
+#         ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
+#         # ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
+#         # ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
+#         raydirs_close_batch_list.append(ray_dirs_close)
+#     ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
+
+#     #ray diff in the same way that ibr gets it 
+#     ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
+#     raydirs_close_fullres_batch_list=[]
+#     for frame_close in frames_close_full_res:
+#         # print("frame_close, hw", frame_close.height, " ", frame_close.width)
+#         # print("frame_full_res, hw", frame_full_res.height, " ", frame_full_res.width)
+#         ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
+#         raydirs_close_fullres_batch_list.append(ray_dirs_close)
+#     ray_dirs_fullres_close_batch=torch.cat(raydirs_close_fullres_batch_list,0)
+#     ray_diff = compute_angle(frame_full_res.height, frame_full_res.width, ray_dirs_fullres, ray_dirs_fullres_close_batch)
+
+#     return rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff
+
+
+def prepare_data(frame, frames_close):
     rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
-    rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
-    # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
     ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
     rgb_close_batch_list=[]
     for frame_close in frames_close:
@@ -177,18 +208,10 @@ def prepare_data(frame_full_res, frames_close_full_res, frame, frames_close):
         raydirs_close_batch_list.append(ray_dirs_close)
     ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
 
-    #ray diff in the same way that ibr gets it 
-    ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
-    raydirs_close_fullres_batch_list=[]
-    for frame_close in frames_close_full_res:
-        # print("frame_close, hw", frame_close.height, " ", frame_close.width)
-        # print("frame_full_res, hw", frame_full_res.height, " ", frame_full_res.width)
-        ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
-        raydirs_close_fullres_batch_list.append(ray_dirs_close)
-    ray_dirs_fullres_close_batch=torch.cat(raydirs_close_fullres_batch_list,0)
-    ray_diff = compute_angle(frame_full_res.height, frame_full_res.width, ray_dirs_fullres, ray_dirs_fullres_close_batch)
+    
+    ray_diff = compute_angle(frame.height, frame.width, ray_dirs, rgb_close_batch)
 
-    return rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff
+    return  rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff
 
 
 
