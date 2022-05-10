@@ -11,7 +11,6 @@
 
 
 #include <Eigen/Dense>
-// #include "neural_mvs/kernels/NeuralMVSGPU.cuh"
 #include "easy_pbr/Frame.h"
 
 namespace easy_pbr{
@@ -20,10 +19,7 @@ namespace easy_pbr{
 }
 
 
-// class Lattice : public torch::autograd::Variable, public std::enable_shared_from_this<Lattice>{
-// class Lattice : public at::Tensor, public std::enable_shared_from_this<Lattice>{
 class NeuralMVSGUI : public std::enable_shared_from_this<NeuralMVSGUI>{
-// class Lattice :public THPVariable, public std::enable_shared_from_this<Lattice>{
 public:
     template <class ...Args>
     static std::shared_ptr<NeuralMVSGUI> create( Args&& ...args ){

@@ -56,7 +56,8 @@ option(LIBIGL_WITH_XML               "Use XML"            OFF)
 ######   PACKAGES   ############################################################
 # find_package(catkin REQUIRED)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs features2d )
+# find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs features2d )
+find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui)
 find_package(EasyPBR REQUIRED)
 # find_package(DataLoaders REQUIRED)
 # find_package(Torch REQUIRED)
@@ -74,12 +75,12 @@ include(libigl)
 # find_package(LIBIGL REQUIRED)
 #compile with pytorch
 # get and append paths for finding dep
-execute_process( #do it like this https://github.com/facebookresearch/hanabi_SAD/blob/6e4ed590f5912fcb99633f4c224778a3ba78879b/rela/CMakeLists.txt#L10
-  COMMAND python -c "import torch; import os; print(os.path.dirname(torch.__file__), end='')"
-  OUTPUT_VARIABLE TorchPath
-)
-list(APPEND CMAKE_PREFIX_PATH ${TorchPath})
-find_package(Torch REQUIRED)
+# execute_process( #do it like this https://github.com/facebookresearch/hanabi_SAD/blob/6e4ed590f5912fcb99633f4c224778a3ba78879b/rela/CMakeLists.txt#L10
+#   COMMAND python -c "import torch; import os; print(os.path.dirname(torch.__file__), end='')"
+#   OUTPUT_VARIABLE TorchPath
+# )
+# list(APPEND CMAKE_PREFIX_PATH ${TorchPath})
+# find_package(Torch REQUIRED)
 
 # add_subdirectory(${PROJECT_SOURCE_DIR}/deps/pybind11)
 # find_package(catkin REQUIRED COMPONENTS roscpp std_msgs cv_bridge pcl_ros image_transport )
@@ -142,13 +143,13 @@ set(DEPS_SRC
 
 
 add_library( neuralmvs_lib SHARED
-                                        ${CMAKE_SOURCE_DIR}/src/NeuralMVS.cxx
+                                        # ${CMAKE_SOURCE_DIR}/src/NeuralMVS.cxx
                                         ${CMAKE_SOURCE_DIR}/src/NeuralMVSGUI.cxx
                                         ${CMAKE_SOURCE_DIR}/src/SFM.cxx
                                         # ${CMAKE_SOURCE_DIR}/include/neural_mvs/kernels/NeuralMVSGPU.cuh
-                                        ${CMAKE_SOURCE_DIR}/src/ModelParams.cxx
+                                        # ${CMAKE_SOURCE_DIR}/src/ModelParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/TrainParams.cxx
-                                        ${CMAKE_SOURCE_DIR}/src/EvalParams.cxx
+                                        # ${CMAKE_SOURCE_DIR}/src/EvalParams.cxx
                                         # ${CMAKE_SOURCE_DIR}/src/TinyLoader.cxx
                                         )
 
@@ -191,14 +192,14 @@ add_library( neuralmvs_lib SHARED
 
 ###   LIBS   ###############################################
  #torch 1.5.0 and above mess with pybind and we therefore need to link against libtorch_python.so also
-find_library(TORCH_PYTHON_LIBRARY torch_python PATHS "${TORCH_INSTALL_PREFIX}/lib")
-message(STATUS "TORCH_PYTHON_LIBRARY: ${TORCH_PYTHON_LIBRARY}")
-if(TORCH_PYTHON_LIBRARY)
-    message(STATUS "Linking to torch_python_library")
-    set(LIBS ${LIBS} ${TORCH_PYTHON_LIBRARY} )
-endif()
+# find_library(TORCH_PYTHON_LIBRARY torch_python PATHS "${TORCH_INSTALL_PREFIX}/lib")
+# message(STATUS "TORCH_PYTHON_LIBRARY: ${TORCH_PYTHON_LIBRARY}")
+# if(TORCH_PYTHON_LIBRARY)
+    # message(STATUS "Linking to torch_python_library")
+    # set(LIBS ${LIBS} ${TORCH_PYTHON_LIBRARY} )
+# endif()
 # set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} opencv_sfm )
-set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${DATALOADERS_LIBRARY} ${CUDA_LIBRARIES} ${TORCH_LIBRARIES} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} igl::triangle )
+set(LIBS ${LIBS} ${catkin_LIBRARIES} ${EASYPBR_LIBRARY} ${CUDA_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} igl::triangle )
 
 
 

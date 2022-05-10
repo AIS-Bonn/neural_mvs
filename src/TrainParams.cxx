@@ -31,7 +31,6 @@ void TrainParams::init_params(const std::string config_file){
     m_with_tensorboard = train_config["with_tensorboard"];
     m_with_debug_output = train_config["with_debug_output"];
     m_with_error_checking = train_config["with_error_checking"];
-    m_batch_size = train_config["batch_size"];
     m_lr = train_config["lr"];
     m_weight_decay = train_config["weight_decay"];
     m_max_training_epochs = train_config["max_training_epochs"];
@@ -62,9 +61,6 @@ bool TrainParams::with_debug_output(){
 }
 bool TrainParams::with_error_checking(){
     return m_with_error_checking;
-}
-int TrainParams::batch_size(){
-    return m_batch_size;
 }
 float TrainParams::lr(){
     return m_lr;

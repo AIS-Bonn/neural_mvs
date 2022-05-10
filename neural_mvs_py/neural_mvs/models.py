@@ -778,7 +778,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
 
 
 class Net(torch.nn.Module):
-    def __init__(self, model_params, predict_confidence_map, multi_res_loss):
+    def __init__(self, predict_confidence_map, multi_res_loss):
         super(Net, self).__init__()
 
         self.predict_confidence_map=predict_confidence_map

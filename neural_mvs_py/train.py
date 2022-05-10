@@ -40,7 +40,7 @@ torch.backends.cudnn.benchmark = True
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
-model_params=ModelParams.create(config_file)    
+# model_params=ModelParams.create(config_file)    
 
 
 
@@ -86,7 +86,7 @@ def run():
     phases[1].frames=frames_test
     #model 
     model=None
-    model=Net(model_params, predict_confidence_map, multi_res_loss).to("cuda")
+    model=Net(predict_confidence_map, multi_res_loss).to("cuda")
     model.train()
 
     scheduler=None
