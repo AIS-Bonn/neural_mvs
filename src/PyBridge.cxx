@@ -10,7 +10,7 @@
 #include "easy_pbr/Viewer.h"
 // #include "easy_pbr/LabelMngr.h"
 // #include "lattice_net/HashTable.cuh"
-#include "neural_mvs/NeuralMVS.cuh"
+#include "neural_mvs/NeuralMVS.h"
 #include "neural_mvs/NeuralMVSGUI.h"
 #include "neural_mvs/SFM.h"
 #include "neural_mvs/TrainParams.h"
@@ -175,10 +175,10 @@ PYBIND11_MODULE(neuralmvs, m) {
     py::class_<NeuralMVS, std::shared_ptr<NeuralMVS>   > (m, "NeuralMVS")
     .def_static("create", &NeuralMVS::create<> ) //for templated methods like this one we need to explicitly instantiate one of the arguments
     .def("depth_test", &NeuralMVS::depth_test)
-    .def_static("splat_texture", &NeuralMVS::splat_texture)
-    .def_static("slice_texture", &NeuralMVS::slice_texture)
-    .def_static("splat_texture_backward", &NeuralMVS::splat_texture_backward)
-    .def_static("slice_texture_backward", &NeuralMVS::slice_texture_backward)
+    // .def_static("splat_texture", &NeuralMVS::splat_texture)
+    // .def_static("slice_texture", &NeuralMVS::slice_texture)
+    // .def_static("splat_texture_backward", &NeuralMVS::splat_texture_backward)
+    // .def_static("slice_texture_backward", &NeuralMVS::slice_texture_backward)
     // .def_static("subsample", &NeuralMVS::subsample)
     // .def_static("compute_frame_weights", &NeuralMVS::compute_frame_weights)
     // .def_static("compute_triangulation", &NeuralMVS::compute_triangulation)

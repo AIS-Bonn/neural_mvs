@@ -22,8 +22,8 @@ from neural_mvs_py.neural_mvs.funcs import *
 # from torchmeta.modules.utils import *
 # from torchmeta.modules import (MetaModule, MetaSequential)
 
-from neural_mvs_py.neural_mvs.pac import *
-from neural_mvs_py.neural_mvs.deform_conv import *
+# from neural_mvs_py.neural_mvs.pac import *
+# from neural_mvs_py.neural_mvs.deform_conv import *
 #from latticenet_py.lattice.lattice_modules import *
 
 

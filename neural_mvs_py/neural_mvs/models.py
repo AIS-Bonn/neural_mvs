@@ -796,7 +796,7 @@ class Net(torch.nn.Module):
         self.unet_pred_output=UNet( nr_channels_start=16, nr_channels_output=out_nr, nr_stages=1, max_nr_channels=32)
 
       
-        self.compress_features=MetaSequential( 
+        self.compress_features=nn.Sequential( 
             WNConvActiv( 32, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, is_first_layer=False ).cuda(),
             WNConvActiv( 8, 8, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda(),
         )

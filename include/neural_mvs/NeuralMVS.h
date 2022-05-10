@@ -14,8 +14,8 @@ using namespace ceres;
 
 #include "torch/torch.h"
 
-#include "neural_mvs/jitify_helper/jitify_options.hpp" //Needs to be added BEFORE jitify because this defined the include paths so that the kernels cna find each other
-#include "jitify/jitify.hpp"
+// #include "neural_mvs/jitify_helper/jitify_options.hpp" //Needs to be added BEFORE jitify because this defined the include paths so that the kernels cna find each other
+// #include "jitify/jitify.hpp"
 #include <Eigen/Dense>
 // #include "neural_mvs/kernels/NeuralMVSGPU.cuh"
 
@@ -28,7 +28,7 @@ namespace easy_pbr{
     class Mesh;
 }
 
-class NeuralMVSGPU;
+// class NeuralMVSGPU;
 
 // class Lattice : public torch::autograd::Variable, public std::enable_shared_from_this<Lattice>{
 // class Lattice : public at::Tensor, public std::enable_shared_from_this<Lattice>{
@@ -68,7 +68,7 @@ private:
 
     std::shared_ptr<gl::GBuffer> m_pos_buffer; 
 
-    static std::shared_ptr<NeuralMVSGPU> m_impl;
+    // static std::shared_ptr<NeuralMVSGPU> m_impl;
     // std::shared_ptr<NeuralMVSGPU> m_impl;
     bool m_opengl_initialized;
 };
