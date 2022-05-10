@@ -149,7 +149,7 @@ add_library( neuralmvs_lib SHARED
                                         ${CMAKE_SOURCE_DIR}/src/ModelParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/TrainParams.cxx
                                         ${CMAKE_SOURCE_DIR}/src/EvalParams.cxx
-                                        ${CMAKE_SOURCE_DIR}/src/TinyLoader.cxx
+                                        # ${CMAKE_SOURCE_DIR}/src/TinyLoader.cxx
                                         )
 
 
