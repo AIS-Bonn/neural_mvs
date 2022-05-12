@@ -262,7 +262,7 @@ def run():
                                 scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=500) #for LLFF when we overfit
                                 optimizer.zero_grad()
 
-                            cb.after_forward_pass(loss=loss.item(), psnr=psnr_index.item(), loss_rgb=rgb_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"], rgb_pred=rgb_pred.clamp(0,1), rgb_gt=rgb_gt.clamp(0,1), confidence_map=confidence_map.clamp(0,1)  ) #visualizes the prediction 
+                            cb.after_forward_pass(loss=loss.item(), psnr=psnr_index.item(), loss_rgb=rgb_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"], rgb_pred=rgb_pred.clamp(0,1), rgb_gt=rgb_gt.clamp(0,1), confidence_map=confidence_map.clamp(0,1), point3d=point3d  ) #visualizes the prediction 
 
 
                         #backward

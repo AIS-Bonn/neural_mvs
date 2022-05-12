@@ -1,6 +1,9 @@
 from instant_ngp_2_py.callbacks.callback import *
 from torch.utils.tensorboard import SummaryWriter
 
+from neural_mvs.utils import *
+
+
 class TensorboardCallback(Callback):
 
     def __init__(self, experiment_name):
@@ -8,7 +11,7 @@ class TensorboardCallback(Callback):
         self.experiment_name=experiment_name
         
 
-    def after_forward_pass(self, phase, loss, loss_rgb, psnr, lr, rgb_pred, rgb_gt, confidence_map,  **kwargs):
+    def after_forward_pass(self, phase, loss, loss_rgb, psnr, lr, rgb_pred, rgb_gt, confidence_map, point3d,  **kwargs):
         # self.vis.log(phase.iter_nr, loss, "loss_"+phase.name,  "loss_"+phase.name+"_"+self.experiment_name, smooth=True,  show_every=10, skip_first=10)
         # self.vis.log(phase.iter_nr, loss_dice, "loss_dice_"+phase.name, "loss_"+phase.name+"_"+self.experiment_name, smooth=True,  show_every=10, skip_first=10)
         # if phase.grad:
@@ -29,6 +32,11 @@ class TensorboardCallback(Callback):
             self.tensorboard_writer.add_image('neural_mvs/' + phase.name + '/rgb_gt', rgb_gt.squeeze(0), phase.iter_nr)
         if (phase.iter_nr<=1 or phase.iter_nr%500==0) and confidence_map is not None:
             self.tensorboard_writer.add_image('neural_mvs/' + phase.name + '/confidence', confidence_map.squeeze(0), phase.iter_nr)
+        if (phase.iter_nr<=1 or phase.iter_nr%500==0) and point3d is not None:
+            normal_img=compute_normal(point3d)
+            normal_vis=(normal_img+1.0)*0.5
+            self.tensorboard_writer.add_image('neural_mvs/' + phase.name + '/normal', normal_vis.squeeze(0), phase.iter_nr)
+        
         
 
       
