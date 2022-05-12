@@ -171,14 +171,14 @@ def run():
 
                             rgb_close_fulres_batch_list=[]
                             for frame_close in frames_close:
-                                rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+                                rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, True).to("cuda")
                                 rgb_close_fulres_batch_list.append(rgb_close_frame)
                             rgb_close_fullres_batch=torch.cat(rgb_close_fulres_batch_list,0)
 
 
                             #load the image data for this frames that we selected
-                            for i in range(len(frames_close)):
-                                Gui.show(frames_close[i].frame.rgb_32f,"close_"+phase.name+"_"+str(i) )
+                            # for i in range(len(frames_close)):
+                                # Gui.show(frames_close[i].frame.rgb_32f,"close_"+phase.name+"_"+str(i) )
 
 
                             #prepare rgb data and rest of things
@@ -187,19 +187,20 @@ def run():
 
 
                         #view current active frame
-                        frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
-                        frustum_mesh.m_vis.m_line_width=3
-                        frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
-                        Scene.show(frustum_mesh, "frustum_activ" )
-                        
+                        if train_params.with_viewer(): 
+                            frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
+                            frustum_mesh.m_vis.m_line_width=3
+                            frustum_mesh.m_vis.m_line_color=[1.0, 0.0, 1.0] #purple
+                            Scene.show(frustum_mesh, "frustum_activ" )
+                            
 
-                        #show the curstums of the close frames
-                        for i in range(len(frames_close)):
-                            frustum_mesh=frames_close[i].frame.create_frustum_mesh(dataset_params.frustum_size)
-                            frustum_mesh.m_vis.m_line_width= (weights[i])*15
-                            frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
-                            frustum_mesh.m_force_vis_update=True
-                            Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
+                            #show the curstums of the close frames
+                            for i in range(len(frames_close)):
+                                frustum_mesh=frames_close[i].frame.create_frustum_mesh(dataset_params.frustum_size)
+                                frustum_mesh.m_vis.m_line_width= (weights[i])*15
+                                frustum_mesh.m_vis.m_line_color=[0.0, 1.0, 0.0] #green
+                                frustum_mesh.m_force_vis_update=True
+                                Scene.show(frustum_mesh, "frustum_neighb_"+str(i) ) 
 
 
 
@@ -261,7 +262,7 @@ def run():
                                 scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=500) #for LLFF when we overfit
                                 optimizer.zero_grad()
 
-                            cb.after_forward_pass(loss=loss.item(), psnr=psnr_index.item(), loss_rgb=rgb_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"]) #visualizes the prediction 
+                            cb.after_forward_pass(loss=loss.item(), psnr=psnr_index.item(), loss_rgb=rgb_loss_l1.item(), phase=phase, lr=optimizer.param_groups[0]["lr"], rgb_pred=rgb_pred.clamp(0,1), rgb_gt=rgb_gt.clamp(0,1), confidence_map=confidence_map.clamp(0,1)  ) #visualizes the prediction 
 
 
                         #backward
@@ -292,14 +293,14 @@ def run():
                                     #view diff 
                                     diff=( rgb_gt-rgb_pred)**2*10
                                     Gui.show(tensor2mat(diff),"diff_"+phase.name)
-                                    Gui.show( tensor2mat(rgb_pred) ,"rgb_pred_"+phase.name)
+                                    Gui.show( tensor2mat(rgb_pred).rgb2bgr() ,"rgb_pred_"+phase.name)
                                     if predict_confidence_map:
                                         Gui.show( tensor2mat(confidence_map) ,"confidence_"+phase.name)
                                  
                                     #view gt
-                                    Gui.show(tensor2mat(rgb_gt),"rgb_gt_"+phase.name)
+                                    Gui.show(tensor2mat(rgb_gt).rgb2bgr(),"rgb_gt_"+phase.name)
                               
-                                    Gui.show(tensor2mat(rgb_close_batch[0:1, :,:,:] ),"rgbclose" )
+                                    Gui.show(tensor2mat(rgb_close_batch[0:1, :,:,:] ).rgb2bgr(),"rgbclose" )
 
                                 
                                 #VIEW 3d points   at the end of the ray march

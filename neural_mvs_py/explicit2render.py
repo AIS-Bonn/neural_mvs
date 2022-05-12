@@ -255,13 +255,13 @@ def run():
 
 
                         #prepare rgb data and rest of things
-                        rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
-                        rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
-                        mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
+                        rgb_gt=mat2tensor(frame.frame.rgb_32f, True).to("cuda")
+                        rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, True).to("cuda")
+                        mask_tensor=mat2tensor(frame.frame.mask, True).to("cuda")
                         ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float()
                         rgb_close_batch_list=[]
                         for frame_close in frames_close:
-                            rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+                            rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, True).to("cuda")
                             rgb_close_batch_list.append(rgb_close_frame)
                         rgb_close_batch=torch.cat(rgb_close_batch_list,0)
 

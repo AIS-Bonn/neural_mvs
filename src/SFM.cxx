@@ -297,15 +297,13 @@ easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::
     // double sphere_radius = std::get<1>(sphere_params);
 
     // make sphere and check that it looks ok
-    // auto sphere= easy_pbr::Mesh::create();
-    auto sphere=std::make_shared<easy_pbr::Mesh>(  m_sphere_normalized->clone() );
-    // sphere->create_sphere(sphere_center, sphere_radius);
-    for (int i = 0; i < sphere->V.rows(); i++) {
-        sphere->V.row(i) = Eigen::Vector3d( sphere->V.row(i))*sphere_radius+sphere_center;
-    }
-    sphere->m_vis.m_show_mesh=false;
-    sphere->m_vis.m_show_points=true;
-    easy_pbr::Scene::show(sphere,"sphere");
+    // auto sphere=std::make_shared<easy_pbr::Mesh>(  m_sphere_normalized->clone() );
+    // for (int i = 0; i < sphere->V.rows(); i++) {
+    //     sphere->V.row(i) = Eigen::Vector3d( sphere->V.row(i))*sphere_radius+sphere_center;
+    // }
+    // sphere->m_vis.m_show_mesh=false;
+    // sphere->m_vis.m_show_points=true;
+    // easy_pbr::Scene::show(sphere,"sphere");
 
     //project sphere using stereographic projection https://en.wikipedia.org/wiki/Stereographic_projection
     //we use the bottom points of the sphere to start the projection from
@@ -341,13 +339,10 @@ easy_pbr::MeshSharedPtr SFM::compute_triangulation_stegreographic( const Eigen::
     Eigen::MatrixXd V_out;
     igl::triangle::triangulate(points_intesection_2d, E_empty ,H_empty ,params, triangulated_mesh->V, triangulated_mesh->F); 
 
-    // VLOG(1) <<triangulated_mesh->V.rows();
-    // VLOG(1) <<points.rows();
-    // VLOG(1) << "nr of faces generated" << triangulated_mesh->F.rows();
-    triangulated_mesh->V=points;
-    triangulated_mesh->m_vis.m_show_mesh=false;
-    triangulated_mesh->m_vis.m_show_wireframe=true;
-    easy_pbr::Scene::show(triangulated_mesh, "triangulated_mesh"); 
+    // triangulated_mesh->V=points;
+    // triangulated_mesh->m_vis.m_show_mesh=false;
+    // triangulated_mesh->m_vis.m_show_wireframe=true;
+    // easy_pbr::Scene::show(triangulated_mesh, "triangulated_mesh"); 
 
 
     

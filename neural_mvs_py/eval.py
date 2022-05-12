@@ -300,11 +300,12 @@ def run():
 
                                 frame.load_images()
 
-                                frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
-                                frustum_mesh.m_vis.m_show_mesh=False
-                                frustum_mesh.m_vis.m_line_color=[0,1,1]
-                                frustum_mesh.m_vis.m_line_width=3
-                                Scene.show(frustum_mesh, "frustum_cur" )
+                                if train_params.with_viewer():
+                                    frustum_mesh=frame.frame.create_frustum_mesh(dataset_params.frustum_size)
+                                    frustum_mesh.m_vis.m_show_mesh=False
+                                    frustum_mesh.m_vis.m_line_color=[0,1,1]
+                                    frustum_mesh.m_vis.m_line_width=3
+                                    Scene.show(frustum_mesh, "frustum_cur" )
 
 
                                 #get a subsampled frame if necessary
@@ -335,7 +336,7 @@ def run():
 
                                 rgb_close_fulres_batch_list=[]
                                 for frame_close in frames_close:
-                                    rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+                                    rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, True).to("cuda")
                                     rgb_close_fulres_batch_list.append(rgb_close_frame)
                                 rgb_close_fullres_batch=torch.cat(rgb_close_fulres_batch_list,0)
 
@@ -446,10 +447,6 @@ def run():
                                     depth_mats.append(depth_mat)
                                     #color it
                                     depth_mat_colored= color_mngr.mat2color(depth_mat, "magma")
-                                    # if use_mask: 
-                                        # depth_mat_colored_tensor=mat2tensor(depth_mat_colored,False)
-                                        # depth_mat_colored_tensor[1-mask_list[i]]=1.0
-                                        # depth_mat_colored=tensor2mat(depth_mat_colored_tensor)
                                     depth_mats_colored.append(depth_mat_colored)
                                 #depth at each step------------------------------------------------------------------------------------------------
                                 depth_for_each_step_mats=[]

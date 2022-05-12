@@ -111,7 +111,7 @@ class UNet(torch.nn.Module):
             vertical_feats= features_ending_stage.pop()
             x=self.squeeze_list[i](x) #upsample resolution and reduced the channels
             if x.shape[2]!=vertical_feats.shape[2] or x.shape[3]!=vertical_feats.shape[3]:
-                x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
+                x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear',  align_corners=False) #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
             x=torch.cat([x,vertical_feats],1)
 
             x=self.up_stages_list[i](x)
@@ -548,14 +548,7 @@ class DifferentiableRayMarcherHierarchical(torch.nn.Module):
                 apply_weight_init_fn(self.compress_feat[res_iter], leaky_relu_init, negative_slope=0.0)
 
             frames_features = self.compress_feat[res_iter](frames_features)
-            # if res_iter==0:
-                # rgb0=mat2tensor(frames_close[0].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
-                # rgb1=mat2tensor(frames_close[1].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
-                # rgb2=mat2tensor(frames_close[2].subsampled_frames[res_iter].frame.rgb_32f, False).to("cuda")
-            # elif res_iter==1:
-                # rgb0=mat2tensor(frames_close[0].frame.rgb_32f, False).to("cuda")
-                # rgb1=mat2tensor(frames_close[1].frame.rgb_32f, False).to("cuda")
-                # rgb2=mat2tensor(frames_close[2].frame.rgb_32f, False).to("cuda")
+            
             # rgb = torch.cat([rgb0, rgb1, rgb2],0)
             # print("rgb is ", rgb.shape)
             # frames_features = torch.cat([frames_features, rgb],1)
@@ -821,10 +814,10 @@ class Net(torch.nn.Module):
                 feat =  multi_res_features[i+1]
 
                 if feat.shape[2]!=frame_LR.height or feat.shape[3]!=frame_LR.width:
-                    feat = torch.nn.functional.interpolate(feat, size=(frame_LR.height, frame_LR.width ), mode='bilinear') #3,c,h,w
+                    feat = torch.nn.functional.interpolate(feat, size=(frame_LR.height, frame_LR.width ), mode='bilinear',  align_corners=False) #3,c,h,w
 
                 #get gt 
-                rgb_gt=mat2tensor(frame_LR.frame.rgb_32f, False).to("cuda")
+                rgb_gt=mat2tensor(frame_LR.frame.rgb_32f, True).to("cuda")
 
                 #get camera params
                 nr_nearby_frames=len(frames_close)
@@ -903,13 +896,13 @@ class Net(torch.nn.Module):
         sliced_feat_compressed = self.compress_features(sliced_feat_batched_img)
         full_res_height=rgb_close_fullres_batch.shape[2]
         full_res_width=rgb_close_fullres_batch.shape[3]
-        sliced_feat_compressed = torch.nn.functional.interpolate(sliced_feat_compressed, size=(full_res_height, full_res_width ), mode='bilinear') #3,c,h,w
+        sliced_feat_compressed = torch.nn.functional.interpolate(sliced_feat_compressed, size=(full_res_height, full_res_width ), mode='bilinear',  align_corners=False) #3,c,h,w
         #slice also from the high res images and concat that too 
         uv_tensor=uv_tensor.view(nr_nearby_frames, frame.height, frame.width, 2) ####for upsamplign the uv, make some conv layers
         uv_tensor=uv_tensor.permute(0,3,1,2) # from N,H,W,C to N,C,H,W
-        uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear')
+        uv_tensor_hr= torch.nn.functional.interpolate(uv_tensor,size=(full_res_height, full_res_width ), mode='bilinear',  align_corners=False)
         uv_tensor_hr=uv_tensor_hr.permute(0,2,3,1) #from N,C,H,W to N,H,W,C
-        sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros"  ) #sliced features is N,C,H,W
+        sliced_color_HR=torch.nn.functional.grid_sample( rgb_close_fullres_batch, uv_tensor_hr, align_corners=False, mode="bilinear",  padding_mode="zeros",  ) #sliced features is N,C,H,W
         rgb_feat=torch.cat([sliced_color_HR, sliced_feat_compressed],1)
 
         #get the ray_diff

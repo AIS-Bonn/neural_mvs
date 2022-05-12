@@ -192,11 +192,11 @@ def compute_dataset_params(loader, frames):
 
 
 def prepare_data(frame, frames_close):
-    rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
+    rgb_gt=mat2tensor(frame.frame.rgb_32f, True).to("cuda")
     ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
     rgb_close_batch_list=[]
     for frame_close in frames_close:
-        rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
+        rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, True).to("cuda")
         rgb_close_batch_list.append(rgb_close_frame)
     rgb_close_batch=torch.cat(rgb_close_batch_list,0)
     #make also a batch fo directions
@@ -365,15 +365,7 @@ class FramePY():
         self.frame=frame
         self.create_subsamples=create_subsamples
         # #We do NOT store the tensors on the gpu and rather load them whenever is endessary. This is because we can have many frames and can easily run out of memory
-        # if not frame.mask.empty():
-        #     mask_tensor=mat2tensor(frame.mask, False).to("cuda").repeat(1,3,1,1)
-        #     self.frame.mask=frame.mask
-        # else:
-        #     mask_tensor= torch.ones((1,1,frame.height,frame.width), device=torch.device("cuda") )
-        #     self.frame.mask=tensor2mat(mask_tensor)
-        # #get rgb with mask applied 
-        # rgb_tensor=mat2tensor(frame.rgb_32f, False).to("cuda")
-        # rgb_tensor=rgb_tensor*mask_tensor
+        
 
         #Ray direction in world coordinates
         self.ray_dirs=None

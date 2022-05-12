@@ -8,7 +8,7 @@ class TensorboardCallback(Callback):
         self.experiment_name=experiment_name
         
 
-    def after_forward_pass(self, phase, loss, loss_rgb, psnr, lr, **kwargs):
+    def after_forward_pass(self, phase, loss, loss_rgb, psnr, lr, rgb_pred, rgb_gt, confidence_map,  **kwargs):
         # self.vis.log(phase.iter_nr, loss, "loss_"+phase.name,  "loss_"+phase.name+"_"+self.experiment_name, smooth=True,  show_every=10, skip_first=10)
         # self.vis.log(phase.iter_nr, loss_dice, "loss_dice_"+phase.name, "loss_"+phase.name+"_"+self.experiment_name, smooth=True,  show_every=10, skip_first=10)
         # if phase.grad:
@@ -21,6 +21,15 @@ class TensorboardCallback(Callback):
             self.tensorboard_writer.add_scalar('neural_mvs/' + phase.name + '/loss_rgb', loss_rgb, phase.iter_nr)
         if psnr!=0:
             self.tensorboard_writer.add_scalar('neural_mvs/' + phase.name + '/psnr', psnr, phase.iter_nr)
+
+        #show imgs
+        if (phase.iter_nr<=1 or phase.iter_nr%500==0) and rgb_pred is not None:
+            self.tensorboard_writer.add_image('neural_mvs/' + phase.name + '/rgb_pred', rgb_pred.squeeze(0), phase.iter_nr)
+        if (phase.iter_nr<=1 or phase.iter_nr%500==0) and rgb_gt is not None:
+            self.tensorboard_writer.add_image('neural_mvs/' + phase.name + '/rgb_gt', rgb_gt.squeeze(0), phase.iter_nr)
+        if (phase.iter_nr<=1 or phase.iter_nr%500==0) and confidence_map is not None:
+            self.tensorboard_writer.add_image('neural_mvs/' + phase.name + '/confidence', confidence_map.squeeze(0), phase.iter_nr)
+        
 
       
 
