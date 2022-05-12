@@ -86,6 +86,7 @@ The training can be visualized in the browser under `http://localhost:6006/`
 Various configuration options can be interesting to check out and modify. We take neural_mvs/config/train.cfg as an example. 
 
 ```
+dataset_name: "nerf"     #can be changed to dtu or llff to switch the dataset we use
 core: hdpi: false          #can be turned on an off to accomodate high DPI displays. If the text and fonts in the visualizer are too big, set this option to false
 train: with_viewer: false  #setting to true will start a visualizer which displays the currently predicted 3D point cloud and image. May not be usable when running on a headless server
 ``` 

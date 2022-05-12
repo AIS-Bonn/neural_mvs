@@ -292,7 +292,7 @@ def create_loader(dataset_name, config_path):
         # loader_test.set_mode_test()
         loader_train.start()
         loader_test.start()
-    elif(dataset_name=="nerf_lego"):
+    elif(dataset_name=="nerf"):
         loader_train=DataLoaderNerf(config_path)
         loader_test=DataLoaderNerf(config_path)
         loader_train.set_mode_train()
