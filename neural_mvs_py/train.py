@@ -50,7 +50,7 @@ def run():
 
 
     first_time=True
-    experiment_name="s35_from14_butnosmd_lastunetwnconvactiv_outlayernorm"
+    experiment_name="s36"
 
 
     predict_confidence_map=True

@@ -1,43 +1,113 @@
-# IDEA 
+# NeuralMVS 
 
-tensorboard --logdir=tensorboard_logs --port=6006
 
-Photoneo doesnt work so we will probably just have a bunch of 2D images. 
-So we will probably use some neural MVE like in Yairv: Multiview Neural Surface Reconstruction with Implicit Lighting and Material
-Questions: 
-    How to represent 3D: 
-        planes 
-            +has no problem with modelling leafs even if they are infinitelly thin 
-            -how to make a neural network regress plane parameters
-        voxels 
-            -will need way to high of a resolution to represent leafs
-        Implicit SDF 
-            Querying xyz in space gives signed distance
-            +allows for doing some arithmetic with the Z code that generated the SDF so that it can be interpolated and so on. This will help in the case of time things
-            -probably difficult to model things that are very thin like leafs 
-                Ideas for this limitation:  
-                    Maybe make the network return two distances one for the front surface and one for the back surfaces together with their normals. 
-                    When rendering we choose the surface that has the normal aligned with the view direction. 
-Answer: 
-    Probably I'll represent it as a implicit SDF conditioned on a Z vector from all the images
 
-full idea: 
-    encode each image into a Z vector that is Nx3, which we can rotate and translate into another view and then agregate there another Z which is Nx3. 
-        This idea is inspired by  Unsupervised Geometry-Aware Representation for 3D Human Pose Estimation
-        It's better than just aggregating by averaging all the Z as it also takes into acount the positions of the camera relative to each other
-    In the end we will have a Z which is Nx3 and expressed in one of the cam frames. We can then transform it into the world frame where we will do all computations  
-    Now this Z is kind alike the global information 
-    At render time we use ray tracing:
-        Option 1: 
-            Render network receives sample point p in 3D space(possibly with positional encoding), the Z as a Nx3 flattened vector, and the viewing direction v 
-            The render network then regresses the SDF value
-        Option 2: 
-            From this Z we regress the hyperparameters of a Siren and then we use the siren for SDF regression
-            Then at render time we pass to the siren network the sample point p and the view direction v to regress the SDF
-    At texture time: 
-        Option 1:
-            Whatever surface intersection we got we pass it through another siren that regresses the RGB texture at that point. We project this to another view and compare pixelwise there.
-        Option 2: 
-            We map from the surface point to a uv position and sample our color from there
-    Add also a loss on the Z vector by using it to regress another image from another pose. This will ensure that it learns a Z meaningful in 3D
-    For making the forwards and backward pass fast, use this: DIST: Rendering Deep Implicit Signed Distance Function with Differentiable Sphere Tracing
+
+<!-- ### [Project Page](https://www.ais.uni-bonn.de/videos/RSS_2020_Rosu/) | [Video](https://www.youtube.com/watch?v=503Z5Vw9a90) | [Paper](https://www.ais.uni-bonn.de/videos/RSS_2020_Rosu/RSS_2020_Rosu.pdf) -->
+
+[NeuralMVS: Bridging Multi-View Stereo and Novel View Synthesis](https://arxiv.org/abs/2108.03880)  
+ [Radu Alexandru Rosu](https://www.ais.uni-bonn.de/%7Erosu/) <sup>1</sup>,
+ [Sven Behnke](https://www.ais.uni-bonn.de/behnke/) <sup>1</sup>
+ <br>
+ <sup>1</sup>University of Bonn, Autonomous Intelligent Systems
+   
+
+<p align="middle">
+  <img src="imgs/teaser.png" width="850" />
+</p>
+
+This is the official PyTorch implementation of [NeuralMVS: Bridging Multi-View Stereo and Novel View Synthesis](https://arxiv.org/abs/2108.03880) 
+
+NeuralMVS can process RGB images of a scene in order to perform novel view rendering and additionally learns the 3D structure of the scene in an unsupervized way. It can render novel high resolution images in real-time together with the depth of the scene and a confidence map. The implementation is written in PyTorch.
+
+# Getting started 
+
+
+### Dependencies 
+
+For NeuralMVS we use [DataLoaders] for loading the data and interface it using [EasyPBR]. The dependencies of these two packages and also NeuralMVS can be installed with:
+
+```sh
+$ sudo apt-get install python3-dev python3-pip python3-setuptools 
+$ sudo apt-get install libglfw3-dev libboost-dev libeigen3-dev libopencv-dev
+```
+
+
+
+### Install
+
+The easiest way is to sequentially install each required package using the following:
+
+```sh
+$ git clone --recursive https://github.com/RaduAlexandru/easy_pbr
+$ cd easy_pbr && make && cd ..
+$ git clone --recursive https://github.com/RaduAlexandru/data_loaders  
+$ cd data_loaders && make && cd ..
+$ git clone --recursive https://github.com/RaduAlexandru/neural_mvs
+$ cd neural_mvs && make && cd ..
+```
+
+### Data 
+
+NeuralMVS uses RGB images together with camera pose for training. The data is loaded with the [DataLoaders] package and interfaced using [EasyPBR]. Here we show how to train on the [DTU], [LLFF] and [NeRF] syntehtic dataset.<br/>
+Download either the [DTU], [LLFF] or the [NeRF] datasets by clicking on their respective links.
+
+Next modify the `neural_mvs/config/train.cfg` and for each respective loader modify the `dataset_path` to folder in which your dataset is located.
+
+
+
+# Usage
+
+### Train 
+
+NeuralMVS uses config files to configure the dataset used, the training parameters, model architecture and various visualization options.<br/>
+The config file used to train can be found under "neural_mvs/config/train.cfg".<br/>
+Running the training script will by default read this config file and start the training.
+
+
+```sh
+$ ./neural_mvs_py/train.py
+```
+
+### Configuration options 
+
+Various configuration options can be interesting to check out and modify. We take neural_mvs/config/train.cfg as an example. 
+
+```
+core: hdpi: false          #can be turned on an off to accomodate high DPI displays. If the text and fonts in the visualizer are too big, set this option to false
+train: with_viewer: false  #setting to true will start a visualizer which displays the currently predicted 3D point cloud and image. May not be usable when running on a headless server
+``` 
+
+## Citation
+
+```
+@inproceedings{rosu2021neuralmvs,
+  title={NeuralMVS: Bridging Multi-View Stereo and Novel View Synthesis},
+  author={Rosu, Radu Alexandru and Behnke, Sven},
+  booktitle="International Joint Conference on Neural Networks (IJCNN)",
+  year={2021}
+}
+
+```
+
+
+
+
+
+   [EasyPBR]: <https://github.com/RaduAlexandru/easy_pbr>
+   [DataLoaders]: <https://github.com/RaduAlexandru/data_loaders>
+   [DTU]: <https://drive.google.com/drive/folders/1PsT3uKwqHHD2bEEHkIXB99AlIjtmrEiR>
+   [LLFF]: <https://drive.google.com/uc?id=16VnMcF1KJYxN9QId6TClMsZRahHNMW5g>
+   [NeRF]: <https://drive.google.com/uc?id=18JxhpWD-4ZmuFKLzKlAw-w5PpzZxXOcG>
+
+
+
+
+
+
+
+
+
+
+# License
+NeuralMVS is provided under the terms of the MIT license (see LICENSE). We bundle various other libraries (see ./deps) which may have different licenses.
