@@ -1,30 +1,11 @@
 import torch
 from neural_mvs.modules import *
-# from latticenet_py.lattice.lattice_modules import *
-# import torchvision.models as models
-# from easypbr import mat2tensor
 
 import torch
 import torch.nn as nn
-# import torchvision
 
-# from collections import OrderedDict
-
-# from torchmeta.modules.conv import *
-# from torchmeta.modules.module import *
-# from torchmeta.modules.utils import *
-# from torchmeta.modules import (MetaModule, MetaSequential)
-# from torchmeta.modules.utils import get_subdict
-# from meta_modules import *
-
-# from functools import reduce
-# from torch.nn.modules.module import _addindent
-
-# from neural_mvs.nerf_utils import *
 from neural_mvs.utils import *
 
-#resize funcs 
-# import resize_right.resize_right as resize_right
 
 
 class UNet(torch.nn.Module):
@@ -32,7 +13,6 @@ class UNet(torch.nn.Module):
         super(UNet, self).__init__()
 
 
-        # self.learned_pe=LearnedPE(in_channels=11, num_encoding_functions=11, logsampling=True)
 
         #params
         self.start_nr_channels=nr_channels_start
@@ -52,14 +32,11 @@ class UNet(torch.nn.Module):
         self.nr_layers_ending_stage=[]
         for i in range(self.nr_stages):
             # print("cur nr_channels ", cur_nr_channels)
-            print("down adding resnet with ", cur_nr_channels)
+            print("down adding blocks with ", cur_nr_channels)
             self.down_stages_list.append( nn.Sequential(
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
+             
                 TwoBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
-
-                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
+                
             ))
             self.nr_layers_ending_stage.append(cur_nr_channels)
             after_coarsening_nr_channels=int(cur_nr_channels*2*self.compression_factor)
@@ -72,12 +49,7 @@ class UNet(torch.nn.Module):
 
         print("adding bottleneck ", cur_nr_channels)
         self.bottleneck=nn.Sequential(
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, False], with_dropout=False, do_norm=True ),
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
                 TwoBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
-
-                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
             )
 
         self.up_stages_list = torch.nn.ModuleList([])
@@ -87,8 +59,6 @@ class UNet(torch.nn.Module):
             print("up adding finefy with ", after_finefy_nr_channels)
             self.squeeze_list.append(  
                 torch.nn.Sequential(
-                    # torch.nn.PixelShuffle(2), #upscales it but reduced the nr of channels by 4
-                    # block_type(in_channels=cur_nr_channels//4, out_channels=after_finefy_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )  
                     block_type(in_channels=cur_nr_channels, out_channels=after_finefy_nr_channels, kernel_size=4, stride=2, padding=1, dilation=1, bias=True, with_dropout=False, transposed=True, do_norm=True, activ=torch.nn.Mish(), is_first_layer=False )  
                 )
                 
@@ -98,29 +68,12 @@ class UNet(torch.nn.Module):
             cur_nr_channels+= self.nr_layers_ending_stage.pop()
             print("up adding resnet with ", cur_nr_channels)
             self.up_stages_list.append( nn.Sequential(
-                ##last conv should have a bias because it's not followed by a GN
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[False, True], with_dropout=False, do_norm=True ),
-                # ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
                 TwoBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=True, block_type=block_type  ),
-
-                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False ),
-                # GNReluConv(in_channels=cur_nr_channels, out_channels=cur_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=False, with_dropout=False, transposed=False, do_norm=True, activ=torch.nn.ReLU(), is_first_layer=False )
             ))
             print("up stage which outputs nr of layers ", cur_nr_channels)
 
 
 
-        # #cnn for encoding
-        # self.resnet_list=torch.nn.ModuleList([])
-        # nr_layers=6
-        # for i in range(nr_layers): 
-        #     # print("creating curnnrchannels, ", cur_nr_channels)
-        #     is_last_layer=i==nr_layers-1
-        #     # self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[is_last_layer, is_last_layer], with_dropout=False, do_norm=True ) )
-        #     self.resnet_list.append( ResnetBlock2D(cur_nr_channels, kernel_size=3, stride=1, padding=1, dilations=[1,1], biases=[True, True], with_dropout=False, do_norm=False ) )
-
-        # print("last conv is ", cur_nr_channels)
-        # self.last_conv2=PacConv2d(cur_nr_channels, cur_nr_channels, kernel_size=3, stride=1, padding=1, bias=True).cuda()  
         self.last_conv = Conv2dWN(cur_nr_channels, nr_channels_output, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True).cuda() 
 
         self.relu=torch.nn.ReLU(inplace=False)
@@ -134,66 +87,38 @@ class UNet(torch.nn.Module):
     # @profile_every(1)
     def forward(self, x):
         if self.first_conv==None:
-            # self.first_conv = torch.nn.Conv2d( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True).cuda() 
             self.first_conv = self.block_type( x.shape[1], self.start_nr_channels, kernel_size=3, stride=1, padding=1, dilation=1, bias=True, with_dropout=False, transposed=False, do_norm=True, activ=None, is_first_layer=False ).cuda() 
 
         
-        #attempot 1
-        # #run through the net 
-        # x=self.first_conv(x)
-
-        # for layer in self.resnet_list:
-        #     x=layer(x,x)
-
-        # x=self.concat_coord(x)
 
 
-        #attempt 2 to make an actual unet
-        initial_x=x
         x=self.first_conv(x)
 
         features_ending_stage=[]
         #down
         for i in range(self.nr_stages):
-            # print("x stage ",i , "has shape ", x.shape)
             x=self.down_stages_list[i](x)
             features_ending_stage.append(x)
-            # print("x before coarsening ", i , " has shape ", x.shape)
             x=self.coarsen_list[i](x)
 
         #bottleneck 
         x=self.bottleneck(x)
-        # print("after bottlenck ", x.shape)
 
         #up
         multi_res_features=[]
         for i in range(self.nr_stages):
-            # print("before finefy ", i, " x is", x.shape)
-            # x=self.finefy_list[i](x)
-            # print("after finefy ", i, " x is", x.shape)
+            
             vertical_feats= features_ending_stage.pop()
             x=self.squeeze_list[i](x) #upsample resolution and reduced the channels
-            # print("after upscale x is ", x.shape, " and it should be ", vertical_feats.shape)
             if x.shape[2]!=vertical_feats.shape[2] or x.shape[3]!=vertical_feats.shape[3]:
-                # print("x has shape", x.shape, "vertical feat have shape ", vertical_feats.shape)
                 x = torch.nn.functional.interpolate(x,size=(vertical_feats.shape[2], vertical_feats.shape[3]), mode='bilinear') #to make sure that the sized between the x and vertical feats match because the transposed conv may not neceserraly create the same size of the image as the one given as input
-            # print("x is", x.shape , " verticalFeats ", vertical_feats.shape)
             x=torch.cat([x,vertical_feats],1)
-            # print("x shape before seuqqeing is ", i, "  ", x.shape)
-            # print("x shape after seuqqeing is ", i, "  ", x.shape)
 
-            # print("vefore concating ", i, " x is ", x.shape, " vertical featus is ", vertical_feats.shape)
             x=self.up_stages_list[i](x)
             multi_res_features.append(x)
 
-        # print("x before the final conv has mean ", x.mean(), " and std ", x.std())
-        # x=torch.cat([x,initial_x],1) #bad idea to concat the rgb here. It introduces way too much high frequency in the output which makes the ray marker get stuck in not knowing wheere to predict the depth so that the slicing slcies the correct features. IF we dont concat, then the unet features are kinda smooth and they act like a wise basin of converges that tell the lstm, to predict a depth close a certain position so that the features it slices will be better
-        # x=self.last_conv1(x,x)
-        # x=self.last_conv2(x,x)
         x=self.last_conv(x)
 
-        # x[:,0:6,:,:]=initial_x
-        # multi_res_features.reverse()
         
         return x, multi_res_features
 
@@ -204,8 +129,7 @@ class DifferentiableRayMarcher(torch.nn.Module):
         super(DifferentiableRayMarcher, self).__init__()
 
         num_encodings=8
-        self.learned_pe=LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True)
-        # self.learned_pe=TorchScriptTraceWrapper( LearnedPE(in_channels=3, num_encoding_functions=num_encodings, logsampling=True) )
+        self.pe=PositionalEncoding(in_channels=3, num_encoding_functions=num_encodings)
 
         #model 
         self.lstm_hidden_size = 16
@@ -808,7 +732,7 @@ class Net(torch.nn.Module):
         # self.ray_marcher=DifferentiableRayMarcher()
         self.ray_marcher=DifferentiableRayMarcherHierarchical()
         # self.ray_marcher=DifferentiableRayMarcherHierarchicalNoLSTM()
-        self.feature_aggregator= FeatureAgregator()
+        # self.feature_aggregator= FeatureAgregator()
         # self.feature_aggregator= FeatureAgregatorLinear()
         # self.feature_aggregator= FeatureAgregatorIBRNet()
 
@@ -822,9 +746,9 @@ class Net(torch.nn.Module):
 
 
         
-        self.slice_texture= SliceTextureModule()
-        self.splat_texture= SplatTextureModule()
-        self.concat_coord=ConcatCoord() 
+        # self.slice_texture= SliceTextureModule()
+        # self.splat_texture= SplatTextureModule()
+        # self.concat_coord=ConcatCoord() 
 
 
 
@@ -1044,7 +968,7 @@ class Net(torch.nn.Module):
         return rgb_pred, depth, point3d, rgb_loss_multires, depth_for_each_res, confidence_map, depth_for_each_step
 
 
-class PCA(Function):
+class PCA(torch.autograd.Function):
     # @staticmethod
     def forward(ctx, sv): #sv corresponds to the slices values, it has dimensions nr_positions x val_full_dim
 

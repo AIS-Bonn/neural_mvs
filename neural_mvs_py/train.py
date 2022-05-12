@@ -40,7 +40,6 @@ torch.backends.cudnn.benchmark = True
 
 # #initialize the parameters used for training
 train_params=TrainParams.create(config_file)    
-# model_params=ModelParams.create(config_file)    
 
 
 
@@ -273,6 +272,8 @@ def run():
                             loss.backward()
                             TIME_END("backward")
                             cb.after_backward_pass()
+
+                            # summary(model)
                           
                          
 

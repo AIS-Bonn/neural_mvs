@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch as th
+import numpy as np
 from easypbr  import *
 import sys
 import math
@@ -12,22 +13,37 @@ from torch.nn.utils.weight_norm import WeightNorm, remove_weight_norm
 from torch.nn.modules.utils import _pair
 import inspect
 
+#for summary
+from functools import reduce
+from torch.nn.modules.module import _addindent
 
-from neural_mvs_py.neural_mvs.funcs import *
-
-
-# from torchmeta.modules.conv import MetaConv2d
-# from torchmeta.modules.linear import MetaLinear
-# from torchmeta.modules.module import *
-# from torchmeta.modules.utils import *
-# from torchmeta.modules import (MetaModule, MetaSequential)
-
-# from neural_mvs_py.neural_mvs.pac import *
-# from neural_mvs_py.neural_mvs.deform_conv import *
-#from latticenet_py.lattice.lattice_modules import *
 
 
 from dataloaders import *
+from neuralmvs import SFM
+
+
+#Just to have something close to the macros we have in c++
+def profiler_start(name):
+    if(Profiler.is_profiling_gpu()):
+        torch.cuda.synchronize()
+    torch.cuda.synchronize()
+    Profiler.start(name)
+def profiler_end(name):
+    if(Profiler.is_profiling_gpu()):
+        torch.cuda.synchronize()
+    torch.cuda.synchronize()
+    Profiler.end(name)
+TIME_START = lambda name: profiler_start(name)
+TIME_END = lambda name: profiler_end(name)
+
+
+
+
+
+
+
+
 
 
 DatasetParams = namedtuple('DatasetParams', 'sphere_radius sphere_center estimated_scene_dist_from_origin raymarch_depth_min raymarch_depth_jitter triangulation_type frustum_size use_ndc')
@@ -79,6 +95,23 @@ def lin2nchw(x, h, w):
     x=x.view(1, h, w, nr_feat)
     x=nhwc2nchw(x)
     return x
+
+def show_3D_points(points_3d_tensor, color=None):
+    mesh=Mesh()
+    mesh.V=points_3d_tensor.detach().double().reshape((-1, 3)).cpu().numpy()
+
+    if color is not None:
+        color_channels_last=color.permute(0,2,3,1).detach() # from n,c,h,w to N,H,W,C
+        color_channels_last=color_channels_last.view(-1,3).contiguous()
+        # color_channels_last=color_channels_last.permute() #from bgr to rgb
+        color_channels_last=torch.index_select(color_channels_last, 1, torch.LongTensor([2,1,0]).cuda() ) #switch the columns so that we grom from bgr to rgb
+        mesh.C=color_channels_last.detach().double().reshape((-1, 3)).cpu().numpy()
+        mesh.m_vis.set_color_pervertcolor()
+
+    mesh.m_vis.m_show_points=True
+    # Scene.show(mesh, name)
+
+    return mesh
 
 
 
@@ -156,39 +189,6 @@ def compute_dataset_params(loader, frames):
                         use_ndc=use_ndc )
 
     return params
-
-
-# def prepare_data(frame_full_res, frames_close_full_res, frame, frames_close):
-#     rgb_gt=mat2tensor(frame.frame.rgb_32f, False).to("cuda")
-#     rgb_gt_fullres=mat2tensor(frame_full_res.frame.rgb_32f, False).to("cuda")
-#     # mask_tensor=mat2tensor(frame.frame.mask, False).to("cuda")
-#     ray_dirs=torch.from_numpy(frame.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
-#     rgb_close_batch_list=[]
-#     for frame_close in frames_close:
-#         rgb_close_frame=mat2tensor(frame_close.frame.rgb_32f, False).to("cuda")
-#         rgb_close_batch_list.append(rgb_close_frame)
-#     rgb_close_batch=torch.cat(rgb_close_batch_list,0)
-#     #make also a batch fo directions
-#     raydirs_close_batch_list=[]
-#     for frame_close in frames_close:
-#         ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame.height, frame.width, 3).permute(0,3,1,2)
-#         # ray_dirs_close=ray_dirs_close.view(1, frame.height, frame.width, 3)
-#         # ray_dirs_close=ray_dirs_close.permute(0,3,1,2) #from N,H,W,C to N,C,H,W
-#         raydirs_close_batch_list.append(ray_dirs_close)
-#     ray_dirs_close_batch=torch.cat(raydirs_close_batch_list,0)
-
-#     #ray diff in the same way that ibr gets it 
-#     ray_dirs_fullres=torch.from_numpy(frame_full_res.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
-#     raydirs_close_fullres_batch_list=[]
-#     for frame_close in frames_close_full_res:
-#         # print("frame_close, hw", frame_close.height, " ", frame_close.width)
-#         # print("frame_full_res, hw", frame_full_res.height, " ", frame_full_res.width)
-#         ray_dirs_close=torch.from_numpy(frame_close.ray_dirs).to("cuda").float().view(1, frame_full_res.height, frame_full_res.width, 3).permute(0,3,1,2)
-#         raydirs_close_fullres_batch_list.append(ray_dirs_close)
-#     ray_dirs_fullres_close_batch=torch.cat(raydirs_close_fullres_batch_list,0)
-#     ray_diff = compute_angle(frame_full_res.height, frame_full_res.width, ray_dirs_fullres, ray_dirs_fullres_close_batch)
-
-#     return rgb_gt_fullres, rgb_gt, ray_dirs, rgb_close_batch, ray_dirs_close_batch, ray_diff
 
 
 def prepare_data(frame, frames_close):
@@ -507,21 +507,6 @@ class FramePY():
             print("frame dimensions and rgb32 doesnt match. frame.height", self.frame.height, " frame.rgb_32f.rows", self.frame.rgb_32f.rows, " frame.width ", self.frame.width, " frame.rgb_32f.cols ", self.frame.rgb_32f.cols)
         
         
-
-
-#some default arguments are in here https://github.com/sanghyun-son/EDSR-PyTorch/blob/master/src/demo.sh
-
-class EDSR_args():
-    n_resblocks=4
-    n_feats=128
-    scale=2
-    res_scale=0.1
-    rgb_range=255
-    n_in_channels=3
-    n_out_channels=3
-
-def gelu(x):
-    return 0.5 * x * (1 + torch.tanh(math.sqrt(math.pi / 2) * (x + 0.044715 * x ** 3)))
 
 
 def map_range( input_val, input_start, input_end,  output_start,  output_end):
@@ -1108,13 +1093,9 @@ def is_weight_norm_wrapped(module):
 # the current weight norm behavior.
 LinearWN = weight_norm_wrapper(th.nn.Linear, g_dim=0, v_dim=None)
 Conv1dWN = weight_norm_wrapper(th.nn.Conv1d, g_dim=0, v_dim=None)
-# Conv1dWNUB = weight_norm_wrapper(Conv1dUB, g_dim=0, v_dim=None)
 Conv2dWN = weight_norm_wrapper(th.nn.Conv2d, g_dim=0, v_dim=None)
-# Conv2dWNUB = weight_norm_wrapper(Conv2dUB, g_dim=0, v_dim=None)
 ConvTranspose1dWN = weight_norm_wrapper(th.nn.ConvTranspose1d, g_dim=1, v_dim=None)
-# ConvTranspose1dWNUB = weight_norm_wrapper(ConvTranspose1dUB, g_dim=1, v_dim=None)
 ConvTranspose2dWN = weight_norm_wrapper(th.nn.ConvTranspose2d, g_dim=1, v_dim=None)
-# ConvTranspose2dWNUB = weight_norm_wrapper(ConvTranspose2dUB, g_dim=1, v_dim=None)
 
 
 
@@ -1235,3 +1216,86 @@ def apply_weight_init_fn(m, fn, negative_slope=1.0):
 
 
 
+#inits from SRN paper  https://github.com/vsitzmann/scene-representation-networks/blob/8165b500816bb1699f5a34782455f2c4b6d4f35a/custom_layers.py
+def init_recurrent_weights(self):
+    for m in self.modules():
+        if type(m) in [torch.nn.GRU, torch.nn.LSTM, torch.nn.RNN]:
+            for name, param in m.named_parameters():
+                if 'weight_ih' in name:
+                    torch.nn.init.kaiming_normal_(param.data)
+                elif 'weight_hh' in name:
+                    torch.nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    param.data.fill_(0)
+
+def lstm_forget_gate_init(lstm_layer):
+    for name, parameter in lstm_layer.named_parameters():
+        if not "bias" in name: continue
+        n = parameter.size(0)
+        start, end = n // 4, n // 2
+        parameter.data[start:end].fill_(1.)
+
+
+
+def summary(model,file=sys.stderr):
+    def repr(model):
+        # We treat the extra repr like the sub-module, one item per line
+        extra_lines = []
+        if model is None:
+            return 
+        extra_repr = model.extra_repr()
+        # empty string will be split into list ['']
+        if extra_repr:
+            extra_lines = extra_repr.split('\n')
+        child_lines = []
+        total_params = 0
+        for key, module in model._modules.items():
+            if module is None:
+                continue
+            mod_str, num_params = repr(module)
+            mod_str = _addindent(mod_str, 2)
+            child_lines.append('(' + key + '): ' + mod_str)
+            total_params += num_params
+        lines = extra_lines + child_lines
+
+        for name, p in model._parameters.items():
+            # print("name is ", name)
+            if p is not None:
+                # print("parameter with shape ", p.shape)
+                # print("parameter has dim ", p.dim())
+                if p.dim()==0: #is just a scalar parameter
+                    total_params+=1
+                else:
+                    total_params += reduce(lambda x, y: x * y, p.shape)
+                # if(p.grad==None):
+                #     print("p has no grad", name)
+                # else:
+                #     print("p has gradnorm ", name ,p.grad.norm() )
+
+        main_str = model._get_name() + '('
+        if lines:
+            # simple one-liner info, which most builtin Modules will use
+            if len(extra_lines) == 1 and not child_lines:
+                main_str += extra_lines[0]
+            else:
+                main_str += '\n  ' + '\n  '.join(lines) + '\n'
+
+        main_str += ')'
+        if file is sys.stderr:
+            main_str += ', \033[92m{:,}\033[0m params'.format(total_params)
+            for name, p in model._parameters.items():
+                if hasattr(p, 'grad'):
+                    if(p.grad==None):
+                        # print("p has no grad", name)
+                        main_str+="p no grad"
+                    else:
+                        # print("p has gradnorm ", name ,p.grad.norm() )
+                        main_str+= "\n" + name + " p has grad norm " + str(p.grad.norm())
+        else:
+            main_str += ', {:,} params'.format(total_params)
+        return main_str, total_params
+
+    string, count = repr(model)
+    if file is not None:
+        print(string, file=file)
+    return count
