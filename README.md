@@ -30,6 +30,7 @@ For NeuralMVS we use [DataLoaders] for loading the data and interface it using [
 ```sh
 $ sudo apt-get install python3-dev python3-pip python3-setuptools 
 $ sudo apt-get install libglfw3-dev libboost-dev libeigen3-dev libopencv-dev
+$ sudo python3 -m pip install piq tensorboard
 ```
 
 
