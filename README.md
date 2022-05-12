@@ -49,10 +49,10 @@ $ cd neural_mvs && make && cd ..
 
 ### Data 
 
-NeuralMVS uses RGB images together with camera pose for training. The data is loaded with the [DataLoaders] package and interfaced using [EasyPBR]. Here we show how to train on the [DTU], [LLFF] and [NeRF] syntehtic dataset.<br/>
-Download either the [DTU], [LLFF] or the [NeRF] datasets by clicking on their respective links.
+NeuralMVS uses RGB images together with camera pose for training. The data is loaded with the [DataLoaders] package and interfaced using [EasyPBR]. Here we show how to train on the [DTU], [LLFF] and [NeRF] synthetic dataset.<br/>
+Download either dataset by clicking on their respective links.
 
-Next modify the `neural_mvs/config/train.cfg` and for each respective loader modify the `dataset_path` to folder in which your dataset is located.
+Next modify the `neural_mvs/config/train.cfg` and for each respective loader modify the `dataset_path` to the folder in which your dataset is located.
 
 
 
@@ -66,8 +66,20 @@ Running the training script will by default read this config file and start the 
 
 
 ```sh
+$ cd neural_mvs
 $ ./neural_mvs_py/train.py
 ```
+
+By default the data is visualized using tensorboard. Therefore we recommend to run the following lines before starting the training script.
+
+```sh
+$ cd neural_mvs
+$ mkdir tensorboard_logs
+$ tensorboard --logdir=tensorboard_logs --port=6006
+```
+
+The training can be visualized in the browser under `http://localhost:6006/`
+
 
 ### Configuration options 
 
@@ -110,4 +122,4 @@ train: with_viewer: false  #setting to true will start a visualizer which displa
 
 
 # License
-NeuralMVS is provided under the terms of the MIT license (see LICENSE). We bundle various other libraries (see ./deps) which may have different licenses.
+NeuralMVS is provided under the terms of the MIT license (see LICENSE) 
