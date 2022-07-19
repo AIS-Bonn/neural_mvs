@@ -99,7 +99,7 @@ train: with_viewer: false  #setting to true will start a visualizer which displa
   title={NeuralMVS: Bridging Multi-View Stereo and Novel View Synthesis},
   author={Rosu, Radu Alexandru and Behnke, Sven},
   booktitle="International Joint Conference on Neural Networks (IJCNN)",
-  year={2021}
+  year={2022}
 }
 
 ```
